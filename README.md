@@ -5,7 +5,7 @@
 <h1 align="center">MangaNana</h1>
 
 <p align="center">
-  A calibre plugin for finding, preparing, and adding MangaDex manga with eReader-friendly CBZ output, metadata, covers, and paired-page support.
+ A calibre plugin to search MangaDex, download manga volumes, and create eReader-ready CBZ files with metadata, covers, and landscape paired-page support.
 </p>
 
 <p align="center">
@@ -25,6 +25,8 @@
 MangaNana is a calibre plugin designed to make finding, preparing, and adding manga from MangaDex easier.
 
 It combines MangaDex search, volume selection, metadata, covers, language handling, CBZ creation, and page-layout preparation into one workflow.
+
+Search → Select volumes → Choose your reading format → Download & Add
 
 ![MangaNana main interface](images/main-ui.png)
 
