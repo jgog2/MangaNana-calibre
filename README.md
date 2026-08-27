@@ -26,7 +26,9 @@ MangaNana is a calibre plugin designed to make finding, preparing, and adding ma
 
 It combines MangaDex search, volume selection, metadata, covers, language handling, CBZ creation, and page-layout preparation into one workflow.
 
+<p align="center">
 Search → Select volumes → Choose your reading format → Download & Add
+</p>
 
 ![MangaNana main interface](images/main-ui.png)
 
