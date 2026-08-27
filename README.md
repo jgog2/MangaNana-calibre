@@ -14,6 +14,12 @@
   <img src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
+<p align="center">
+  <a href="https://github.com/jgog2/MangaNana-calibre/releases">
+    <img src="https://img.shields.io/badge/Download-Latest%20Beta-FF6740?style=for-the-badge&logo=github&logoColor=white">
+  </a>
+</p>
+
 ## Overview
 
 MangaNana is a calibre plugin designed to make finding, preparing, and adding manga from MangaDex easier.
