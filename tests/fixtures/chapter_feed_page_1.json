@@ -1,0 +1,11 @@
+{
+  "data": [
+    {"id": "chapter-1", "attributes": {"volume": "1", "chapter": "1", "title": "One", "pages": 20}},
+    {"id": "duplicate-1", "attributes": {"volume": "1", "chapter": "1", "title": "Other group", "pages": 21}},
+    {"id": "chapter-2", "attributes": {"volume": "1", "chapter": "2", "title": "Two", "pages": 22}},
+    {"id": "external-3", "attributes": {"volume": "1", "chapter": "3", "externalUrl": "https://example.test/3", "pages": 23}},
+    {"id": "chapter-10", "attributes": {"volume": "10", "chapter": "10", "title": "Ten", "pages": 24}},
+    {"id": "chapter-12-5", "attributes": {"volume": "2.5", "chapter": "12.5", "title": "Decimal", "pages": 25}}
+  ],
+  "testRepeatLastRowToPageSize": 500
+}
