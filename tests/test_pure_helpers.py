@@ -2,7 +2,6 @@
 
 import ast
 from pathlib import Path
-import re
 import unittest
 import urllib.parse
 
@@ -15,6 +14,7 @@ from core_helpers import (
     is_doujinshi_entry,
     volume_from_name,
 )
+from mangadex_source import MangaDexSource
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
@@ -41,7 +41,7 @@ class VolumeHelpersTests(unittest.TestCase):
             "manga_uuid",
             "fetch_download_plan",
             globals_={
-                "UUID_RE": re.compile(r"/title/([0-9a-fA-F-]{36})"),
+                "MANGADEX_SOURCE": MangaDexSource(lambda _url, **_kwargs: None),
             },
         )
 
@@ -90,7 +90,7 @@ class StandaloneChapterOrderingTests(unittest.TestCase):
             "manga_uuid",
             "fetch_chapter_entries",
             globals_={
-                "UUID_RE": re.compile(r"/title/([0-9a-fA-F-]{36})"),
+                "MANGADEX_SOURCE": MangaDexSource(fake_api_json),
                 "urllib": urllib,
                 "api_json": fake_api_json,
             },

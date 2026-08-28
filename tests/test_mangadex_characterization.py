@@ -4,7 +4,6 @@ import ast
 import copy
 import json
 from pathlib import Path
-import re
 import unittest
 import urllib.parse
 
@@ -13,6 +12,8 @@ from core_helpers import (
     choose_preferred_title,
     collect_titles,
 )
+from mangadex_source import MangaDexSource
+from source_adapter import SourceAdapter
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
@@ -91,15 +92,58 @@ def load_mangadex_functions(api):
         if isinstance(node, ast.FunctionDef) and node.name in names
     ]
     namespace = {
-        "UUID_RE": re.compile(r"/title/([0-9a-fA-F-]{36})"),
         "urllib": urllib,
         "api_json": api,
+        "MANGADEX_SOURCE": MangaDexSource(api),
         "collect_titles": collect_titles,
         "choose_preferred_title": choose_preferred_title,
         "_iter_aggregate_nodes": _iter_aggregate_nodes,
     }
     exec(compile(ast.Module(body=selected, type_ignores=[]), str(MAIN_SOURCE), "exec"), namespace)
     return namespace
+
+
+class MangaDexSourceBoundaryTests(unittest.TestCase):
+    def test_valid_mangadex_url_parsing(self):
+        source = MangaDexSource(lambda _url, **_kwargs: None)
+        self.assertIsInstance(source, SourceAdapter)
+        self.assertEqual(source.parse_manga_ref(MANGA_URL), MANGA_ID)
+        self.assertEqual(source.parse_manga_ref(MANGA_URL + "/example-title"), MANGA_ID)
+
+    def test_invalid_mangadex_url_parsing(self):
+        source = MangaDexSource(lambda _url, **_kwargs: None)
+        self.assertIsNone(source.parse_manga_ref("https://example.test/title/not-a-uuid"))
+        self.assertIsNone(source.parse_manga_ref(""))
+        self.assertIsNone(source.parse_manga_ref(None))
+
+    def test_metadata_loading_through_adapter(self):
+        api = FixtureAPI(metadata=load_fixture("metadata_full.json"))
+        metadata = MangaDexSource(api).get_manga(MANGA_URL, preferred="ja")
+        self.assertEqual(metadata["uuid"], MANGA_ID)
+        self.assertEqual(metadata["title"], "原題")
+        self.assertEqual(metadata["author"], "Author Name")
+        self.assertEqual(metadata["available_languages"], ["en", "fr", "es-la"])
+
+    def test_adapter_preserves_invalid_reference_error(self):
+        source = MangaDexSource(lambda _url, **_kwargs: None)
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Paste a MangaDex title-page URL, for example https://mangadex.org/title/\.\.\.",
+        ):
+            source.get_manga("invalid", preferred="en")
+
+    def test_compatibility_wrappers_match_adapter(self):
+        fixture = load_fixture("metadata_full.json")
+        wrapper_api = FixtureAPI(metadata=fixture)
+        adapter_api = FixtureAPI(metadata=fixture)
+        functions = load_mangadex_functions(wrapper_api)
+        adapter = MangaDexSource(adapter_api)
+
+        self.assertEqual(functions["manga_uuid"](MANGA_URL), adapter.parse_manga_ref(MANGA_URL))
+        self.assertEqual(
+            functions["load_manga_metadata"](MANGA_URL, preferred="fr"),
+            adapter.get_manga(MANGA_URL, preferred="fr"),
+        )
 
 
 class MetadataCharacterizationTests(unittest.TestCase):

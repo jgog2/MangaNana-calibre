@@ -11,7 +11,7 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image, ImageFilter, ImageStat, ImageOps, ImageDraw
+from PIL import Image, ImageStat, ImageOps, ImageDraw
 
 from calibre.constants import config_dir
 from calibre.ebooks.metadata.book.base import Metadata
@@ -34,11 +34,15 @@ from calibre_plugins.manganana.core_helpers import (
     volume_from_name,
 )
 from calibre_plugins.manganana.i18n import tr, UI_LANGUAGES
+from calibre_plugins.manganana.mangadex_source import MangaDexSource
+try:
+    from calibre_plugins.manganana.build_info import DISPLAY_VERSION
+except ImportError:
+    DISPLAY_VERSION = 'MangaNana 0.9.8-dev (source)'
 
 ORANGE = '#FF6740'
 VL_NAME = 'MangaNana'
 VL_TAG = 'MangaNana'
-UUID_RE = re.compile(r'/title/([0-9a-fA-F-]{36})')
 PAGE_RE = re.compile(r'(?i)Downloading\s+(.+?)\s+page\s+([0-9]+)\s*$')
 LOG_VOL_RE = re.compile(r'(?i)\bVolume\.\s*([0-9]+(?:\.[0-9]+)?)')
 LOG_CHAPTER_RE = re.compile(r'(?i)\bChapter\.\s*([^\s]+)')
@@ -195,11 +199,6 @@ def language_label(code):
     return LANGUAGE_LABELS.get(code, code or 'Unknown')
 
 
-def manga_uuid(url):
-    m = UUID_RE.search(url or '')
-    return m.group(1) if m else None
-
-
 def api_json(url, timeout=30, retries=3, retry_callback=None):
     """Fetch MangaDex JSON with small transient-error retries."""
     transient = {429, 500, 502, 503, 504}
@@ -233,33 +232,15 @@ def api_json(url, timeout=30, retries=3, retry_callback=None):
     raise RuntimeError(f'MangaDex request failed after {retries} attempt(s): {last}')
 
 
+MANGADEX_SOURCE = MangaDexSource(api_json)
+
+
+def manga_uuid(url):
+    return MANGADEX_SOURCE.parse_manga_ref(url)
+
+
 def load_manga_metadata(url, preferred='en'):
-    mid = manga_uuid(url)
-    if not mid:
-        raise ValueError('Paste a MangaDex title-page URL, for example https://mangadex.org/title/...')
-    qs = urllib.parse.urlencode([('includes[]', 'author'), ('includes[]', 'artist'), ('includes[]', 'cover_art')])
-    data = api_json(f'https://api.mangadex.org/manga/{mid}?{qs}')['data']
-    attrs = data.get('attributes', {})
-    title_rows = collect_titles(attrs)
-    title = choose_preferred_title(title_rows, preferred)
-    author = ''
-    cover_filename = ''
-    for rel in data.get('relationships', []):
-        if rel.get('type') == 'author' and rel.get('attributes') and not author:
-            author = rel['attributes'].get('name', '')
-        elif rel.get('type') == 'cover_art' and rel.get('attributes') and not cover_filename:
-            cover_filename = rel['attributes'].get('fileName', '') or ''
-    available = [str(x) for x in (attrs.get('availableTranslatedLanguages') or []) if x]
-    main_cover_url = f'https://uploads.mangadex.org/covers/{mid}/{cover_filename}' if cover_filename else ''
-    return {
-        'uuid': mid,
-        'title': title,
-        'author': author,
-        'titles': title_rows,
-        'available_languages': available,
-        'original_language': attrs.get('originalLanguage') or '',
-        'main_cover_url': main_cover_url,
-    }
+    return MANGADEX_SOURCE.get_manga(url, preferred=preferred)
 
 
 def _plan_from_aggregate(url, language, start_volume=None, end_volume=None):
@@ -612,6 +593,49 @@ def _normalize_exif_orientation(blob, ext='.jpg'):
         except Exception:
             return blob, (1, 2), False, 1
 
+
+def _exif_orientation_value(blob):
+    """Return an image's EXIF orientation, defaulting to normal orientation."""
+    try:
+        with Image.open(BytesIO(blob)) as src:
+            return src.getexif().get(274, 1) or 1
+    except Exception:
+        return 1
+
+
+def _select_verified_preview_source(saver_blob, full_url, fetch_full, cache):
+    """Use full-quality pixels only when their EXIF proves a display transform.
+
+    Landscape data-saver dimensions trigger verification, never rotation. Results
+    are cached by aligned full-quality page URL for the lifetime of a preview job.
+    Returns (selected_blob, used_full_quality, verification_details_or_none).
+    """
+    saver_size = _image_size(saver_blob)
+    saver_exif = _exif_orientation_value(saver_blob)
+    if saver_size[0] <= saver_size[1]:
+        return saver_blob, False, None
+
+    cached = cache.get(full_url)
+    if cached is None:
+        full_blob = fetch_full(full_url)
+        full_exif = _exif_orientation_value(full_blob)
+        cached = {
+            'exif': full_exif,
+            'blob': full_blob if full_exif in range(2, 9) else None,
+        }
+        cache[full_url] = cached
+
+    full_exif = cached.get('exif', 1)
+    details = {
+        'saver_size': saver_size,
+        'saver_exif': saver_exif,
+        'full_exif': full_exif,
+    }
+    if full_exif in range(2, 9) and cached.get('blob'):
+        return cached['blob'], True, details
+    return saver_blob, False, details
+
+
 def _to_rgb(im):
     if im.mode == 'RGB':
         return im
@@ -628,6 +652,14 @@ def _save_jpeg(im):
     return out.getvalue()
 
 
+def _landscape_safe_area(horizontal_ratio=0.018, vertical_ratio=0.030):
+    """Return the established Kobo canvas and calibrated inner safe area."""
+    canvas_w, canvas_h = 1680, 1264
+    mx = max(4, round(canvas_w * horizontal_ratio))
+    my = max(4, round(canvas_h * vertical_ratio))
+    return canvas_w, canvas_h, mx, my, canvas_w - mx * 2, canvas_h - my * 2
+
+
 def _kobo_landscape_canvas(im, horizontal_ratio=0.018, vertical_ratio=0.030):
     """Contain artwork inside a fixed Kobo Libra Colour landscape canvas.
 
@@ -636,11 +668,9 @@ def _kobo_landscape_canvas(im, horizontal_ratio=0.018, vertical_ratio=0.030):
     never cropped, and centered.  The current safety insets remain 1.8% on the
     sides and 3.0% vertically, based on Kobo Libra Colour on-device calibration.
     """
-    canvas_w, canvas_h = 1680, 1264
-    mx = max(4, round(canvas_w * horizontal_ratio))
-    my = max(4, round(canvas_h * vertical_ratio))
-    safe_w = max(1, canvas_w - mx * 2)
-    safe_h = max(1, canvas_h - my * 2)
+    canvas_w, canvas_h, mx, my, safe_w, safe_h = _landscape_safe_area(
+        horizontal_ratio, vertical_ratio
+    )
 
     art = _to_rgb(im)
     scale = min(safe_w / art.width, safe_h / art.height)
@@ -674,21 +704,58 @@ def _landscape_canvas_for_single(blob):
     return _save_jpeg(_kobo_landscape_canvas(spread))
 
 
-def _paired_canvas(left_blob, right_blob):
+def _fit_page_to_slot(page, slot_w, slot_h):
+    """Aspect-fit and center one page inside a fixed slot without cropping."""
+    scale = min(slot_w / page.width, slot_h / page.height)
+    fitted_w = max(1, round(page.width * scale))
+    fitted_h = max(1, round(page.height * scale))
+    fitted = page
+    if fitted.size != (fitted_w, fitted_h):
+        fitted = fitted.resize((fitted_w, fitted_h), Image.Resampling.LANCZOS)
+    left = (slot_w - fitted_w) // 2
+    top = (slot_h - fitted_h) // 2
+    margins = {
+        'left': left,
+        'right': slot_w - fitted_w - left,
+        'top': top,
+        'bottom': slot_h - fitted_h - top,
+    }
+    return fitted, margins
+
+
+def _paired_canvas(left_blob, right_blob, left_record=None, right_record=None, log=None):
+    """Fit two pages independently into halves of the calibrated safe area."""
+    canvas_w, canvas_h, mx, my, safe_w, safe_h = _landscape_safe_area()
+    slot_w = safe_w // 2
     with Image.open(BytesIO(left_blob)) as a, Image.open(BytesIO(right_blob)) as b:
         left = _to_rgb(a.copy()); right = _to_rgb(b.copy())
-    target_h = max(left.height, right.height)
-    def fit(im):
-        if im.height == target_h:
-            return im
-        nw = max(1, round(im.width * target_h / im.height))
-        return im.resize((nw, target_h), Image.Resampling.LANCZOS)
-    left, right = fit(left), fit(right)
-    half_w = max(left.width, right.width)
-    spread = Image.new('RGB', (half_w * 2, target_h), 'white')
-    spread.paste(left, (half_w - left.width, 0))
-    spread.paste(right, (half_w, 0))
-    return _save_jpeg(_kobo_landscape_canvas(spread))
+    left_size, right_size = left.size, right.size
+    left, left_margins = _fit_page_to_slot(left, slot_w, safe_h)
+    right, right_margins = _fit_page_to_slot(right, slot_w, safe_h)
+    canvas = Image.new('RGB', (canvas_w, canvas_h), 'white')
+    canvas.paste(left, (mx + left_margins['left'], my + left_margins['top']))
+    canvas.paste(right, (mx + slot_w + right_margins['left'], my + right_margins['top']))
+
+    if log:
+        log(
+            f"Landscape safe area: canvas {canvas_w}x{canvas_h} | "
+            f"inset L{mx} R{mx} T{my} B{my} | content area {safe_w}x{safe_h}"
+        )
+        for side, record, source_size, fitted, margins in (
+            ('left', left_record, left_size, left, left_margins),
+            ('right', right_record, right_size, right, right_margins),
+        ):
+            source_page = (record or {}).get('page_in_chapter', '?')
+            normalized = (record or {}).get('normalized_size') or source_size
+            log(
+                f"Pair fit: source page {source_page} ({side}) | "
+                f"normalized {normalized[0]}x{normalized[1]} | safe slot {slot_w}x{safe_h} | "
+                f"fitted {fitted.width}x{fitted.height} | "
+                f"outer margins L{mx} R{mx} T{my} B{my} | "
+                f"slot margins L{margins['left']} R{margins['right']} "
+                f"T{margins['top']} B{margins['bottom']}"
+            )
+    return _save_jpeg(canvas)
 
 
 def _spread_with_margin(blob):
@@ -698,109 +765,18 @@ def _spread_with_margin(blob):
     return _save_jpeg(_kobo_landscape_canvas(spread))
 
 
-def _edge_orientation_score(blob):
-    """Return horizontal/vertical structural-edge ratio for a landscape candidate.
-
-    A portrait page stored 90 degrees sideways tends to have much stronger horizontal
-    structure than vertical structure.  This is deliberately only one signal and is
-    never sufficient by itself to rotate artwork.
-    """
-    try:
-        with Image.open(BytesIO(blob)) as src:
-            gray = src.convert('L')
-            gray.thumbnail((700, 700), Image.Resampling.LANCZOS)
-            # FIND_EDGES is available in Pillow bundled by calibre and keeps this
-            # detector cross-platform with no OpenCV/numpy dependency.
-            edge = gray.filter(ImageFilter.FIND_EDGES)
-            # Ignore the outermost pixels, whose image boundary is itself an edge.
-            if edge.width > 8 and edge.height > 8:
-                edge = edge.crop((4, 4, edge.width - 4, edge.height - 4))
-            px = edge.load(); w, h = edge.size
-            horizontal = 0.0; vertical = 0.0
-            # Difference of the edge map in each direction.  Horizontal lines vary
-            # more vertically; vertical lines vary more horizontally.
-            for y in range(1, h):
-                for x in range(1, w):
-                    v = px[x, y]
-                    horizontal += abs(v - px[x, y - 1])
-                    vertical += abs(v - px[x - 1, y])
-            return horizontal / max(1.0, vertical)
-    except Exception:
-        return 1.0
-
-
-def _sideways_portrait_confidence(record, median_portrait_ratio=0.0):
-    """Conservatively identify a single portrait page stored sideways.
-
-    Returns (is_sideways, score, reasons).  Ambiguous landscape images are preserved
-    as genuine spreads.  Rotation requires several independent signals to agree.
-    """
-    w, h = record['size']
-    if h <= 0 or w <= h:
-        return False, 0, []
-    ratio = w / h
-    score = 0; reasons = []
-
-    # A sideways normal manga page is usually only moderately landscape. Very wide
-    # images are much more likely to be intentional two-page spreads.
-    if 1.15 <= ratio <= 1.36:
-        score += 2; reasons.append('moderate landscape aspect')
-    elif ratio <= 1.48:
-        score += 1; reasons.append('possible single-page aspect')
-    else:
-        score -= 2
-
-    edge_ratio = _edge_orientation_score(record['blob'])
-    if edge_ratio >= 1.30:
-        score += 3; reasons.append('strong sideways page structure')
-    elif edge_ratio >= 1.20:
-        score += 2; reasons.append('sideways structural bias')
-    elif edge_ratio >= 1.10:
-        score += 1
-
-    # Chapter-opening/title pages are a useful supporting signal, never a reason to
-    # rotate on their own. MangaDex page_in_chapter is zero-based in our records.
-    pic = record.get('page_in_chapter')
-    if pic in (0, 1):
-        score += 1; reasons.append('near chapter opening')
-
-    # Require high confidence. A false negative is safer than damaging a real spread.
-    return score >= 5, score, reasons
-
-
-def _rotate_sideways_portrait(blob):
-    """Correct the common clockwise-stored sideways portrait seen in MangaDex scans."""
-    with Image.open(BytesIO(blob)) as src:
-        page = _to_rgb(src.copy()).rotate(-90, expand=True)
-    return _save_jpeg(page), page.size
-
-
 def build_landscape_pages(records, direction='rtl', log=None, detailed=False):
     """Create book-style landscape pages while using genuine source spreads as parity anchors.
 
     Landscape dimensions make an image a spread candidate, not proof of a spread.
-    High-confidence sideways portrait pages are corrected before pairing. Ambiguous
-    candidates remain untouched. Odd single pages are placed on the right half.
+    Orientation correction must already be baked into source pixels from trustworthy
+    metadata. Odd single pages are placed on the right half without rotation.
     """
     if not records:
         return [], {'spreads': 0, 'pairs': 0, 'isolated': 0, 'rotated': 0}
 
     # Work on shallow copies so orientation correction never mutates downloader state.
     records = [dict(r) for r in records]
-    rotated_count = 0
-    for i, r in enumerate(records):
-        w, h = r['size']
-        if h > 0 and (w / h) >= 1.15:
-            sideways, confidence, reasons = _sideways_portrait_confidence(r)
-            if sideways:
-                new_blob, new_size = _rotate_sideways_portrait(r['blob'])
-                r['blob'], r['size'] = new_blob, new_size
-                rotated_count += 1
-                if log:
-                    label = r.get('page_in_chapter')
-                    page_label = f"chapter page {label + 1}" if isinstance(label, int) else f"image {i + 1}"
-                    log(f"Orientation correction: {page_label} was a high-confidence sideways portrait; rotated 90 degrees clockwise.")
-
     spread_flags = []
     for r in records:
         w, h = r['size']
@@ -815,21 +791,56 @@ def build_landscape_pages(records, direction='rtl', log=None, detailed=False):
         unusual = bool(median_area and ((w*h) < median_area * 0.55 or (ratio < 0.42) or (0.96 < ratio < 1.15)))
         extra_flags.append(bool(terminal and unusual and not spread_flags[i]))
     spread_indices = [i for i, yes in enumerate(spread_flags) if yes]
-    output=[]; stats={'spreads':0,'pairs':0,'isolated':0,'extras':sum(extra_flags),'rotated':rotated_count}
+    output=[]; stats={'spreads':0,'pairs':0,'isolated':0,'extras':sum(extra_flags),'rotated':0}
 
-    def add_output(ext, blob, kind):
+    def trace_record(record):
+        chapter = record.get('chapter_label') or record.get('chapter_index') or '?'
+        chapter_title = str(record.get('chapter_title') or '').strip()
+        chapter_text = f'Chapter {chapter}' + (f' "{chapter_title}"' if chapter_title else '')
+        source_page = record.get('page_in_chapter') or '?'
+        original_size = record.get('original_size') or record.get('size') or ('?', '?')
+        normalized_size = record.get('normalized_size') or record.get('size') or ('?', '?')
+        transforms = record.get('later_transforms') or []
+        later = ', '.join(transforms) if transforms else 'none'
+        return (
+            f"[{chapter_text}, source page {source_page} | "
+            f"{record.get('download_quality') or 'unknown quality'} | "
+            f"downloaded {original_size[0]}x{original_size[1]} | "
+            f"EXIF before {record.get('exif_before', '?')} | "
+            f"normalized {normalized_size[0]}x{normalized_size[1]} | "
+            f"EXIF after {record.get('exif_after', '?')} | later transforms: {later}]"
+        )
+
+    def add_output(ext, blob, kind, source_records):
         output.append((ext, blob, kind) if detailed else (ext, blob))
+        if detailed and log:
+            final_size = _image_size(blob)
+            sources = ' + '.join(trace_record(record) for record in source_records)
+            trace_kind = kind.replace(' ', '_')
+            composition = {
+                'ISOLATED': 'padded upright single',
+                'PAIRED': 'side-by-side',
+                'ORIGINAL SPREAD': 'source spread fitted to canvas',
+            }.get(kind, 'unchanged')
+            log(
+                f"Preview trace: Output page {len(output)} | {trace_kind} | {sources} | "
+                f"composition: {composition} | final {final_size[0]}x{final_size[1]}"
+            )
 
     def emit_single(rec):
-        add_output('generated.jpg', _landscape_canvas_for_single(rec['blob']), 'ISOLATED')
+        add_output('generated.jpg', _landscape_canvas_for_single(rec['blob']), 'ISOLATED', [rec])
         stats['isolated'] += 1
 
     def emit_pair(earlier, later):
         if direction == 'rtl':
-            left, right = later['blob'], earlier['blob']
+            left, right = later, earlier
         else:
-            left, right = earlier['blob'], later['blob']
-        add_output('generated.jpg', _paired_canvas(left, right), 'PAIRED')
+            left, right = earlier, later
+        paired = _paired_canvas(
+            left['blob'], right['blob'],
+            left_record=left, right_record=right, log=log if detailed else None,
+        )
+        add_output('generated.jpg', paired, 'PAIRED', [earlier, later])
         stats['pairs'] += 1
 
     def emit_run(run, backwards=False):
@@ -850,7 +861,7 @@ def build_landscape_pages(records, direction='rtl', log=None, detailed=False):
         run=records[cursor:anchor_i]
         emit_run(run, backwards=(anchor_i == first_spread and cursor == 0))
         if spread_flags[anchor_i]:
-            add_output('generated.jpg', _spread_with_margin(records[anchor_i]['blob']), 'ORIGINAL SPREAD'); stats['spreads'] += 1
+            add_output('generated.jpg', _spread_with_margin(records[anchor_i]['blob']), 'ORIGINAL SPREAD', [records[anchor_i]]); stats['spreads'] += 1
         else:
             emit_single(records[anchor_i])
         cursor=anchor_i+1
@@ -865,10 +876,14 @@ def _validate_cbz_output(path, page_layout):
     with zipfile.ZipFile(path, 'r') as zf:
         names = zf.namelist()
         image_names = [n for n in names if n.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
-        covers = [n for n in image_names if n.startswith('0000_cover')]
-        if covers:
-            raise RuntimeError('CBZ validation failed: embedded cover image found. Covers must remain outside the reading archive.')
-        reading = list(image_names)
+        auxiliary_cover_names = {'cover.jpg', 'cover.jpeg', 'cover.png', 'cover.webp'}
+        reading = []
+        for name in image_names:
+            basename = Path(name).name.casefold()
+            stem = Path(basename).stem
+            if basename in auxiliary_cover_names or basename.startswith('0000_cover') or stem.endswith('_cover'):
+                continue
+            reading.append(name)
         if not reading:
             raise RuntimeError('CBZ validation failed: no readable manga pages were produced.')
         if len(reading) != len(set(reading)):
@@ -1047,7 +1062,7 @@ class MangaLoadWorker(QThread):
         try:
             # Keep title switching lightweight. Volume-cover discovery happens
             # with the volume plan only after this result is still current.
-            md=load_manga_metadata(self.url, preferred=self.preferred)
+            md=MANGADEX_SOURCE.get_manga(self.url, preferred=self.preferred)
             self.ready.emit({'request_id':self.request_id,'url':self.url,'metadata':md})
         except Exception as e:
             self.failed.emit({'request_id':self.request_id,'error':str(e)})
@@ -1406,6 +1421,7 @@ class PairingPreviewWorker(QThread):
         super().__init__()
         self.url, self.language, self.volume, self.direction = url, language, volume, direction
         self.cancelled = False
+        self._orientation_verification_cache = {}
 
     def cancel(self):
         self.cancelled = True
@@ -1473,12 +1489,13 @@ class PairingPreviewWorker(QThread):
             for chap_num, chapter in enumerate(chapters, 1):
                 self._check_cancel()
                 ch_label=chapter.get('chapter') or 'unnumbered'
+                ch_title=str(chapter.get('title') or '').strip()
                 saver_urls=chapter_page_urls(chapter['id'], data_saver=True)
                 full_urls=chapter_page_urls(chapter['id'], data_saver=False)
                 if len(full_urls) != len(saver_urls):
                     raise RuntimeError(f'MangaDex returned mismatched preview page lists for Chapter {ch_label}.')
                 for page_in_chapter, saver_url in enumerate(saver_urls, 1):
-                    page_refs.append((chap_num, ch_label, page_in_chapter, len(saver_urls), saver_url, full_urls[page_in_chapter-1]))
+                    page_refs.append((chap_num, ch_label, ch_title, page_in_chapter, len(saver_urls), saver_url, full_urls[page_in_chapter-1]))
                     if len(page_refs) >= hard_limit:
                         break
                 if len(page_refs) >= hard_limit:
@@ -1494,13 +1511,33 @@ class PairingPreviewWorker(QThread):
                 nonlocal bytes_done, fallback_count, last_bucket, announced_chapter
                 while len(records) < target_count:
                     self._check_cancel()
-                    chap_num, ch_label, page_in_chapter, chapter_pages, saver_url, full_url = page_refs[len(records)]
+                    chap_num, ch_label, ch_title, page_in_chapter, chapter_pages, saver_url, full_url = page_refs[len(records)]
                     if announced_chapter != chap_num:
                         announced_chapter=chap_num
                         self.log.emit(f'Preview: Chapter {chap_num} of {len(chapters)} (Chapter {ch_label})...')
                     page_no=len(records)+1
                     t0=time.monotonic()
                     blob, used_fallback=self._fetch_preview_page(saver_url, full_url, page_no)
+                    orientation_verification=None
+                    if not used_fallback:
+                        try:
+                            blob, verified_full, orientation_verification = _select_verified_preview_source(
+                                blob,
+                                full_url,
+                                lambda url: download_bytes(
+                                    url,
+                                    timeout=45,
+                                    retries=4,
+                                    user_agent='MangaNana-Calibre/0.9.8',
+                                ),
+                                self._orientation_verification_cache,
+                            )
+                            used_fallback = bool(verified_full)
+                        except Exception as e:
+                            self.log.emit(
+                                f'Orientation verification: Chapter {ch_label}, source page {page_in_chapter} | '
+                                f'full-quality verification failed; using data saver ({e})'
+                            )
                     dt=max(0.001,time.monotonic()-t0)
                     if used_fallback: fallback_count += 1
                     bytes_done += len(blob)
@@ -1508,9 +1545,34 @@ class PairingPreviewWorker(QThread):
                     if len(recent)>12: recent.pop(0)
                     speed=sum(x[0] for x in recent)/max(0.001,sum(x[1] for x in recent))
                     ext=image_extension(full_url if used_fallback else saver_url)
-                    blob,size,_changed,_orientation=_normalize_exif_orientation(blob,ext)
+                    original_size=_image_size(blob)
+                    exif_before=_exif_orientation_value(blob)
+                    blob,size,exif_changed,orientation=_normalize_exif_orientation(blob,ext)
+                    exif_after=_exif_orientation_value(blob)
+                    if orientation_verification:
+                        saver_size=orientation_verification['saver_size']
+                        saver_exif=orientation_verification['saver_exif']
+                        full_exif=orientation_verification['full_exif']
+                        if used_fallback and full_exif in range(2, 9):
+                            self.log.emit(
+                                f'Orientation verification: Chapter {ch_label}, source page {page_in_chapter} | '
+                                f'data saver {saver_size[0]}x{saver_size[1]} EXIF {saver_exif} | '
+                                f'full quality EXIF {full_exif} | using full quality normalized {size[0]}x{size[1]}'
+                            )
+                        else:
+                            self.log.emit(
+                                f'Orientation verification: Chapter {ch_label}, source page {page_in_chapter} | '
+                                f'data saver {saver_size[0]}x{saver_size[1]} EXIF {saver_exif} | '
+                                f'full quality EXIF {full_exif} | confirmed landscape spread'
+                            )
                     records.append({'blob':blob,'ext':ext,'size':size,'chapter_index':chap_num,
-                                    'page_in_chapter':page_in_chapter,'chapter_pages':chapter_pages})
+                                    'chapter_label':ch_label,'chapter_title':ch_title,
+                                    'page_in_chapter':page_in_chapter,
+                                    'chapter_pages':chapter_pages,'original_size':original_size,
+                                    'normalized_size':size,'exif_before':exif_before,
+                                    'exif_after':exif_after,
+                                    'download_quality':('full quality' if used_fallback else 'data saver'),
+                                    'later_transforms':[]})
                     total=max(target_count,len(records)); done=len(records)
                     remaining=max(0,total-done); elapsed=max(0.001,time.monotonic()-started)
                     pages_per_sec=done/elapsed; eta=remaining/pages_per_sec if pages_per_sec>0 else None
@@ -1522,14 +1584,14 @@ class PairingPreviewWorker(QThread):
                         self.log.emit(f'Preview: downloaded {done} / {total} pages ({min(100,int(done*100/max(1,total)))}%) • {format_speed(speed)} • ETA {format_eta(eta)}.')
 
             fetch_until(target)
-            pages,stats=build_landscape_pages(records,self.direction,detailed=True)
+            pages,stats=build_landscape_pages(records,self.direction,log=self.log.emit,detailed=True)
             # If the current sample ends on an isolated source page and more pages
             # exist, extend just enough to reveal the real following pair.
             while pages and pages[-1][2] == 'ISOLATED' and len(records) < min(hard_limit,len(page_refs)):
                 target=len(records)+1
                 self.log.emit('Preview sample ended on an incomplete pair; sampling one additional source page.')
                 fetch_until(target)
-                pages,stats=build_landscape_pages(records,self.direction,detailed=True)
+                pages,stats=build_landscape_pages(records,self.direction,log=self.log.emit,detailed=True)
 
             self._check_cancel()
             if fallback_count:
@@ -1546,6 +1608,7 @@ class PairingPreviewWorker(QThread):
                     im=_to_rgb(im.copy()); im.thumbnail((360,270),Image.Resampling.LANCZOS)
                     out=BytesIO(); im.save(out,'JPEG',quality=78)
                     thumbs.append((i,out.getvalue(),kind))
+                    self.log.emit(f'Preview trace: Output page {i} thumbnail {im.width}x{im.height} supplied to the preview widget.')
                 pct=88+int(i*12/max(1,total_out)); self.progress.emit(min(100,pct),f'Building preview thumbnails... {i}/{total_out}')
             elapsed=time.monotonic()-started
             self.log.emit(f'Pairing preview ready. {len(records)} source pages → {total_out} landscape pages. Completed in {elapsed:.1f}s.')
@@ -1891,7 +1954,7 @@ class MangaNanaDialog(QDialog):
         self.volume_thumb_worker = None
         self._manga_workers = []
         self._plan_workers = []
-        self.setWindowTitle('MangaNana for calibre')
+        self.setWindowTitle(f'{DISPLAY_VERSION} for calibre')
         self.setWindowIcon(icon)
         self.resize(int(prefs.get('window_w', 1450) or 1450), int(prefs.get('window_h', 850) or 850))
         self.setMinimumSize(1280, 760)
@@ -2917,7 +2980,7 @@ class MangaNanaDialog(QDialog):
         box.setWindowTitle('About MangaNana')
         box.setWindowIcon(self.icon)
         box.setIconPixmap(self.icon.pixmap(64, 64))
-        box.setText('<b>MangaNana for Calibre 0.9.8</b>')
+        box.setText(f'<b>{DISPLAY_VERSION} for Calibre</b>')
         box.setInformativeText(
             'Cross-platform MangaDex downloader and Calibre importer.\n\n'
             'Supported platforms: Windows, macOS, Linux\n'
