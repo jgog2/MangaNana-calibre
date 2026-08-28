@@ -1,140 +1,240 @@
-# MangaNana Development Roadmap
+MangaNana Development Roadmap
 
-MangaNana is evolving from a Calibre plugin centered on MangaDex into a broader manga preparation, processing, library, and eReader workflow.
+MangaNana is a Calibre plugin for finding, downloading, preparing, and adding manga directly to a Calibre library without leaving Calibre.
 
-The immediate priority is stability. New systems should build on the current working plugin without weakening the existing Choose Manga → Download Settings → Review workflow.
+The current goal is a strong Calibre-plugin release. Standalone MangaNana, local-library management, direct device sync, and other standalone-only systems are post-1.0 ideas and are not part of the current completion target.
 
----
+The immediate priority is to preserve the working core while expanding MangaNana into a multi-source, volume-or-chapter workflow with optional image processing and eReader-oriented preview tools.
 
-# Current Development Principles
+The primary user flow remains:
 
-These rules apply across the project.
+Source
+→ Download Settings
+→ Review
+→ Download & Add to Calibre
 
-## Stability first
+Current Development Principles
 
-Before adding major systems:
+Stability first
 
-- Fix remaining freezes and UI-thread blocking.
-- Keep search and volume scrolling smooth.
-- Keep source and language failures non-blocking.
-- Preserve the current Choose Manga → Download Settings → Review workflow.
-- Avoid expensive session restoration.
-- Preserve current CBZ, metadata, cover, Portrait, Landscape, and page-pairing behavior.
-- Keep network failures visible through the Activity Log.
-- Avoid changing working behavior unless the change is intentional and tested.
+Preserve working CBZ creation, metadata, covers, Portrait, Landscape, reading direction, and page-pairing behavior unless a change is intentional and tested.
 
-## Performance rules
+Keep source, language, authentication, and network failures non-blocking.
 
-Project-wide rules:
+No network work on the GUI thread.
 
-- No network operations on the GUI thread.
-- No heavy image processing on the GUI thread.
-- Cancel or invalidate obsolete asynchronous jobs.
-- Cache thumbnails.
-- Cache preview source pages.
-- Lazy-load offscreen images.
-- Avoid unnecessary API calls.
-- Preserve fixed widget geometry during asynchronous loading.
-- Avoid persistent state that requires expensive reconstruction.
-- Save preferences only when necessary.
-- Bound caches by size.
-- One failed source must never freeze the entire application.
-- A slow source must not prevent other sources from returning results.
+No heavy image processing on the GUI thread.
 
-## Development rules
+Cancel or invalidate obsolete asynchronous jobs.
 
-- `main` remains the public/stable branch.
-- `dev` is the active integration branch.
-- Larger work uses feature branches from `dev`.
-- Changes should be small and reversible where practical.
-- Regression tests should be added for bugs that have already occurred.
-- New architecture should reduce coupling to Calibre where possible.
-- Public behavior should not change during internal refactors unless explicitly intended.
+Cache thumbnails and preview source pages.
 
----
+Lazy-load offscreen images and provider icons.
 
-# Track 0: Stabilize the Current Plugin
+Avoid unnecessary API calls.
 
-## Goal
+Bound caches by size.
 
-Reach a point where the existing MangaDex-based Calibre plugin can serve as a dependable baseline for future development.
+One failed source must never freeze MangaNana.
 
-## Current focus
+One slow source must not prevent other sources from returning results.
 
-- Continue beta testing across Windows and macOS.
-- Test multiple Calibre versions.
-- Test Windows display scaling at 100%, 125%, and 150%.
-- Test very long manga series.
-- Test manga with only standalone chapters.
-- Test titles with missing volume covers.
-- Test titles with unavailable preferred languages.
-- Test Portrait and Landscape workflows.
-- Test Pairing Preview.
-- Test cancellation and network failure paths.
-- Test direct MangaDex URL loading.
-- Test existing volumes already present in Calibre.
+New systems should be added through small, reversible changes where practical.
 
-## Completion criteria
+Add regression tests for bugs that have already occurred.
 
-The current plugin should:
+Branching and development
 
-- remain responsive during search and download operations
-- recover cleanly from source/network errors
-- avoid stale Preview or Review state
-- avoid layout overlap at common DPI settings
-- package valid CBZ files consistently
-- import completed books into Calibre reliably
-- preserve metadata and cover behavior
-- clean temporary data after cancellation or failure
-- provide useful Activity Log output
+main remains public/stable.
 
----
+dev remains the active integration branch.
 
-# Track 1: Regression Testing and Core Extraction
+Larger work uses feature branches from dev.
 
-This track should begin before major new features.
+Public behavior should not change during internal refactors unless explicitly intended.
 
-## Phase 1A: Regression Test Foundation
+Development builds should keep a visible build identity using the Git commit plus build timestamp.
 
-Expand the existing test suite gradually.
+Normal development and Calibre testing should run non-elevated. Administrator sessions are for repair only.
 
-Priority tests:
+Current 1.0 Scope
 
-- volume normalization
-- numeric volume sorting
-- standalone chapter ordering
-- duplicate chapter handling
-- language fallback
-- title-language selection
-- download-plan generation
-- CBZ page ordering
-- cover fallback
-- page-pairing logic
-- range selection behavior
-- source failure handling
+The active roadmap ends with the Calibre plugin.
 
-Use saved API fixtures wherever possible so tests do not depend on live MangaDex responses.
+Target features:
 
-Example structure:
+stable MangaDex baseline
 
-```text
-tests/
-├── test_volume_normalization.py
-├── test_standalone_chapters.py
-├── test_language_fallback.py
-├── test_download_plan.py
-├── test_pairing.py
-├── test_cbz_order.py
-└── fixtures/
-```
+expanded regression suite
 
-## Phase 1B: MangaNana Core Extraction
+MangaNana Core extraction
 
-Gradually move Calibre-independent logic out of `main.py`.
+provider/connector architecture
 
-Potential modules:
+large English-capable source catalog
 
-```text
+multi-source search and ranking
+
+explicit Volume or Chapter search/output modes
+
+careful mixed-source fallback
+
+three-stage book-style UI
+
+optional Live Preview
+
+contrast, saturation, gamma, grayscale, and resolution processing
+
+dithering
+
+reusable processing presets
+
+eReader preview/emulation
+
+source authentication/configuration
+
+configurable MangaNana UI scaling
+
+final orientation/pairing accuracy review
+
+GitHub release update checker
+
+README/search-discoverability pass
+
+release qualification and regression testing
+
+Not part of the current 1.0 target:
+
+standalone MangaNana
+
+standalone local library
+
+direct eReader transfer outside Calibre
+
+standalone device synchronization
+
+mobile/Android frontend
+
+Track 0: Stabilize the Current Plugin
+
+Goal
+
+Maintain a dependable baseline while the new architecture is introduced.
+
+Current focus
+
+Continue beta testing across Windows and macOS.
+
+Test multiple Calibre versions.
+
+Test Windows display scaling at common DPI levels.
+
+Test MangaNana interface scaling independently from OS scaling.
+
+Test long manga series.
+
+Test manga with only standalone or chapter-level releases.
+
+Test missing covers.
+
+Test unavailable preferred languages.
+
+Test Portrait and Landscape workflows.
+
+Test Pairing Preview.
+
+Test cancellation and network failure paths.
+
+Test direct source URLs.
+
+Test existing books already present in Calibre.
+
+Configuration resilience
+
+The plugin should start safely when preferences are:
+
+missing
+
+partially populated
+
+from an older version
+
+malformed
+
+unreadable due to a filesystem/ACL problem
+
+A damaged or unreadable settings file should not make the entire plugin impossible to load.
+
+Completion criteria
+
+The plugin should:
+
+remain responsive during search and download operations
+
+recover cleanly from source/network errors
+
+avoid stale Preview or Review state
+
+avoid layout overlap at common DPI/UI scales
+
+package valid CBZ files consistently
+
+import completed books into Calibre reliably
+
+preserve metadata and cover behavior
+
+clean temporary data after cancellation or failure
+
+provide useful Activity Log output
+
+Track 1: Regression Testing and MangaNana Core Extraction
+
+Phase 1A: Regression test foundation
+
+Maintain and expand saved-fixture tests so core behavior does not depend on live websites.
+
+Priority areas:
+
+title localization
+
+metadata normalization
+
+volume normalization and numeric sorting
+
+decimal volume/chapter handling
+
+standalone chapter ordering
+
+duplicate chapter handling
+
+unavailable-language handling
+
+download-plan generation
+
+cover fallback
+
+CBZ page ordering
+
+page-pairing logic
+
+direct URL routing
+
+source failure isolation
+
+auxiliary cover exclusion
+
+EXIF normalization
+
+preview/final processing consistency
+
+Known regression cases should remain represented even when the final solution is deferred.
+
+Phase 1B: Core extraction
+
+Gradually move Calibre-independent logic out of main.py.
+
+Target direction:
+
 manganana_core/
 ├── models.py
 ├── metadata.py
@@ -148,1105 +248,1865 @@ manganana_core/
 ├── preview.py
 ├── cache.py
 └── sources/
-```
 
 Early extraction targets:
 
-- localization helpers
-- volume normalization
-- chapter sorting
-- metadata normalization
-- CBZ naming
-- page pairing
-- image-processing functions
+localization helpers
 
-Do not attempt a full rewrite.
+volume/chapter normalization
 
-Move one logical group at a time and use regression tests to confirm identical behavior.
+chapter sorting
 
-## Long-term objective
+metadata normalization
 
-The Calibre plugin becomes one frontend using MangaNana Core.
+CBZ naming
 
-Future standalone MangaNana uses the same core.
+page pairing
 
----
+image processing
 
-# Track 2: Live Preview Engine
+source-independent download planning
 
-## Goal
+Do not attempt a full rewrite. Move one logical group at a time and protect it with tests.
 
-Create a persistent preview system that reacts to image-processing settings in near real time.
+Track 2: Source Adapter Architecture
 
-The Live Preview should make it possible to adjust image output without repeatedly downloading or rebuilding an entire volume.
+Goal
 
-## Representative preview sample
+Remove MangaDex-specific assumptions from the rest of MangaNana and make adding another supported website primarily a connector task.
 
-Load a small set of useful pages rather than an entire volume.
-
-Potential sample:
-
-- cover or first page
-- title/front-matter page
-- normal manga page
-- darker or heavily shaded page
-- spread if available
-- color page when relevant
-
-Target approximately 3 to 6 representative pages.
-
-## Preview architecture
-
-The preview worker should:
-
-- run outside the GUI thread
-- download source pages once
-- cache source images
-- reuse cached pages when sliders change
-- debounce rapid control changes
-- cancel or invalidate obsolete renders
-- display only the newest render result
-- avoid moving surrounding UI while rendering
-
-A subtle status such as:
-
-`Updating preview...`
-
-is preferable to blocking the interface.
-
-## Shared processing pipeline
-
-Preview processing and final CBZ processing must use the same underlying functions.
+MangaDex remains the first implementation, but the architecture should assume dozens or hundreds of possible connectors.
 
 Conceptually:
 
-```text
-Source Image
-    ↓
-MangaNana Processing Pipeline
-    ↓
-Final Output Image
-```
-
-Live Preview may use reduced-size cached source images for speed, but the processing logic itself should remain shared.
-
-This prevents Preview behavior from drifting away from final output behavior.
-
-## Comparison modes
-
-Initial modes:
-
-- Processed only
-- Original / Processed side by side
-
-Later:
-
-- draggable before/after split
-- zoomed detail comparison
-
----
-
-# Track 3: Image Processing
-
-## Goal
-
-Allow users to optimize manga images for their preferred eReader without requiring external image-processing software.
-
-Default behavior remains:
-
-**Original**
-
-MangaNana should not alter source artwork unless the user requests processing.
-
-## Primary controls
-
-Initial processing controls:
-
-- Contrast
-- Saturation
-- Gamma
-- Grayscale conversion
-- Dithering
-- Resolution scaling
-
-Potential later controls:
-
-- Brightness
-- Sharpening
-- Black-point adjustment
-- White-point adjustment
-- JPEG quality
-- Noise reduction
-
-Do not expose every advanced control in the default interface.
-
-## Processing order
-
-Define a stable internal processing pipeline early.
-
-Possible order:
-
-```text
-Decode
-↓
-Color adjustments
-↓
-Grayscale conversion if enabled
-↓
-Contrast / Gamma
-↓
-Resize
-↓
-Sharpen
-↓
-Dithering
-↓
-Encode
-```
-
-The exact order should be tested and documented because output quality can change significantly depending on processing sequence.
-
----
-
-# Track 4: Dithering
-
-## Goal
-
-Improve grayscale and limited-color output on eReader displays.
-
-Candidate algorithms:
-
-- None
-- Floyd-Steinberg
-- Atkinson
-- Ordered/Bayer
-
-The normal UI can expose friendly presets.
-
-Advanced settings may expose the actual algorithm.
-
-Potential presets:
-
-- Original
-- Smooth Grayscale
-- High Detail B&W
-- eReader Dithered
-- Custom
-
-Dithering must be evaluated carefully for manga screentones because aggressive algorithms can create moiré patterns or destroy intentional texture.
-
----
-
-# Track 5: eReader Screen Emulation
-
-## Goal
-
-Let users estimate how processed manga may appear on the type of display they plan to use.
-
-Screen emulation is preview-only.
-
-It must never alter the final CBZ unless the corresponding image-processing settings are separately enabled.
-
-## Pipeline distinction
-
-Final file pipeline:
-
-```text
-Original Page
-→ MangaNana Processing
-→ Final CBZ Image
-```
-
-Preview pipeline:
-
-```text
-Final CBZ Image
-→ eReader Display Simulation
-→ Preview
-```
-
-This separation is important.
-
-## Initial profiles
-
-Potential profiles:
-
-- No Emulation
-- Generic Color eReader
-- Generic B&W eReader
-- Kobo Libra Colour
-
-Device-specific profiles should be clearly described as approximations unless based on measured display characteristics.
-
-## Potential simulation characteristics
-
-- reduced saturation
-- grayscale response
-- e-ink contrast behavior
-- approximate color gamut reduction
-- mild display tint
-- reduced apparent sharpness
-- resolution / pixel density
-- optional bezel framing
-
-## Accuracy disclaimer
-
-Device simulation should communicate that appearance varies with:
-
-- firmware
-- brightness/front-light settings
-- ambient lighting
-- device calibration
-- individual display variation
-
----
-
-# Track 6: Processing Profiles
-
-## Goal
-
-Allow users to save reusable manga-output configurations.
-
-Example:
-
-```text
-My Color eReader
-
-Layout: Landscape
-Reading direction: Right-to-left
-Saturation: +5
-Contrast: +8
-Gamma: 1.0
-Dithering: None
-Resolution: Device optimized
-Display simulation: Generic Color eReader
-```
-
-Profiles may contain:
-
-- layout
-- image-processing settings
-- resolution
-- reading direction
-- output quality
-- device-emulation choice
-- cover behavior
-
-Potential later feature:
-
-Automatically select a profile based on the connected eReader.
-
----
-
-# Track 7: Source Adapter Architecture
-
-This should happen before adding many new websites.
-
-## Goal
-
-Remove MangaDex-specific assumptions from the rest of MangaNana.
-
-Create a common source interface.
-
-Conceptually:
-
-```python
-class SourceAdapter:
-    def search(self, query):
-        ...
-
-    def get_manga(self, source_id):
-        ...
-
-    def get_languages(self, source_id):
-        ...
-
-    def get_volumes(self, source_id, language):
-        ...
-
-    def get_chapters(self, source_id, language):
-        ...
-
-    def get_pages(self, chapter_id):
-        ...
-
-    def get_cover(self, source_id):
-        ...
-```
-
-MangaDex becomes the first implementation:
-
-```text
 SourceAdapter
-└── MangaDexSource
-```
+├── MangaDexSource
+├── MangaFireSource
+├── SourceC
+├── SourceD
+└── ...
 
-## Proof of architecture
+Adapter responsibilities
 
-Before adding a second source, MangaDex should function entirely through the adapter abstraction without visible behavioral regressions.
+Each source adapter owns the quirks of one provider:
 
-If MangaDex cannot cleanly operate through the abstraction, the interface needs improvement before more providers are added.
+URL recognition
 
----
+search
 
-# Track 8: Source Manager
+metadata normalization
 
-## Goal
+languages
 
-Provide one place for users to enable, disable, configure, and prioritize manga sources.
+volume inventory
 
-Potential location:
+chapter inventory
 
-**Preferences → Sources**
+page discovery
 
-Example:
+image retrieval
 
-```text
-Sources
+covers
 
-✓ MangaDex         Ready
-✓ Source B         Ready
-○ Source C         Disabled
-⚠ Source D         Login required
-```
+authentication requirements
 
-Each provider may expose:
+provider-specific headers/tokens/cookies
 
-- Enabled toggle
-- Source name
-- Priority
-- Status
-- Authentication status
-- Test Connection
-- Source-specific options
+pagination
 
-Potential later feature:
+rate-limit handling
 
-Drag-and-drop source priority.
+source-specific errors
 
----
+The rest of MangaNana should not need provider-specific if/elif logic.
 
-# Track 9: Authentication and Source Configuration
-
-Different providers may require different configuration.
-
-Possible connector-defined fields:
-
-- API key
-- OAuth/account authorization
-- token
-- username
-- endpoint URL
-- no authentication
-
-MangaNana should not expose a generic:
-
-`Enter API key for website`
-
-without a corresponding source adapter that understands how to use it.
-
-## Security requirements
-
-- Never write credentials to the Activity Log.
-- Never commit credentials to Git.
-- Store secrets using an appropriate local credential mechanism where practical.
-- Redact authentication details in error reporting.
-
----
-
-# Track 10: Second Source Proof of Concept
-
-Before attempting broad multi-source support, add exactly one second provider.
-
-The goal is architectural validation.
-
-A second source should prove that:
-
-- SourceAdapter works
-- search can run independently per provider
-- normalized metadata works
-- language handling works
-- volume/chapter discovery works
-- source-specific failures remain isolated
-- the existing UI does not become source-specific
-
-Do not add many providers until this proof of concept works reliably.
-
----
-
-# Track 11: Multi-Source Search
-
-## Goal
-
-One MangaNana search queries all enabled providers.
+Core adapter contract
 
 Conceptually:
 
-```text
-Search "JoJolion"
+class SourceAdapter:
+    source_id: str
+    name: str
+    languages: set[str]
+    capabilities: set[str]
+    adult: bool
+    auth_type: str
 
-MangaDex       6 results
-Source B       4 results
-Source C       3 results
+    def matches_url(self, url):
+        ...
 
-        ↓
+    def search(self, query, mode):
+        ...
 
-Normalize
+    def get_manga(self, ref):
+        ...
 
-        ↓
+    def get_volumes(self, manga, language):
+        ...
 
-Deduplicate
+    def get_chapters(self, manga, language):
+        ...
 
-        ↓
+    def get_pages(self, chapter):
+        ...
 
-Merged Search Results
-```
+    def get_cover(self, item):
+        ...
 
-## Requirements
+    def fetch_image(self, page):
+        ...
 
-Providers run independently.
+    def check_health(self):
+        ...
 
-If one provider times out or fails:
+Methods and models may evolve, but the responsibilities should remain clear.
 
-- results from working providers should still appear
-- the failed source should report a non-blocking status
-- the UI must remain responsive
+Source metadata
 
-## Progressive results
+Each connector should declare locally:
+
+stable source ID
+
+display name
+
+local source logo/icon
+
+English support
+
+additional supported languages
+
+adult-content status
+
+capabilities
+
+authentication type
+
+connector version
+
+last verified/known compatibility metadata where useful
+
+Provider logos should be stored locally when licensing/use permits and normalized to a consistent display size. Missing icons should use a safe generated fallback.
+
+Proof of architecture
+
+Before adding many connectors, MangaDex should operate cleanly through the adapter abstraction with no visible behavioral regressions.
+
+Track 3: Source Registry, Source Catalog, and Provider UI
+
+Goal
+
+Support a HakuNeko/HaruNeko-style large provider catalog without forcing the user to look at or ping every source.
+
+Supported versus enabled
+
+MangaNana may ship with a large catalog of supported connectors.
+
+Only a small subset is enabled for normal search.
+
+Conceptually:
+
+Supported Sources
+├── Enabled
+│   ├── MangaDex
+│   ├── Source B
+│   └── Source C
+│
+└── Available in Source Search
+    ├── Source D
+    ├── Source E
+    ├── Source F
+    └── ...
+
+Removing a source from the active set disables it; it does not uninstall the connector.
+
+The source remains discoverable through Source Search and can be re-enabled.
+
+Initial catalog target
+
+Research and maintain up to roughly 50 high-value connectors initially.
+
+Prioritize:
+
+English-capable sources
+
+currently live sites
+
+manga/manhwa/manhua sources
+
+useful inventory
+
+reasonably stable connector behavior
+
+sites that complement rather than merely duplicate MangaDex
+
+Do not include novel-only or anime-only connectors in the MangaNana catalog.
+
+The architecture should scale beyond 50 connectors later without redesigning the UI.
+
+Default enabled sources
+
+Target three strong default sources.
+
+Provisional candidates:
+
+MangaDex
+
+MangaFire
+
+MangaPill
+
+WeebCentral remains a strong alternate candidate.
+
+Final defaults should be selected after connector validation, inventory comparison, and stability testing.
+
+Adult sources
+
+Adult content is hidden by default.
+
+Preference:
+
+Index 18+ sources: Off
+
+When disabled:
+
+adult-only connectors do not appear in Source Search
+
+adult-only connectors are not queried
+
+adult results from mixed/general sources should also be filtered when identifiable
+
+direct URLs to adult-only connectors should explain that 18+ source indexing is disabled
+
+When enabled:
+
+adult connectors become discoverable
+
+the user still chooses which adult sources to enable
+
+enabling adult indexing does not automatically enable every adult source
+
+Adult filtering therefore exists at both connector level and, where possible, title/result level.
+
+Lazy health checks
+
+Do not ping the full supported catalog.
+
+Unselected sources should normally display:
+
+Not checked
+
+Only enabled/selected sources receive runtime health checks.
+
+Health state should be cached and should consider recent reliability, not just one ping.
+
+Possible states:
+
+Excellent
+Good
+Degraded
+Unreachable
+Login required
+Session expired
+Not checked
+
+"Strength" means connector health/reliability, not manga inventory or image quality.
+
+Configure Sources
+
+Page 1 should include a Configure Sources action.
+
+Persistent source configuration may include:
+
+enabled/disabled state
+
+sign in/sign out
+
+authentication status
+
+API key/token fields when required by that connector
+
+test connection
+
+clear saved session/cookies
+
+source-specific options
+
+optional source-language restrictions
+
+last known health/reliability
+
+connector version/last verified details under Advanced
+
+Ordinary manga searches should not require opening this screen.
+
+Track 4: Authentication and Source Configuration
+
+Goal
+
+Allow providers with authentication requirements to work without making users log in every session.
+
+Connector-defined authentication
+
+A connector may declare:
+
+no authentication
+
+username/password session
+
+token
+
+API key
+
+OAuth/account authorization
+
+other provider-specific requirements
+
+Authentication UI should be centralized through Configure Sources while each connector defines what fields/actions it needs.
+
+Persistence and security
+
+Where technically possible:
+
+save authenticated sessions securely
+
+reuse valid sessions between Calibre/MangaNana launches
+
+detect expired sessions
+
+isolate authentication failure to the affected source
+
+never write credentials, tokens, cookies, or authorization headers to the Activity Log
+
+redact secrets from error reporting
+
+avoid storing raw secrets in ordinary MangaNana JSON preferences where a safer local mechanism is practical
+
+Track 5: Volume and Chapter Search / Output Modes
+
+Goal
+
+Support manga organized by volumes, chapters, or both.
+
+MangaNana must not require reliable volume metadata just to download a title.
+
+Explicit search mode
+
+Before each search, the user deliberately chooses:
+
+Search for:
+[ Volumes ] [ Chapters ]
+
+There is no default.
+
+This is a conscious per-search choice so results can be ranked and presented according to the desired output type.
+
+Volume mode
+
+show available volumes
+
+select individual volumes
+
+select ranges
+
+Use Entire Series / Deselect All
+
+create one CBZ per selected volume
+
+preserve existing volume metadata behavior
+
+Example:
+
+Chainsaw Man (Official Colored) (Vol. 01)
+
+Chapter mode
+
+show a scrollable chapter list rather than hundreds of volume-style tiles
+
+support chapter filtering/search
+
+select individual chapters
+
+select ranges
+
+Select All / Deselect All
+
+create one CBZ per selected chapter
+
+Example:
+
+Chainsaw Man (Official Colored) (Ch. 01)
+
+Chapter files should use the same Calibre series structure as volume files so a chapter-based reader can keep the entire series ordered consistently.
+
+Internal model
+
+Do not force every title into volumes.
+
+Conceptually:
+
+Manga
+↓
+Edition
+↓
+Language
+↓
+Volume / Chapter Structure
+├── Volumes → Chapters → Pages
+└── Chapters → Pages
+
+A source may expose:
+
+volumes and chapters
+
+chapters only
+
+volumes synthesized from chapter metadata when reliable
+
+get_volumes() may legitimately return no useful volume structure while get_chapters() remains fully functional.
+
+Chapter covers
+
+Chapters often lack distinct cover art.
+
+Potential options:
+
+Chapter covers:
+- Use source/series cover unchanged
+- Add chapter-number badge when needed
+- Always add chapter-number badge
+
+A generated chapter-number cover must remain metadata/cover material only and must never enter the reading-page sequence or shift pairing parity.
+
+Track 6: Multi-Source Search, Identity, Ranking, and Fallback
+
+SourceCoordinator
+
+The adapter understands one website.
+
+The SourceCoordinator understands many.
+
+Conceptually:
+
+SourceCoordinator
+├── parallel search
+├── normalization
+├── progressive results
+├── failure isolation
+├── deduplication
+├── inventory comparison
+├── provider ranking
+└── fallback
+
+Search behavior
+
+Search only enabled sources.
+
+Providers should run independently.
 
 Do not wait for every provider before showing results.
 
-For example:
-
-```text
 MangaDex results arrive
-↓
-Display immediately
-↓
-Source B results arrive later
-↓
-Merge into existing list
-```
+→ display
 
-Per-provider timeout budgets should prevent a slow provider from delaying the entire search.
+MangaFire arrives later
+→ merge/update
 
----
+Source C fails
+→ report non-blocking status
 
-# Track 12: Cross-Source Manga Identity
+Canonical manga identity
 
-## Goal
-
-Represent the same manga available from multiple providers as one canonical MangaNana record.
+The same edition available from multiple providers should normally appear as one result when confidence is sufficient.
 
 Example:
 
-```text
 JoJolion
 
-Available from:
-- MangaDex
-- Source B
-- Source C
-```
+Available from 3 selected sources
 
-rather than showing three unrelated cards.
+Matching signals, strongest first:
 
-## Matching signals
+shared external/publication IDs
 
-Use strongest evidence first:
+exact normalized titles
 
-1. shared external IDs
-2. publication IDs
-3. exact normalized titles
-4. alternate titles
-5. author
-6. series/part information
-7. fuzzy matching as supporting evidence
+alternate titles
 
-## Confidence model
+author
 
-Internally:
+series/part information
 
-- Exact
-- Strong
-- Possible
+fuzzy title matching as supporting evidence
 
-Only Exact and sufficiently Strong matches should merge automatically.
+False merges are worse than duplicate cards.
 
-A false duplicate merge is worse than showing duplicate search results.
+Editions remain distinct
 
-## User correction
+Different editions must remain separately identifiable in results.
 
-Potential UI:
+Examples:
 
-```text
-These appear to be the same manga.
+official colored edition
 
-[ Merge ]
-[ Keep Separate ]
-```
+normal B&W edition
 
-Remember user decisions locally.
+omnibus/special edition
 
----
+materially different translation/release when identifiable
 
-# Track 13: Source Selection
+A color edition and B&W edition must not be merged simply because the base title matches.
 
-For a merged manga, MangaNana chooses a default provider according to:
+Provider ranking
 
-- requested language
-- source completeness
-- source priority
-- available volumes
-- image quality
-- source reliability
-- preferred edition
-- color vs monochrome release
+The user chooses which sources are enabled.
 
-Example:
+Once selected, MangaNana makes ranking decisions automatically.
 
-```text
-JoJolion
-COLOR
+For Volume mode, prioritize approximately:
 
-Using: MangaDex
-Also available: Source B, Source C
-```
+requested inventory completeness
+→ requested language availability
+→ source reliability/health
+→ image/page availability
+→ source priority/tie breakers
 
-Users can override the automatic source choice.
+For Chapter mode, chapter completeness replaces volume completeness as the primary inventory signal.
 
----
+If one source has the full requested catalog and another is partial, prefer the complete provider.
 
-# Track 14: Cross-Source Language Fallback
+Mixed-source fallback
 
-## Goal
+Mixed-source jobs are allowed and are a benefit of the architecture, but they should be conservative.
 
-Reduce language dead ends.
+Preferred behavior:
+
+satisfy the requested job from one strong source when possible
+
+use another source when the preferred source is missing requested items
+
+avoid unnecessary alternation between providers
+
+preserve edition/language consistency
+
+show source attribution in Review
 
 Example:
 
-```text
-English unavailable from MangaDex.
-English available from Source B.
-```
+Vol. 01-10  Source A
+Vol. 11     Source B
+Vol. 12-20  Source A
 
-MangaNana can:
+Language fallback
 
-- automatically switch according to preferences
-- visibly offer the alternate provider
+A source may advertise English metadata while no downloadable English pages remain.
 
-Source and language fallback should remain understandable to the user.
+MangaNana should:
 
----
+distinguish advertised language metadata from usable downloadable inventory
 
-# Track 15: Per-Volume Source Fallback
+avoid auto-selecting an unusable language
 
-Advanced feature.
+use another enabled source if it has the requested language
 
-Example:
+otherwise clearly explain that the requested language is unavailable
 
-```text
-Volume 1–11     MangaDex
-Volume 12       Source B
-Volume 13–20    MangaDex
-```
+Unavailable language must never create a dead-end workflow.
 
-MangaNana fills gaps from secondary providers.
+Direct URLs
 
-Do not implement this until these systems are reliable:
+If a user pastes a direct title URL:
 
-- metadata normalization
-- canonical manga identity
-- chapter ordering
-- duplicate detection
-- page-quality handling
-- source attribution
-- source-specific licensing/availability rules
+detect whether a registered connector owns the URL
 
-This is a later-stage feature.
+route the title directly to that connector
 
----
+a supported but disabled source may be used for that request without permanently enabling it
 
-# HakuNeko Research Track
+optionally offer Enable this source
 
-HakuNeko is useful because it has already explored a large part of the connector problem.
+If unsupported:
 
-Reference:
+This website is not currently supported by this version of MangaNana. If you would like it considered as a future source, open a Source Request on GitHub.
 
-https://github.com/manga-download/hakuneko
+Provide a direct source-request action when practical.
 
-## Study
+Track 7: Three-Stage Book-Style Interface
 
-Inspect:
+Goal
 
-- source abstractions
-- connector discovery
-- manga lookup
-- chapter enumeration
-- image URL extraction
-- authentication handling
-- error handling
-- rate limiting
-- source-specific quirks
+Keep MangaNana understandable as provider count and processing features grow.
 
-## Reuse conceptually
+The application becomes a three-stage, book-inspired workflow:
 
-Useful areas include:
+1. Source
+2. Download Settings
+3. Review
 
-- connector patterns
-- parsing approaches
-- known site-specific edge cases
-- provider naming/mapping strategies
-- source-specific request behavior
+The book metaphor is visual/navigation structure, not a requirement for realistic page-turn interaction.
 
-## Avoid
+Back/Next controls must remain conventional and obvious.
 
-Do not:
+A short optional transition animation may be used, but interaction must not depend on dragging a page corner or a realistic page curl.
 
-- import the entire HakuNeko architecture
-- couple MangaNana to HakuNeko's UI/runtime
-- import unrelated anime functionality
-- blindly port every connector
-- sacrifice MangaNana's simpler workflow to match HakuNeko
+Page 1: Source
 
-MangaNana is a Python/Qt project with a different purpose.
+Left page
 
-Useful provider logic should be adapted into MangaNana's own SourceAdapter architecture.
+Provider/search setup:
 
-## Provenance
+enabled source cards with local logos
 
-Any adapted connector logic should be documented so future maintainers can identify its origin and understand why the implementation exists.
+source status only for sources that have been checked
 
----
+Source Search / Add Source
 
-# Track 16: Review Panel Expansion
+Configure Sources
 
-As source and processing capabilities grow, Review can expose more useful job information.
+explicit Volumes or Chapters mode toggle
 
-Potential entry:
+Right page
 
-```text
-Volume 4
+Manga and inventory selection:
 
-Source: MangaDex
-Language: English
-Pages: 226
-Processing: Color eReader
-Output: Landscape
-Estimated size: ~93 MB
-```
+title search
 
-For jobs involving multiple providers, add a subtle Source column.
+direct URL entry
 
-Avoid turning Review into a technical debugging screen.
+merged manga results
 
-The purpose remains:
+Available from N selected sources
 
-**What exactly is MangaNana about to create?**
+edition labels such as COLOR/B&W
 
----
+volume grid in Volume mode
 
-# Track 17: Standalone MangaNana
+chapter list/filter in Chapter mode
 
-This is a major long-term goal.
+Page 1 answers:
 
-## Goal
+Where am I getting it from?
+What am I getting?
 
-Build a modern standalone MangaNana application that can operate without Calibre.
+Page 2: Download Settings
 
-The standalone should use MangaNana Core rather than duplicating the plugin implementation.
+Contains output choices, not manga inventory selection.
+
+Potential controls:
+
+Portrait / Landscape
+
+RTL / LTR reading direction
+
+language where relevant
+
+zero padding
+
+cover behavior
+
+output quality/resolution
+
+processing preset
+
+device/output profile
+
+Page 2 answers:
+
+How should MangaNana build it?
+
+Page 3: Review + Optional Live Preview
+
+Left page: Review
+
+Show exactly what MangaNana is about to create:
+
+title/edition
+
+selected volumes or chapters
+
+source attribution
+
+language
+
+output layout
+
+file count
+
+estimated pages
+
+estimated size
+
+fallback sources where used
+
+Right page: Live Preview
+
+The right page is reserved for optional preview/image-processing work.
+
+The user must be able to download without loading preview assets.
+
+Initial state may show:
+
+Live Preview
+
+[ Load Live Preview ]
+
+Only after the user requests preview should MangaNana download representative preview pages.
+
+Navigation validation
+
+Next becomes available only when the current stage has enough valid information.
+
+Page 1:
+
+mode chosen
+
+manga selected
+
+usable inventory resolved
+
+at least one volume/chapter selected
+
+Page 2:
+
+output settings valid
+
+Page 3:
+
+Download & Add available immediately
+
+Live Preview optional
+
+Responsive book layout
+
+maintain stable left/right page proportions
+
+center gutter provides subtle separation
+
+optional subtle stacked-page detail at the outer edge
+
+preserve MangaNana's modern dark visual language
+
+avoid excessive skeuomorphism
+
+scroll complex page contents internally rather than stretching controls indefinitely
+
+Track 8: Interface Scaling
+
+Goal
+
+Allow users to adjust MangaNana independently from OS display scaling.
+
+Preferences:
+
+Interface Scale:
+Auto
+50%
+75%
+90%
+100%
+110%
+125%
+150%
+175%
+200%
+
+Default may be Auto or 100% depending on implementation behavior.
+
+Requirements:
+
+scale fonts, icons, margins, buttons, and layout consistently
+
+preserve book/spread proportions
+
+enforce minimum usable control sizes
+
+persist the preference
+
+remain independent from Windows/macOS DPI scaling
+
+avoid clipped controls at supported scales
+
+Release testing should cover representative combinations of OS scaling and MangaNana scaling.
+
+Track 9: Live Preview Engine
+
+Goal
+
+Provide near-real-time visual feedback for layout and image-processing settings without forcing preview downloads on users who do not need them.
+
+Optional loading
+
+Opening Review must not automatically fetch preview pages.
+
+Only Load Live Preview or equivalent explicit action begins preview acquisition.
+
+Users familiar with their preferred settings may choose a preset and download immediately without previewing.
+
+Representative sample
+
+Target roughly 3-6 useful pages:
+
+cover/first page
+
+title/front matter
+
+normal manga page
+
+darker/heavily shaded page
+
+spread if available
+
+color page when relevant
+
+Preview architecture
+
+run network and rendering work outside GUI thread
+
+download preview source pages once
+
+cache preview pages for the session
+
+reuse cached pages when controls change
+
+debounce rapid control changes
+
+cancel/invalidate obsolete renders
+
+display only newest render result
+
+avoid moving surrounding UI during rendering
+
+Shared processing pipeline
+
+Preview and final CBZ must use the same underlying processing functions.
 
 Conceptually:
 
-```text
-MangaNana Core
-├── Calibre Plugin
-└── Standalone Application
-```
+Source image
+→ normalization/layout
+→ MangaNana processing
+→ dither/quantization
+→ final output image
 
-## Standalone workflow
+Preview may use reduced-size copies for responsiveness, but processing behavior should not drift from final output.
 
-Potential main workflow:
+Comparison modes
 
-```text
-Discover
-→ Download
-→ Library
-→ Device
-```
+Initial:
 
-## Local library
+Processed
 
-The standalone will need its own persistent database.
+Original / Processed side by side
 
-SQLite is a likely choice.
+Potential later:
 
-Potential stored information:
+draggable before/after split
 
-- canonical manga ID
-- source/provider IDs
-- edition
-- title
-- alternate titles
-- author
-- language
-- volume/chapter identity
-- local CBZ path
-- cover
-- date downloaded
-- processing profile
-- output settings
-- MangaNana version
-- device sync status
+zoomed detail comparison
 
-Database schema changes must support safe migrations between MangaNana versions.
+Track 10: Image Processing
 
----
+Goal
 
-# Track 18: Standalone Library Dashboard
+Allow users to optimize manga for an eReader without requiring an external image editor.
 
-Potential library view:
+Default:
 
-```text
-My Library
+Original
 
-Steel Ball Run
-24 / 24 volumes
-Complete
+MangaNana should not intentionally alter source artwork unless the user requests processing.
 
-JoJolion
-21 / 27 volumes
-6 available
+Initial controls
 
-The JOJOLands
-5 downloaded
-1 new volume available
-```
+Contrast
 
-Potential statuses:
+Saturation
 
-- Complete
-- Updates available
-- Missing volumes
-- Downloaded
-- On device
-- Not on device
+Gamma
 
-This would turn MangaNana from a downloader into a manga collection manager.
+Grayscale
 
----
+Resolution scaling
 
-# Track 19: Direct eReader Integration
+Dithering
 
-## Goal
+Potential later controls:
 
-Allow the standalone application to transfer manga directly to a connected eReader without requiring Calibre.
+brightness
 
-Potential functionality:
+sharpening
 
-- detect connected devices
-- identify mount point
-- display free storage
-- transfer selected books
-- remove MangaNana-managed books
-- remember transferred files
-- compare local library with device contents
-- safely eject device
+black point
+
+white point
+
+JPEG quality
+
+noise reduction
+
+Do not expose every advanced control in the default interface.
+
+Processing order
+
+The order must be deliberate and tested.
+
+Initial direction:
+
+Decode
+→ EXIF/orientation normalization
+→ layout/resize to target dimensions
+→ color/grayscale conversion
+→ gamma/contrast/saturation adjustments
+→ palette/bit-depth quantization where applicable
+→ dithering
+→ encode
+
+Dithering should normally occur after resizing so later resampling does not destroy the dither pattern or create additional moiré.
+
+Track 11: Dithering
+
+Goal
+
+Improve grayscale and limited-color output on eReader displays while preserving manga line art and screentones.
+
+Initial visible algorithms
+
+None
+
+Atkinson
+
+Floyd-Steinberg
+
+Bayer 4x4
+
+Bayer 8x8
+
+Backend/experimental candidates
+
+Sierra Lite
+
+Burkes
+
+Stucki
+
+Jarvis-Judice-Ninke
+
+Blue noise
+
+Do not expose every experimental algorithm in the normal UI unless testing shows a clear benefit.
+
+Dither strength
+
+Custom processing should support a Dither Strength control where the algorithm permits a meaningful implementation.
+
+Evaluation pages
+
+Test against:
+
+clean B&W line art
+
+dense screentones
+
+grayscale shading
+
+gradients
+
+dark pages
+
+detailed backgrounds
+
+full-color manga
+
+Watch specifically for:
+
+moiré
+
+destroyed screentones
+
+lost line detail
+
+crushed blacks
+
+blown highlights
+
+excessive noise
+
+preview/final inconsistencies
+
+Open-source research references
+
+Study conceptually:
+
+Kindle Comic Converter, for manga/eReader processing workflow
+
+DitherSpace, for live dither controls and preview UX
+
+Dithering Studio, for broad algorithm comparison
+
+Didder, for algorithm/reference implementation ideas
+
+Cyotek Dithering, for visual comparison examples
+
+Reuse ideas and algorithms only in ways compatible with applicable licenses. MangaNana should keep its own processing architecture.
+
+Track 12: Processing Presets
+
+Goal
+
+Let users reuse known-good combinations without opening Live Preview every time.
+
+Initial built-in presets:
+
+Original
+
+Manga B&W
+
+Smooth Grayscale
+
+Crisp eInk
+
+Custom
+
+Users should also be able to save their own presets containing combinations such as:
+
+Contrast
+Saturation
+Gamma
+Grayscale
+Dithering algorithm
+Dither strength
+Resolution/output profile
+
+Saved presets should be editable and removable.
+
+A user who already knows the preset they prefer should be able to select it on Download Settings and proceed directly to download.
+
+Track 13: eReader Screen Emulation
+
+Goal
+
+Let users estimate how processed manga may appear on a target display.
+
+Screen emulation is preview-only.
+
+It must never alter the final CBZ unless corresponding processing options are separately enabled.
+
+Pipeline:
+
+Final CBZ image
+→ optional display simulation
+→ Live Preview
+
+Initial profiles:
+
+No Emulation
+
+Generic B&W eReader
+
+Generic Color eReader
+
+Kobo Libra Colour
+
+Potential simulation characteristics:
+
+reduced saturation
+
+grayscale response
+
+approximate e-ink contrast
+
+approximate color-gamut reduction
+
+mild display tint
+
+reduced apparent sharpness
+
+resolution/pixel-density approximation
+
+Device-specific profiles must be clearly described as approximations.
+
+Appearance varies with firmware, front-light settings, ambient lighting, calibration, and individual panels.
+
+Track 14: Review Panel Expansion
+
+Review should answer:
+
+What exactly is MangaNana about to create?
+
+Potential entry:
+
+JoJolion Vol. 04
+
+Source: MangaDex
+Fallback source: none
+Language: English
+Pages: 226
+Processing: Manga B&W
+Output: Landscape
+Estimated size: ~93 MB
+
+For mixed-source jobs, source attribution should remain visible but subtle.
+
+For Chapter mode, Review should make file output unambiguous.
 
 Example:
 
-```text
-Connected eReader
-18.6 GB free
+JoJolion (Ch. 037).cbz
+JoJolion (Ch. 038).cbz
+JoJolion (Ch. 039).cbz
 
-✓ Steel Ball Run Vol. 01
-✓ Steel Ball Run Vol. 02
-○ JoJolion Vol. 01
-○ JoJolion Vol. 02
+3 CBZ files
 
-Selected size: 1.4 GB
+Track 15: Provider Validation and Connector Expansion
 
-[ Sync to eReader ]
-```
+Goal
 
-Device support should be implemented through a device abstraction where practical.
+Grow the connector catalog carefully rather than blindly porting every HakuNeko provider.
 
----
+Initial research strategy
 
-# Track 20: Library and Device Synchronization
+Use HaruNeko/HakuNeko as a connector-pattern reference.
 
-Potential future capabilities:
+Study:
 
-- show books only in local MangaNana library
-- show books currently on device
-- show books available from sources but missing locally
-- identify new releases
-- prioritize next unread volumes where supported
-- estimate transfer storage before copying
-- warn when selected files exceed available device storage
+source abstraction
 
-Actual reading-progress integration depends on what each device exposes reliably.
+connector registry/discovery
 
----
+URL validation
 
-# Track 21: Update Checking
+manga lookup
 
-Once MangaNana maintains source identity, it can check previously downloaded series for updates.
+chapter enumeration
 
-Example:
+image URL extraction
 
-```text
-The JOJOLands
+authentication handling
 
-Local:
-Volumes 1–5
+error handling
 
-Available:
-Volumes 1–6
+rate limiting
 
-1 new volume available
+shared connector helpers/decorators
 
-[ Review Volume 6 ]
-```
+source-specific quirks
 
-Update checks should be lightweight and opt-in.
+Do not:
 
-Downloads should remain user-controlled.
+import the entire HakuNeko architecture
 
----
+couple MangaNana to HakuNeko's runtime/UI
 
-# Track 22: Smart Page Processing
+import anime/novel functionality
 
-## Per-page monochrome detection
+blindly port every connector
 
-Analyze actual page chroma.
+sacrifice MangaNana's simpler Calibre workflow
 
-If an RGB image is effectively monochrome:
+Validation criteria
 
-- optionally convert it to grayscale
-- reduce output size
-- preserve genuinely colored inserts
+Before calling a connector production-ready, verify:
 
-This should not be used as the primary method for labeling an entire manga B&W.
+Can reach source
+Can search
+Can resolve a title
+Can enumerate volumes and/or chapters
+Can resolve pages
+Can retrieve an image
+Can fail without blocking other sources
 
-## Adaptive processing
+Maintain connector fixtures where practical and limited live smoke tests for actual site compatibility.
 
-Potential later capabilities:
+Initial candidate pool
 
-- stronger contrast for unusually dark scans
-- preserve already-clean pages
-- preserve color inserts
-- protect screentones
-- detect blank pages
-- detect duplicate pages
-- detect suspiciously low-resolution pages
-- detect corrupt images
-- detect unusual aspect ratios
+Research up to roughly 50 English/live providers.
 
-Automatic processing must remain conservative.
+High-priority candidates currently include:
 
----
+MangaDex
 
-# Track 23: Advanced Page Pairing
+MangaFire
 
-The current landscape pairing system can eventually become more intelligent.
+MangaPill
 
-Potential improvements:
+WeebCentral
 
-- original-spread recognition
-- cover handling
-- chapter-title-page recognition
-- inserts
-- advertisements
-- supplemental pages
-- parity analysis
-- intentional isolated-page detection
-- special handling for sideways pages
+MangaKatana
 
-## Manual Pairing Editor
+MangaTown
 
-Possible later tool:
+MangaFreak
 
-```text
-Page 16 | Page 17
-[ Pair ]
+MangaFox
 
-Page 18
-[ Keep Single ]
+MangaHere
 
-Page 19 | Page 20
-[ Pair ]
-```
+MangaBat
 
-Users could override difficult pairing decisions before CBZ creation.
+MangaKakalot
 
-This is a later advanced feature.
+MangaNato
 
----
+MangaGo
 
-# Track 24: Metadata Reconciliation
+ManhwaTop
 
-Compare source metadata against local library metadata.
+ManhuaPlus
 
-Potential differences:
+S2Manga
 
-- title
-- author
-- series
-- language
-- edition
-- publication status
-- tags
-- cover
+Toonily
 
-Allow users to review differences before replacing local metadata.
+AsuraScans/AsuraToons
 
-This becomes especially valuable once multiple sources exist.
+FlameComics
 
----
+HiveScans
 
-# Track 25: Download Provenance
+other validated English-capable HaruNeko connectors
 
-Store internal provenance for created books where practical.
+Official/licensed services should be treated as a separate connector class because access rules, authentication, subscriptions, and download restrictions may differ significantly.
 
-Potential information:
+Examples:
 
-- MangaNana version
-- source
-- source manga ID
-- source chapter IDs
-- language
-- creation date
-- processing profile
-- page layout
-- cover source
-- output settings
+MANGA Plus
 
-This helps future updates, troubleshooting, and migration between sources.
+VIZ Shonen Jump
 
----
+Manga UP! Global
 
-# Search Principles
+Comikey
 
-These principles should remain even after multi-source support is added.
+WEBTOON
 
-- lightweight initial results
-- large readable covers
-- preferred-language display titles
-- Show More Results
-- append instead of replacing
-- preserve scroll position
-- lazy-load covers
-- cancel stale requests
-- deduplicate by source ID
-- deduplicate canonical manga carefully
-- filter unavailable titles
-- keep adult-content filtering configurable
-- avoid blocking the entire interface on one source
-- show results progressively
+Tapas
 
-With multiple sources, Show More Results may become provider-aware internally while remaining one simple control for users.
+Tappytoon
 
----
+Toomics
 
-# UI Design Principles
+A connector being technically representable does not automatically mean MangaNana should support downloading from it. Access rules must be evaluated per service.
 
-MangaNana should remain approachable even as functionality grows.
+Track 16: Release Qualification and Beta Testing
 
-The default workflow should continue to feel like:
+Maintain a repeatable release qualification checklist instead of relying on random manual tests.
 
-```text
-Find manga
-→ choose volumes
-→ choose how it should look
-→ review
-→ download/add
-```
+Core workflow
 
-Advanced systems should remain underneath that workflow.
+Test:
 
-## Avoid
+title search
 
-- exposing provider implementation details unnecessarily
-- overwhelming users with every image-processing control
-- moving controls during asynchronous loading
-- unexplained technical terminology
-- making source selection mandatory when MangaNana can make a safe default choice
-- turning the main window into a configuration dashboard
+direct URL
 
-## Prefer
+Volume mode
 
-- clear defaults
-- progressive disclosure
-- optional advanced controls
-- one obvious next action
-- stable panel geometry
-- consistent visual language
-- readable error states
-- recoverable failures
+Chapter mode
 
----
+Source → Download Settings → Review
 
-# Suggested Development Order
+download/add to Calibre
+
+cancellation
+
+restart/stale-state behavior
+
+Volume edge cases
+
+one volume
+
+very long series
+
+decimal volumes
+
+missing volume numbers
+
+missing covers
+
+standalone chapters
+
+already-present Calibre volumes
+
+incomplete source inventory
+
+Chapter edge cases
+
+chapter-only titles
+
+hundreds of chapters
+
+decimal/special chapters
+
+named/unnamed chapters
+
+missing chapter covers
+
+ranges
+
+Select All / Deselect All
+
+generated chapter-number cover badges
+
+Multi-source cases
+
+same manga on one source
+
+same edition on several sources
+
+different editions across sources
+
+full inventory on one source
+
+partial inventory on another
+
+complementary gaps
+
+slow provider
+
+dead provider
+
+mixed-source fallback
+
+Language cases
+
+English available
+
+English advertised but pages unavailable
+
+requested language absent
+
+another source has requested language
+
+fallback works without dead-end UI
+
+Provider UI
+
+defaults
+
+disable/re-enable
+
+Source Search
+
+provider logos
+
+missing-logo fallback
+
+lazy health checks
+
+cached health
+
+Configure Sources
+
+supported disabled direct URL
+
+unsupported direct URL
+
+source request action
+
+Authentication
+
+initial login
+
+persistence
+
+restart
+
+expiration
+
+logout
+
+bad credentials
+
+revoked token
+
+failure isolation
+
+secret redaction
+
+CBZ integrity
+
+valid archive
+
+page order
+
+metadata
+
+title
+
+series
+
+series index
+
+author
+
+cover
+
+no auxiliary/helper files in reading sequence
+
+no duplicate/missing pages
+
+cleanup after completion/failure
+
+Preview/processing
+
+preview remains optional
+
+opening Review does not fetch preview pages
+
+Load Live Preview fetches only sample pages
+
+session cache works
+
+rapid controls do not freeze UI
+
+preview and final output use same processing pipeline
+
+presets work without preview
+
+Dithering
+
+Test line art, screentones, gradients, dark pages, detailed pages, and color pages against all visible algorithms.
+
+Platform/UI
+
+At minimum:
+
+Windows
+
+macOS
+
+current Calibre
+
+one older supported Calibre version
+
+representative OS DPI scales
+
+representative MangaNana UI scales
+
+Track 17: Permanent Regression Cases
+
+Keep concrete edge cases represented in automated or repeatable smoke tests.
+
+Required cases include:
+
+advertised-but-undownloadable English inventory
+
+complete source preferred over partial source
+
+gap-only mixed-source fallback
+
+color and B&W editions remain distinct
+
+Volume versus Chapter mode
+
+chapter-only source
+
+provider failure isolation
+
+supported/disabled/unsupported direct URL behavior
+
+expired authentication
+
+adult-source filtering
+
+disabled sources are not health-pinged
+
+chapter cover fallback does not change reading-page order
+
+auxiliary cover exclusion
+
+Live Preview optionality
+
+preview/final processing consistency
+
+deterministic dithering where expected
+
+screentone/moiré samples
+
+UI scaling
+
+known JoJolion orientation case
+
+The JoJolion case should remain a regression reference even though the final orientation solution is intentionally deferred.
+
+Track 18: Final Page Orientation and Pairing Accuracy Pass
+
+Goal
+
+Revisit difficult orientation and pairing edge cases after the major 1.0 feature work is complete.
+
+This pass occurs near the end of the active roadmap, before the release update checker.
+
+Focus
+
+re-evaluate EXIF-based orientation handling
+
+compare full-quality and data-saver source images
+
+do not assume EXIF alone always represents intended page presentation
+
+distinguish genuine spreads from sideways portrait pages
+
+verify Preview and final CBZ behavior
+
+test known JoJolion sideways-page cases
+
+avoid dimension-only or edge-based rotation heuristics
+
+preserve legitimate landscape artwork/spreads
+
+maintain reading-direction and pairing parity
+
+add regression tests for newly confirmed fixes
+
+Completion criteria
+
+known sideways-page cases render correctly
+
+genuine spreads are not incorrectly rotated
+
+Preview and final output use consistent orientation rules
+
+the fix is not overfitted to one manga/page
+
+auxiliary covers cannot affect pairing parity
+
+Track 19: GitHub Release Update Checker
+
+Goal
+
+Let users know when a newer MangaNana plugin release is available.
+
+Behavior
+
+On MangaNana startup:
+
+open MangaNana
+→ consult cached update state
+→ if check is due, query GitHub Releases in background
+→ compare versions
+→ notify only if a newer applicable release exists
+
+Requirements:
+
+never block startup
+
+cache checks, approximately 12-24 hours
+
+proper semantic version comparison
+
+default to stable releases
+
+optionally support a prerelease channel
+
+show a non-blocking update notice
+
+provide a link to the GitHub Release
+
+initial implementation does not auto-install updates
+
+network errors/rate limits/malformed responses silently fail or log a low-level message
+
+development builds should not incorrectly nag about stable releases
+
+Preferences:
+
+Check for MangaNana updates automatically
+Update channel: Stable / Prerelease
+[ Check Now ]
+
+Track 20: README, Search Discoverability, and Release Messaging
+
+Product positioning
+
+Primary message:
+
+MangaNana is a Calibre plugin that lets you find, download, prepare, and add manga to your Calibre library without leaving Calibre.
+
+The main appeal is downloading and adding manga within one Calibre workflow.
+
+Secondary message:
+
+MangaNana can also handle volume/chapter output, metadata, covers, page layout, image processing, and eReader-oriented optimization before adding the files to the library.
+
+Search/discoverability language
+
+Use natural language around real user queries without keyword stuffing.
+
+Important phrases/topics include:
+
+Calibre manga plugin
+
+manga downloader for Calibre
+
+download manga directly into Calibre
+
+add manga to Calibre automatically
+
+MangaDex Calibre plugin
+
+multi-source manga downloader
+
+manga volume downloader
+
+manga chapter downloader
+
+download manga as CBZ
+
+manga to CBZ
+
+manga metadata for Calibre
+
+manga covers in Calibre
+
+manga for Kobo
+
+manga for Kindle
+
+manga downloader for eReader
+
+manga for e-ink / color e-ink
+
+manga page pairing
+
+manga dithering / grayscale optimization
+
+Use these naturally in descriptions and examples.
+
+Search-oriented FAQ
+
+README should answer questions such as:
+
+How can I download manga directly into Calibre?
+
+Is there a MangaDex plugin for Calibre?
+
+Can Calibre download manga chapters?
+
+Can I download complete manga volumes with Calibre?
+
+How do I put manga on a Kobo using Calibre?
+
+Can MangaNana search more than one manga source?
+
+The goal is explicit, accurate language that helps both people and retrieval/recommendation systems understand when MangaNana is relevant.
+
+GitHub metadata
+
+Maintain an accurate repository description and topics such as:
+
+calibre
+calibre-plugin
+manga
+manga-downloader
+mangadex
+cbz
+ereader
+kobo
+kindle
+eink
+comic-downloader
+
+Do not claim unsupported functionality for discoverability.
+
+README screenshots
+
+Once the new UI is stable, use three primary screenshots:
+
+Source
+
+Download Settings
+
+Review + Live Preview
+
+Suggested Active Development Order
 
 The current recommended sequence is:
 
-1. Stabilize the current 0.9.x public beta.
-2. Expand regression tests.
-3. Begin MangaNana Core extraction.
-4. Move MangaDex behind SourceAdapter.
-5. Build the Live Preview Engine.
-6. Add Contrast, Saturation, Gamma, and Grayscale.
-7. Add Dithering.
-8. Add basic processing presets.
-9. Add eReader display emulation.
-10. Expand processing profiles.
-11. Build Source Manager.
-12. Study HakuNeko connectors in detail.
-13. Add one second source as proof of concept.
-14. Implement multi-source search.
-15. Add canonical manga identity and duplicate merging.
-16. Add cross-source language fallback.
-17. Add additional sources gradually.
-18. Add per-volume source fallback later.
-19. Continue extracting MangaNana Core.
-20. Build standalone local library.
-21. Build standalone MangaNana frontend.
-22. Add direct eReader transfer.
-23. Add library/device synchronization.
-24. Add update checking.
-25. Expand smart processing and pairing only after the foundation is stable.
+Keep the current beta stable and merge validated fixes to dev.
 
----
+Continue regression/core extraction.
 
-# Long-Term Product Direction
+Finish moving MangaDex behavior behind SourceAdapter.
 
-The Calibre plugin remains valuable and should continue to be supported.
+Build SourceRegistry and connector metadata.
 
-Long term, MangaNana may become a broader manga-focused application:
+Implement/validate the second provider.
 
-```text
-MangaNana
+Implement/validate the third provider.
 
-Discover manga across supported sources
-↓
-Choose editions and volumes
-↓
-Optimize pages for an eReader
-↓
-Review output
-↓
-Build reader-ready CBZ files
-↓
-Store in MangaNana or Calibre
-↓
-Transfer directly to an eReader
-↓
-Track missing and newly available volumes
-```
+Build SourceCoordinator and progressive multi-source search.
 
-The Calibre plugin and standalone application should share the same underlying MangaNana Core wherever possible.
+Add conservative cross-source identity, inventory ranking, and fallback.
+
+Add explicit Volume / Chapter search and output modes.
+
+Build the three-stage book-style UI.
+
+Add Source Search, Configure Sources, local provider logos, and lazy health states.
+
+Add authentication/session framework as required by supported connectors.
+
+Add MangaNana interface scaling.
+
+Build optional Live Preview.
+
+Add Contrast, Saturation, Gamma, Grayscale, and Resolution processing.
+
+Add built-in and user processing presets.
+
+Add Atkinson, Floyd-Steinberg, Bayer 4x4, and Bayer 8x8 dithering.
+
+Add basic eReader preview/emulation.
+
+Expand/validate the English/live connector catalog toward ~50 strong sources.
+
+Run full beta/release qualification and permanent regression cases.
+
+Perform the final orientation/pairing accuracy review.
+
+Add the GitHub release update checker.
+
+Complete README/search-discoverability/release messaging.
+
+Cut the 1.0 release candidate when the active completion criteria are satisfied.
+
+This order is a guide, not a reason to force an architectural change before it is ready. Multi-source behavior remains the largest integration risk.
+
+Codex Implementation Sequence
+
+Use scoped feature-branch prompts instead of one giant task.
+
+Recommended prompt sequence:
+
+finish MangaDex behind SourceAdapter
+
+SourceRegistry
+
+SourceCoordinator
+
+second provider
+
+third provider
+
+multi-source identity/ranking/fallback
+
+Volume/Chapter modes
+
+three-stage book UI
+
+optional Live Preview
+
+image processing
+
+dithering
+
+eReader emulation
+
+Preferences expansion
+
+final regression pass
+
+orientation/pairing accuracy pass
+
+GitHub release update checker
+
+Each Codex task should:
+
+inspect existing behavior first
+
+make the smallest architectural change that satisfies the task
+
+preserve working UI/behavior unless intentionally changed
+
+add/update relevant tests
+
+run the relevant test suite
+
+summarize changed files and test results
+
+avoid committing unless explicitly requested
+
+Post-1.0 / Inactive Long-Term Ideas
+
+These are retained as future ideas but are outside the current roadmap completion target.
+
+Potential later directions:
+
+standalone MangaNana frontend
+
+standalone local manga library/database
+
+direct eReader transfer without Calibre
+
+library/device synchronization
+
+new-volume monitoring for a standalone library
+
+smart per-page monochrome detection
+
+adaptive page processing
+
+advanced manual pairing editor
+
+metadata reconciliation
+
+richer provenance/history
+
+automatic device-based profile selection
+
+These should not delay completion of the Calibre plugin roadmap.
+
+UI Design Principles
+
+The default experience should remain simple even if MangaNana supports many sources.
+
+Prefer:
+
+one obvious next action
+
+progressive disclosure
+
+clear defaults where a default is appropriate
+
+explicit choice where user intent matters, such as Volume versus Chapter search
+
+stable geometry
+
+optional advanced controls
+
+provider complexity hidden until needed
+
+readable and recoverable errors
+
+source attribution without forcing manual source management
+
+optional preview rather than mandatory preview downloads
+
+Avoid:
+
+exposing hundreds of providers at once
+
+pinging disabled sources
+
+making users understand provider implementation details
+
+mixing volume and chapter selectors in the same visible state
+
+turning Review into a debugging screen
+
+moving controls during asynchronous loading
+
+unexplained technical terminology
+
+silent edition merging when confidence is weak
 
 The complexity belongs in the architecture.
 
-The user experience should remain simple.
+The user experience should remain:
+
+Find manga
+→ choose Volumes or Chapters
+→ choose what to download
+→ choose how it should be built
+→ review
+→ download and add to Calibre
