@@ -6,6 +6,13 @@ import re
 import unittest
 import urllib.parse
 
+from core_helpers import (
+    choose_preferred_title,
+    first_localized,
+    fmt_volume,
+    volume_from_name,
+)
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 MAIN_SOURCE = REPOSITORY_ROOT / "main.py"
@@ -29,23 +36,18 @@ class VolumeHelpersTests(unittest.TestCase):
     def setUpClass(cls):
         cls.helpers = load_main_helpers(
             "manga_uuid",
-            "volume_from_name",
-            "fmt_volume",
             "fetch_download_plan",
             globals_={
                 "UUID_RE": re.compile(r"/title/([0-9a-fA-F-]{36})"),
-                "VOL_RE": re.compile(r"(?i)(?:vol(?:ume)?\.?\s*)(\d+(?:\.\d+)?)"),
             },
         )
 
     def test_volume_name_normalization(self):
-        volume_from_name = self.helpers["volume_from_name"]
         self.assertEqual(volume_from_name("Series Volume 02"), 2.0)
         self.assertEqual(volume_from_name("Series Vol. 12.5"), 12.5)
         self.assertIsNone(volume_from_name("Standalone Chapters"))
 
     def test_volume_display_normalization(self):
-        fmt_volume = self.helpers["fmt_volume"]
         self.assertEqual(fmt_volume(2), "02")
         self.assertEqual(fmt_volume(2, zero_pad=False), "2")
         self.assertEqual(fmt_volume(12.5), "12.5")
@@ -102,20 +104,13 @@ class StandaloneChapterOrderingTests(unittest.TestCase):
 
 
 class LanguageFallbackTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.helpers = load_main_helpers("first_localized", "choose_preferred_title")
-
     def test_localized_value_falls_back_to_english(self):
-        first_localized = self.helpers["first_localized"]
         self.assertEqual(first_localized({"ja": "日本語", "en": "English"}, "fr"), "English")
 
     def test_localized_value_falls_back_to_first_available(self):
-        first_localized = self.helpers["first_localized"]
         self.assertEqual(first_localized({"ja": "日本語", "de": "Deutsch"}, "fr"), "日本語")
 
     def test_title_selection_prefers_requested_then_english(self):
-        choose_preferred_title = self.helpers["choose_preferred_title"]
         rows = [
             {"language": "ja", "title": "日本語"},
             {"language": "en", "title": "English"},

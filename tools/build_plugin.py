@@ -10,6 +10,7 @@ import zipfile
 
 PYTHON_FILES = (
     "__init__.py",
+    "core_helpers.py",
     "main.py",
     "ui.py",
     "config.py",

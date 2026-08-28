@@ -24,13 +24,18 @@ from qt.core import (
 )
 
 from calibre_plugins.manganana.config import prefs
+from calibre_plugins.manganana.core_helpers import (
+    choose_preferred_title,
+    first_localized,
+    fmt_volume,
+    volume_from_name,
+)
 from calibre_plugins.manganana.i18n import tr, UI_LANGUAGES
 
 ORANGE = '#FF6740'
 VL_NAME = 'MangaNana'
 VL_TAG = 'MangaNana'
 UUID_RE = re.compile(r'/title/([0-9a-fA-F-]{36})')
-VOL_RE = re.compile(r'(?i)(?:vol(?:ume)?\.?\s*)(\d+(?:\.\d+)?)')
 PAGE_RE = re.compile(r'(?i)Downloading\s+(.+?)\s+page\s+([0-9]+)\s*$')
 LOG_VOL_RE = re.compile(r'(?i)\bVolume\.\s*([0-9]+(?:\.[0-9]+)?)')
 LOG_CHAPTER_RE = re.compile(r'(?i)\bChapter\.\s*([^\s]+)')
@@ -225,12 +230,6 @@ def api_json(url, timeout=30, retries=3, retry_callback=None):
     raise RuntimeError(f'MangaDex request failed after {retries} attempt(s): {last}')
 
 
-def first_localized(obj, preferred='en'):
-    if not isinstance(obj, dict):
-        return ''
-    return obj.get(preferred) or obj.get('en') or next(iter(obj.values()), '')
-
-
 def collect_titles(attrs):
     """Return MangaDex primary and alternate titles as ordered language/title rows."""
     rows = []
@@ -250,16 +249,6 @@ def collect_titles(attrs):
             if text and key not in seen:
                 seen.add(key); rows.append({'language': code, 'title': text, 'primary': False})
     return rows
-
-
-def choose_preferred_title(title_rows, preferred='en'):
-    for row in title_rows:
-        if row['language'] == preferred:
-            return row['title']
-    for row in title_rows:
-        if row['language'] == 'en':
-            return row['title']
-    return title_rows[0]['title'] if title_rows else ''
 
 
 def load_manga_metadata(url, preferred='en'):
@@ -567,23 +556,6 @@ def image_extension(url):
     path = urllib.parse.urlparse(url).path
     ext = Path(path).suffix.lower()
     return ext if ext in ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif') else '.jpg'
-
-def volume_from_name(name):
-    m = VOL_RE.search(name)
-    if not m:
-        return None
-    try:
-        return float(m.group(1))
-    except Exception:
-        return None
-
-
-def fmt_volume(v, zero_pad=True):
-    if float(v).is_integer():
-        n = int(v)
-        return f'{n:02d}' if zero_pad else str(n)
-    return f'{v:g}'
-
 
 def safe_filename(s):
     s = re.sub(r'[<>:"/\\|?*]', '-', s).strip().rstrip('.')
