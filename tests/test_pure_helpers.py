@@ -7,9 +7,12 @@ import unittest
 import urllib.parse
 
 from core_helpers import (
+    _iter_aggregate_nodes,
     choose_preferred_title,
+    collect_titles,
     first_localized,
     fmt_volume,
+    is_doujinshi_entry,
     volume_from_name,
 )
 
@@ -118,6 +121,52 @@ class LanguageFallbackTests(unittest.TestCase):
         ]
         self.assertEqual(choose_preferred_title(rows, "fr"), "Français")
         self.assertEqual(choose_preferred_title(rows, "de"), "English")
+
+
+class MetadataNormalizationTests(unittest.TestCase):
+    def test_collect_titles_preserves_order_and_removes_duplicates(self):
+        attrs = {
+            "title": {"en": " Main Title ", "ja": "日本語"},
+            "altTitles": [
+                {"en": "main title"},
+                {"fr": " Titre "},
+                None,
+                {"en": "Alternate"},
+            ],
+        }
+        self.assertEqual(
+            collect_titles(attrs),
+            [
+                {"language": "en", "title": "Main Title", "primary": True},
+                {"language": "ja", "title": "日本語", "primary": True},
+                {"language": "fr", "title": "Titre", "primary": False},
+                {"language": "en", "title": "Alternate", "primary": False},
+            ],
+        )
+
+    def test_doujinshi_detection_uses_tags_and_titles(self):
+        tagged = {
+            "tags": [{"attributes": {"name": {"en": "Doujinshi"}}}],
+        }
+        titled = {"title": {"en": "Example Doujin Collection"}}
+        ordinary = {"title": {"en": "Ordinary Series"}}
+        self.assertTrue(is_doujinshi_entry(tagged))
+        self.assertTrue(is_doujinshi_entry(titled))
+        self.assertFalse(is_doujinshi_entry(ordinary))
+
+
+class AggregateNormalizationTests(unittest.TestCase):
+    def test_aggregate_mapping_preserves_keys_and_normalizes_empty_rows(self):
+        self.assertEqual(
+            list(_iter_aggregate_nodes({"1": {"volume": "1"}, "none": None})),
+            [("1", {"volume": "1"}), ("none", {})],
+        )
+
+    def test_aggregate_list_uses_volume_or_index_as_key(self):
+        self.assertEqual(
+            list(_iter_aggregate_nodes([{"volume": "2"}, None, "invalid"])),
+            [("2", {"volume": "2"}), (None, {}), (2, {})],
+        )
 
 
 if __name__ == "__main__":

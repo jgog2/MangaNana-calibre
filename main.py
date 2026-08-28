@@ -25,9 +25,12 @@ from qt.core import (
 
 from calibre_plugins.manganana.config import prefs
 from calibre_plugins.manganana.core_helpers import (
+    _iter_aggregate_nodes,
     choose_preferred_title,
+    collect_titles,
     first_localized,
     fmt_volume,
+    is_doujinshi_entry,
     volume_from_name,
 )
 from calibre_plugins.manganana.i18n import tr, UI_LANGUAGES
@@ -230,27 +233,6 @@ def api_json(url, timeout=30, retries=3, retry_callback=None):
     raise RuntimeError(f'MangaDex request failed after {retries} attempt(s): {last}')
 
 
-def collect_titles(attrs):
-    """Return MangaDex primary and alternate titles as ordered language/title rows."""
-    rows = []
-    seen = set()
-    primary = attrs.get('title') or {}
-    for code, text in primary.items():
-        text = str(text or '').strip()
-        key = (code, text.casefold())
-        if text and key not in seen:
-            seen.add(key); rows.append({'language': code, 'title': text, 'primary': True})
-    for alt in attrs.get('altTitles') or []:
-        if not isinstance(alt, dict):
-            continue
-        for code, text in alt.items():
-            text = str(text or '').strip()
-            key = (code, text.casefold())
-            if text and key not in seen:
-                seen.add(key); rows.append({'language': code, 'title': text, 'primary': False})
-    return rows
-
-
 def load_manga_metadata(url, preferred='en'):
     mid = manga_uuid(url)
     if not mid:
@@ -278,18 +260,6 @@ def load_manga_metadata(url, preferred='en'):
         'original_language': attrs.get('originalLanguage') or '',
         'main_cover_url': main_cover_url,
     }
-
-
-def _iter_aggregate_nodes(value):
-    """Yield MangaDex aggregate objects whether the API returns a map or list."""
-    if isinstance(value, dict):
-        for key, row in value.items():
-            yield key, row or {}
-    elif isinstance(value, list):
-        for index, row in enumerate(value):
-            row = row or {}
-            key = row.get('volume') if isinstance(row, dict) else index
-            yield key, row if isinstance(row, dict) else {}
 
 
 def _plan_from_aggregate(url, language, start_volume=None, end_volume=None):
@@ -917,22 +887,6 @@ def _validate_cbz_output(path, page_layout):
             except Exception as e:
                 raise RuntimeError(f'CBZ validation failed: {name} is unreadable ({e}).')
     return len(reading)
-
-
-def is_doujinshi_entry(attrs):
-    """Return True when MangaDex metadata identifies a result as doujinshi."""
-    for tag in (attrs or {}).get('tags') or []:
-        names = ((tag or {}).get('attributes') or {}).get('name') or {}
-        if isinstance(names, dict):
-            texts = names.values()
-        else:
-            texts = [names]
-        for text in texts:
-            folded = str(text or '').casefold()
-            if 'doujinshi' in folded or 'doujin' in folded:
-                return True
-    title_text = ' '.join(r.get('title', '') for r in collect_titles(attrs or {})).casefold()
-    return 'doujinshi' in title_text or 'doujin' in title_text
 
 
 def manga_has_downloadable_content(manga_id, attrs=None):
