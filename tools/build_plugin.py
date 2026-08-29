@@ -23,6 +23,7 @@ PYTHON_FILES = (
     "inventory_comparison.py",
     "mangadex_source.py",
     "mangapill_source.py",
+    "weebcentral_source.py",
     "main.py",
     "ui.py",
     "config.py",

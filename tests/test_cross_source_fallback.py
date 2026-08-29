@@ -40,7 +40,8 @@ class CrossSourceFallbackTests(unittest.TestCase):
     def setUp(self):
         self.dex = FakeChapterSource('mangadex', 'MangaDex')
         self.pill = FakeChapterSource('mangapill', 'MangaPill')
-        self.registry = SourceRegistry((self.dex, self.pill))
+        self.weeb = FakeChapterSource('weebcentral', 'WeebCentral')
+        self.registry = SourceRegistry((self.dex, self.pill, self.weeb))
 
     def inventory(self, source, *, edition='original', language='en', usable=True, error=''):
         return SourceInventory(source.source_id, source.display_name,
@@ -67,6 +68,14 @@ class CrossSourceFallbackTests(unittest.TestCase):
                          [('1', 'mangadex'), ('2', 'mangapill'), ('3', 'mangadex')])
         self.assertEqual(plan.notice, '1 missing chapter will be filled from MangaPill.')
         self.assertEqual(plan.gaps[0].status, 'filled')
+
+    def test_weebcentral_can_supply_a_safe_chapter_mode_fallback(self):
+        self.dex.chapters=[chapter('1',source_id='dex'),chapter('3',source_id='dex')]
+        self.weeb.chapters=[chapter('1',source_id='weeb'),chapter('2',source_id='weeb'),chapter('3',source_id='weeb')]
+        dex=self.inventory(self.dex); weeb=self.inventory(self.weeb)
+        plan=self.plan(primary=dex,inventories=(dex,weeb))
+        self.assertEqual([(item.canonical_identity.number,item.source_id) for item in plan.items],[
+            ('1','mangadex'),('2','weebcentral'),('3','mangadex')])
 
     def test_several_gaps_are_filled_deterministically(self):
         self.dex.chapters = [chapter('1', source_id='dex'), chapter('4', source_id='dex')]

@@ -3,7 +3,7 @@ import unittest
 from source_adapter import SourceAdapter
 from source_coordinator import (
     SourceCoordinator, SourceSearchError, count_chapter_pages, format_page_count,
-    review_manifest_progress,
+    provider_search_progress_text, review_manifest_progress,
 )
 from source_registry import SourceRegistry
 
@@ -93,6 +93,36 @@ class SourceCoordinatorTests(unittest.TestCase):
         coordinator, _dex, _pill = self.make_coordinator()
         self.assertEqual(('mangadex', 'mangapill'),
                          tuple(state['source_id'] for state in coordinator.snapshot()['providers']))
+
+    def test_slow_provider_status_progression_is_elapsed_and_indeterminate(self):
+        coordinator, _dex, _pill = self.make_coordinator()
+        coordinator.mark_running('mangadex'); coordinator.mark_running('mangapill')
+        coordinator.complete('mangadex',{'rows':[{'id':'done','title':'Done'}]})
+        early=provider_search_progress_text(coordinator.snapshot(),2)
+        later=provider_search_progress_text(coordinator.snapshot(),12)
+        slow=provider_search_progress_text(coordinator.snapshot(),42)
+        self.assertIn('Searching providers: 1/2 complete',early)
+        self.assertIn('MangaPill — Searching…',early)
+        self.assertIn('MangaPill — Still searching…',later)
+        self.assertIn('MangaPill — Slow response — still working (42s)',slow)
+
+    def test_access_blocked_status_is_distinct_from_slowness(self):
+        coordinator, _dex, _pill = self.make_coordinator()
+        coordinator.mark_running('mangadex'); coordinator.mark_running('mangapill')
+        coordinator.complete('mangadex',{'rows':[]})
+        coordinator.fail('mangapill','MangaPill access blocked by site protection (HTTP 403).')
+        text=provider_search_progress_text(coordinator.snapshot(),42)
+        self.assertIn('MangaPill — Access blocked by site protection',text)
+        self.assertNotIn('MangaPill — Slow response',text)
+
+    def test_cancelling_remaining_search_preserves_completed_rows(self):
+        coordinator, _dex, _pill = self.make_coordinator()
+        coordinator.mark_running('mangadex'); coordinator.mark_running('mangapill')
+        coordinator.complete('mangadex',{'rows':[{'id':'done','title':'Done'}]})
+        coordinator.cancel_remaining(); states={row['source_id']:row for row in coordinator.snapshot()['providers']}
+        self.assertEqual('complete',states['mangadex']['status'])
+        self.assertEqual('cancelled',states['mangapill']['status'])
+        self.assertEqual('done',coordinator._states['mangadex'].rows[0]['id'])
 
     def test_mangadex_known_page_counts_are_summed_without_manifest_requests(self):
         coordinator, dex, _pill = self.make_coordinator()

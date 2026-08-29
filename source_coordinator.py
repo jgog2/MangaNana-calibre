@@ -109,6 +109,13 @@ class SourceCoordinator:
         state.error = str(error or 'Unknown provider error')
         state.rows = []
 
+    def cancel_remaining(self):
+        """Mark only unfinished providers cancelled; completed rows stay intact."""
+        for state in self._states.values():
+            if state.status in ('pending', 'running'):
+                state.status = 'cancelled'
+                state.error = ''
+
     def identify(self, value):
         return self.registry.identify(value)
 
@@ -134,7 +141,7 @@ class SourceCoordinator:
 
     def snapshot(self):
         ordered = [self._states[source.source_id] for source in self.sources]
-        finished = sum(s.status in ('complete', 'failed') for s in ordered)
+        finished = sum(s.status in ('complete', 'failed', 'cancelled') for s in ordered)
         failures = [s for s in ordered if s.status == 'failed']
         combined = '; '.join(f'{s.display_name}: {s.error}' for s in failures)
         return {
@@ -148,3 +155,22 @@ class SourceCoordinator:
             'all_failed': bool(ordered) and len(failures) == len(ordered),
             'combined_error': combined,
         }
+
+
+def provider_search_progress_text(snapshot, elapsed_seconds=0):
+    """Format progressive provider state without manufacturing percentages."""
+    snap=snapshot or {}; elapsed=max(0,int(elapsed_seconds or 0))
+    base=f'Searching providers: {int(snap.get("completed") or 0)}/{int(snap.get("total") or 0)} complete'
+    details=[]
+    for provider in snap.get('providers') or ():
+        name=provider.get('display_name') or provider.get('source_id') or 'Provider'
+        if provider.get('status') == 'running':
+            if elapsed >= 30:
+                details.append(f'{name} — Slow response — still working ({elapsed}s)')
+            elif elapsed >= 10:
+                details.append(f'{name} — Still searching…')
+            else:
+                details.append(f'{name} — Searching…')
+        elif provider.get('status') == 'failed' and 'access blocked by site protection' in str(provider.get('error') or '').casefold():
+            details.append(f'{name} — Access blocked by site protection')
+    return base + ((' · ' + '; '.join(details)) if details else '')

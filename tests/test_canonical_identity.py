@@ -9,7 +9,7 @@ from canonical_identity import (
 
 
 def result(source_id, title, *, aliases=(), author='', year=None, full_title='', badge=''):
-    names = {'mangadex': 'MangaDex', 'mangapill': 'MangaPill', 'third': 'Third Source'}
+    names = {'mangadex': 'MangaDex', 'mangapill': 'MangaPill', 'weebcentral': 'WeebCentral', 'third': 'Third Source'}
     return {
         'source_id': source_id, 'source_name': names[source_id], 'id': source_id + '-id',
         'title': title, 'full_title': full_title or title,
@@ -34,6 +34,16 @@ class CanonicalIdentityTests(unittest.TestCase):
         self.assertEqual(groups[0].source_ids, ('mangadex', 'mangapill', 'third'))
         self.assertEqual(groups[0].confidence, 'high')
         self.assertIn('進撃の巨人', groups[0].aliases)
+
+    def test_weebcentral_attack_on_titan_groups_but_lost_girls_does_not(self):
+        rows=[
+            result('mangadex','Attack on Titan',aliases=('Shingeki no Kyojin',),author='ISAYAMA Hajime',year=2009),
+            result('weebcentral','Attack on Titan',aliases=('Shingeki no Kyojin',),author='ISAYAMA Hajime',year=2009),
+            result('mangapill','Attack on Titan - Lost Girls'),
+        ]
+        groups=group_canonical_results(rows)
+        self.assertEqual([len(group.results) for group in groups],[2,1])
+        self.assertEqual(groups[0].source_ids,('mangadex','weebcentral'))
 
     def test_substring_title_is_not_identity(self):
         groups = group_canonical_results([
