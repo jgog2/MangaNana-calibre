@@ -153,7 +153,7 @@ The Activity Log can be copied directly from MangaNana.
 
 ## Current Scope
 
-MangaNana currently uses MangaDex as its manga source and calibre as its library integration.
+MangaNana currently integrates MangaDex, MangaPill, and WeebCentral as manga sources, with calibre as its library integration.
 
 Possible future directions include support for additional manga sources, a standalone MangaNana application, local manga library management, and direct eReader transfer without requiring calibre.
 

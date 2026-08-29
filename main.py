@@ -36,8 +36,9 @@ from calibre_plugins.manganana.core_helpers import (
 from calibre_plugins.manganana.i18n import tr, UI_LANGUAGES
 from calibre_plugins.manganana.mangadex_source import MangaDexSource
 from calibre_plugins.manganana.mangapill_source import MangaPillSource
+from calibre_plugins.manganana.weebcentral_source import WeebCentralSource
 from calibre_plugins.manganana.source_registry import SourceRegistry
-from calibre_plugins.manganana.source_coordinator import SourceCoordinator, count_chapter_pages, format_page_count, review_manifest_progress
+from calibre_plugins.manganana.source_coordinator import SourceCoordinator, count_chapter_pages, format_page_count, provider_search_progress_text, review_manifest_progress
 from calibre_plugins.manganana.canonical_identity import edition_identity, filter_relevant_results, group_canonical_results, source_badge_specs
 from calibre_plugins.manganana.inventory_comparison import compare_inventories, inspect_source_inventory
 from calibre_plugins.manganana.cross_source_fallback import build_cross_source_plan
@@ -297,7 +298,8 @@ def fetch_volume_covers(url):
 
 MANGADEX_SOURCE = MangaDexSource()
 MANGAPILL_SOURCE = MangaPillSource()
-SOURCE_REGISTRY = SourceRegistry((MANGADEX_SOURCE, MANGAPILL_SOURCE))
+WEEBCENTRAL_SOURCE = WeebCentralSource()
+SOURCE_REGISTRY = SourceRegistry((MANGADEX_SOURCE, MANGAPILL_SOURCE, WEEBCENTRAL_SOURCE))
 SOURCE_COORDINATOR = SourceCoordinator(SOURCE_REGISTRY)
 
 
@@ -738,12 +740,23 @@ class SourceSearchWorker(QThread):
 
     def run(self):
         try:
-            data = self.source.search(
+            def check_cancel():
+                if self.isInterruptionRequested():
+                    raise InterruptedError('Provider search cancelled.')
+            check_cancel()
+            source=(self.source.with_cancel_check(check_cancel)
+                    if hasattr(self.source,'with_cancel_check') else self.source)
+            data = source.search(
                 self.query, offset=self.offset, limit=self.limit,
                 include_adult=self.include_adult, preferred=self.preferred,
                 availability_cache=self.availability_cache,
             )
+            check_cancel()
             self.ready.emit({'source_id': self.source.source_id, 'data': data})
+        except InterruptedError as e:
+            if self.isInterruptionRequested():
+                return
+            self.failed.emit({'source_id': self.source.source_id, 'error': str(e)})
         except Exception as e:
             self.failed.emit({'source_id': self.source.source_id, 'error': str(e)})
 
@@ -1561,9 +1574,9 @@ class PreferencesDialog(QDialog):
         self.ask_vl.setChecked(bool(prefs['ask_virtual_library']))
         self.summary = QCheckBox('Show completion summary after downloads')
         self.summary.setChecked(bool(prefs['show_completion_summary']))
-        self.adult_search = QCheckBox('Show 18+ MangaDex search results')
+        self.adult_search = QCheckBox('Show 18+ search results')
         self.adult_search.setChecked(bool(prefs['show_adult_search_results']))
-        self.adult_search.setToolTip('When disabled, MangaDex search hides erotica and pornographic titles.\nSuggestive titles remain visible.')
+        self.adult_search.setToolTip('When disabled, providers hide adult titles when that classification is available.\nSuggestive titles remain visible.')
         self.ask_vl.setToolTip('Offers to create a MangaNana Virtual Library.\nUseful for separating manga from other books.')
         self.summary.setToolTip('Shows download statistics and quick actions\nwhen a job finishes.')
         self.duplicate_policy = QComboBox()
@@ -1935,6 +1948,8 @@ class MangaNanaDialog(QDialog):
         self._search_has_more = {}
         self._search_total = 0
         self._search_request_id = 0
+        self._search_cancel_requested = False
+        self._search_started_at = 0.0
         self._manga_request_id = 0
         self._volume_plan_request_id = 0
         self._pending_result_token = 0
@@ -1973,6 +1988,8 @@ class MangaNanaDialog(QDialog):
         self.resize(int(prefs.get('window_w', 1450) or 1450), int(prefs.get('window_h', 850) or 850))
         self.setMinimumSize(1280, 760)
         self.build_ui()
+        self._search_status_timer=QTimer(self); self._search_status_timer.setInterval(1000)
+        self._search_status_timer.timeout.connect(self._update_search_status)
         self._cover_pulse_timer=QTimer(self); self._cover_pulse_timer.setInterval(170)
         self._cover_pulse_timer.timeout.connect(self._refresh_visible_cover_pulses)
         self._cover_pulse_timer.start()
@@ -2432,7 +2449,10 @@ class MangaNanaDialog(QDialog):
         # Old network requests may finish later, but their mode/generation is
         # rejected. Clearing this registry lets the new explicit mode search
         # begin immediately instead of waiting behind obsolete requests.
+        for worker in self.search_workers.values():
+            if worker.isRunning(): worker.requestInterruption()
         self.search_workers={}
+        self._search_status_timer.stop(); self._search_cancel_requested=False
         if self.inventory_comparison_worker and self.inventory_comparison_worker.isRunning():
             self.inventory_comparison_worker.requestInterruption()
         self.inventory_comparison_worker=None
@@ -2502,6 +2522,8 @@ class MangaNanaDialog(QDialog):
             reset=True
         if any(worker.isRunning() for worker in self.search_workers.values()):
             return
+        self._search_request_id += 1; search_request_id=self._search_request_id
+        self._search_cancel_requested=False; self._search_started_at=time.monotonic()
         if reset:
             self._last_discovery_kind='search'; self._last_discovery_value=query
             self._search_query=query
@@ -2511,11 +2533,12 @@ class MangaNanaDialog(QDialog):
             self._search_raw_results=[]
             self.search_results.clear()
             self.show_more_btn.setVisible(False)
-        self.search_btn.setEnabled(False); self.search_btn.setText('Searching...')
+        self.search_btn.setEnabled(False); self.search_btn.setText('Searching...'); self.cancel_btn.setEnabled(True)
         self.show_more_btn.setEnabled(False)
         self.progress.setValue(0)
         self.progress.setIndeterminate(True)
-        self.progress_text.setText('Searching providers: 0/{} complete'.format(len(self.search_coordinator.sources)))
+        self.progress_text.setText(provider_search_progress_text(self.search_coordinator.snapshot(),0))
+        self._search_status_timer.start()
         include_adult=bool(prefs['show_adult_search_results'])
         started=0
         for source in self.search_coordinator.sources:
@@ -2526,15 +2549,15 @@ class MangaNanaDialog(QDialog):
             self.search_coordinator.mark_running(source.source_id)
             worker=SourceSearchWorker(source,query,offset,self._search_page_size,include_adult,prefs['language'],self._download_availability_cache,self)
             self.search_workers[source.source_id]=worker
-            worker.ready.connect(lambda payload,k=key,m=mode,g=generation:self._on_search_ready(k,payload,m,g))
-            worker.failed.connect(lambda payload,m=mode,g=generation:self._on_search_failed(payload,m,g))
-            worker.finished.connect(lambda sid=source.source_id,w=worker,m=mode,g=generation:self._search_worker_finished(sid,w,m,g))
+            worker.ready.connect(lambda payload,k=key,m=mode,g=generation,r=search_request_id:self._on_search_ready(k,payload,m,g,r))
+            worker.failed.connect(lambda payload,m=mode,g=generation,r=search_request_id:self._on_search_failed(payload,m,g,r))
+            worker.finished.connect(lambda sid=source.source_id,w=worker,m=mode,g=generation,r=search_request_id:self._search_worker_finished(sid,w,m,g,r))
             worker.start(); started += 1
         if not started:
             self._finish_coordinated_search()
 
-    def _on_search_ready(self, key, payload, mode=None, generation=None):
-        if mode != self.workflow_mode or generation != self._mode_generation:
+    def _on_search_ready(self, key, payload, mode=None, generation=None, request_id=None):
+        if mode != self.workflow_mode or generation != self._mode_generation or request_id != self._search_request_id:
             return
         source_id=payload.get('source_id')
         data=self.search_coordinator.complete(source_id,payload.get('data') or {})
@@ -2598,21 +2621,21 @@ class MangaNanaDialog(QDialog):
                 cover_loading=bool(primary.get('cover_url')),
             ))
 
-    def _on_search_failed(self, data, mode=None, generation=None):
-        if mode != self.workflow_mode or generation != self._mode_generation:
+    def _on_search_failed(self, data, mode=None, generation=None, request_id=None):
+        if mode != self.workflow_mode or generation != self._mode_generation or request_id != self._search_request_id:
             return
         source_id=data.get('source_id'); source=SOURCE_REGISTRY.get(source_id)
         self.search_coordinator.fail(source_id,data.get('error'))
         self.add_log(f'[{source.display_name if source else source_id}] Search failed: {data.get("error")}')
 
-    def _search_worker_finished(self, source_id, completed_worker=None, mode=None, generation=None):
+    def _search_worker_finished(self, source_id, completed_worker=None, mode=None, generation=None, request_id=None):
         worker=self.search_workers.get(source_id)
         if worker is completed_worker:
             self.search_workers.pop(source_id,None)
             worker.deleteLater()
         elif completed_worker is not None:
             completed_worker.deleteLater()
-        if mode != self.workflow_mode or generation != self._mode_generation:
+        if mode != self.workflow_mode or generation != self._mode_generation or request_id != self._search_request_id:
             return
         self._finish_coordinated_search()
 
@@ -2620,11 +2643,12 @@ class MangaNanaDialog(QDialog):
         if self.search_workers:
             snap=self.search_coordinator.snapshot()
             self.progress.setIndeterminate(True)
-            self.progress_text.setText(f'Searching providers: {snap["completed"]}/{snap["total"]} complete')
+            self.progress_text.setText(provider_search_progress_text(snap,time.monotonic()-self._search_started_at))
             return
         snap=self.search_coordinator.snapshot()
+        self._search_status_timer.stop()
         self.progress.setIndeterminate(False)
-        self.search_btn.setEnabled(True); self.search_btn.setText('Search')
+        self.search_btn.setEnabled(True); self.search_btn.setText('Search'); self.cancel_btn.setEnabled(False)
         more=any(self._search_has_more.values())
         self.show_more_btn.setVisible(more); self.show_more_btn.setEnabled(more)
         if snap['all_failed']:
@@ -2634,7 +2658,9 @@ class MangaNanaDialog(QDialog):
             self.progress.setValue(100)
             failures=sum(provider.get('status') == 'failed' for provider in snap['providers'])
             suffix=f' ({failures} failed)' if failures else ''
-            self.progress_text.setText(f'Search complete: {snap["completed"]}/{snap["total"]} providers{suffix}')
+            blocked=[p.get('display_name') for p in snap['providers'] if p.get('status')=='failed' and 'access blocked by site protection' in str(p.get('error') or '').casefold()]
+            blocked_suffix=(' · '+', '.join(blocked)+' — Access blocked by site protection') if blocked else ''
+            self.progress_text.setText(f'Search complete: {snap["completed"]}/{snap["total"]} providers{suffix}{blocked_suffix}')
         if snap['all_failed']:
             error_dialog(self,'Search failed',snap['combined_error'],show=True)
         elif self.search_results.count()==0:
@@ -2642,6 +2668,12 @@ class MangaNanaDialog(QDialog):
 
     def _show_more_search_results(self):
         self.search_mangadex(False)
+
+    def _update_search_status(self):
+        if self.search_workers and not self._search_cancel_requested:
+            self.progress_text.setText(provider_search_progress_text(
+                self.search_coordinator.snapshot(),time.monotonic()-self._search_started_at,
+            ))
 
     def _visible_row_range(self, widget, row_height, buffer_rows=3):
         count=widget.count()
@@ -2908,7 +2940,7 @@ class MangaNanaDialog(QDialog):
         if url_override is None and hasattr(self, 'url'):
             self.url.setCursorPosition(0); self.url.deselect()
         if not source or ref is None:
-            error_dialog(self,'Metadata error','Paste a supported MangaDex or MangaPill title-page URL.',show=True)
+            error_dialog(self,'Metadata error','Paste a supported MangaDex, MangaPill, or WeebCentral series/chapter URL.',show=True)
             return
         self._manga_request_id += 1
         self._invalidate_cover_requests()
@@ -2969,7 +3001,19 @@ class MangaNanaDialog(QDialog):
     def _apply_loaded_manga(self, request_id, data):
         if request_id != self._manga_request_id:
             return
-        md=data.get('metadata') or {}; self.loaded_metadata=md; self.current_manga_url=data.get('url') or self.current_manga_url
+        md=data.get('metadata') or {}
+        if md.get('adult') and not prefs['show_adult_search_results']:
+            self._manga_discovery_kinds.pop(request_id,None)
+            self.loaded_metadata=None; self.current_manga_url=''; self._current_plan=None; self._chapter_plan_items=(); self._selected_chapter_ids.clear()
+            self.title.clear(); self.author.clear(); self.series.clear(); self.volume_list.clear(); self.volume_list.setEnabled(False)
+            self.load_btn.setEnabled(True); self.load_btn.setText('Load Manga'); self.preview_btn.setEnabled(False)
+            self.selected_cover.set_failed(); self.selected_cover.setVisible(False); self.alt_titles_btn.setVisible(False)
+            self.selected_title.setAlignment(Qt.AlignmentFlag.AlignCenter); self.selected_title.setText('No manga selected')
+            self.meta_summary.setText('Adult title blocked by the current search preference.')
+            self.add_log(f'[{data.get("source_id") or "Source"}] Adult title blocked by preference after metadata validation.')
+            error_dialog(self,'Adult title hidden','Enable “Show 18+ search results” in Preferences to load this title.',show=True)
+            return
+        self.loaded_metadata=md; self.current_manga_url=data.get('url') or self.current_manga_url
         discovery_kind, discovery_value=self._manga_discovery_kinds.pop(request_id, (None, ''))
         if discovery_kind in ('search', 'direct') and discovery_value:
             self._last_discovery_kind=discovery_kind; self._last_discovery_value=discovery_value
@@ -3965,6 +4009,9 @@ class MangaNanaDialog(QDialog):
 
     def closeEvent(self, event):
         self._closing=True
+        for worker in self.search_workers.values():
+            if worker.isRunning(): worker.requestInterruption()
+        if hasattr(self,'_search_status_timer'): self._search_status_timer.stop()
         self._invalidate_inflight_preview()
         self._invalidate_cover_requests()
         if hasattr(self, '_cover_pulse_timer'): self._cover_pulse_timer.stop()
@@ -3974,6 +4021,9 @@ class MangaNanaDialog(QDialog):
 
     def reject(self):
         self._closing=True
+        for worker in self.search_workers.values():
+            if worker.isRunning(): worker.requestInterruption()
+        if hasattr(self,'_search_status_timer'): self._search_status_timer.stop()
         self._invalidate_inflight_preview()
         self._invalidate_cover_requests()
         if hasattr(self, '_cover_pulse_timer'): self._cover_pulse_timer.stop()
@@ -4499,6 +4549,21 @@ class MangaNanaDialog(QDialog):
         self.progress_text.setText('  |  '.join(parts))
 
     def cancel_download(self):
+        active_search=[worker for worker in self.search_workers.values() if worker.isRunning()]
+        if active_search:
+            self._search_cancel_requested=True
+            for worker in active_search: worker.requestInterruption()
+            self.search_coordinator.cancel_remaining()
+            completed=sum(provider.get('status')=='complete' for provider in self.search_coordinator.snapshot()['providers'])
+            total=len(self.search_coordinator.sources)
+            self._search_request_id += 1
+            self.search_workers={}
+            self._search_status_timer.stop(); self.progress.setIndeterminate(False); self.progress.setValue(0)
+            self.search_btn.setEnabled(True); self.search_btn.setText('Search'); self.cancel_btn.setEnabled(False)
+            more=any(self._search_has_more.values()); self.show_more_btn.setVisible(more); self.show_more_btn.setEnabled(more)
+            self.progress_text.setText(f'Search cancelled: {completed}/{total} providers completed; completed results preserved.')
+            self.add_log('Provider search cancelled. Results already returned were preserved.')
+            return
         if self.preview_worker and self.preview_worker.isRunning():
             self._review_cancel_requested=True
             self.preview_worker.requestInterruption()

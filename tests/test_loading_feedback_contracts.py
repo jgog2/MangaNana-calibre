@@ -18,7 +18,7 @@ class LoadingFeedbackContractTests(unittest.TestCase):
     def test_provider_search_uses_indeterminate_activity_until_a_final_state(self):
         self.assertIn("def setIndeterminate(self, active):", MAIN)
         self.assertIn("self.progress.setIndeterminate(True)", MAIN)
-        self.assertIn("Searching providers: {snap[\"completed\"]}/{snap[\"total\"]} complete", MAIN)
+        self.assertIn("provider_search_progress_text(snap,time.monotonic()-self._search_started_at)", MAIN)
         self.assertIn("self.progress.setIndeterminate(False)", MAIN)
         self.assertIn("self.progress.setValue(100)", MAIN)
         self.assertIn("track = outer.adjusted(1, 1, -1, -1)", MAIN)
@@ -36,6 +36,16 @@ class LoadingFeedbackContractTests(unittest.TestCase):
         self.assertIn("Review preparation cancelled.", MAIN)
         self.assertIn("self._review_cancel_requested", MAIN)
         self.assertIn("def _on_preview_worker_finished", MAIN)
+
+    def test_search_cancellation_is_separate_and_preserves_completed_results(self):
+        self.assertIn("self.search_coordinator.cancel_remaining()",MAIN)
+        self.assertIn("worker.requestInterruption()",MAIN)
+        self.assertIn("completed results preserved",MAIN)
+        self.assertIn("request_id != self._search_request_id",MAIN)
+
+    def test_title_level_adult_metadata_is_enforced_before_inventory(self):
+        self.assertIn("if md.get('adult') and not prefs['show_adult_search_results']:",MAIN)
+        self.assertIn("Adult title blocked by the current search preference.",MAIN)
 
     def test_mode_switch_replays_the_last_direct_or_search_discovery(self):
         self.assertIn("self._last_discovery_kind", MAIN)
