@@ -163,6 +163,7 @@ class MangaDexSourceBoundaryTests(unittest.TestCase):
         self.assertEqual(result["rows"][0]["title"], "Example")
         self.assertEqual(result["rows"][0]["badge"], "COLOR")
         self.assertEqual(result["rows"][0]["author"], "Example Author")
+        self.assertEqual(result["rows"][0]["alternate_titles"], ["Example Full Color", "サンプル", "Example Alias"])
         self.assertEqual(
             result["rows"][0]["cover_url"],
             "https://uploads.mangadex.org/covers/search-color/cover.jpg",
@@ -214,6 +215,7 @@ class MetadataCharacterizationTests(unittest.TestCase):
         self.assertEqual(metadata["uuid"], MANGA_ID)
         self.assertEqual(metadata["title"], "原題")
         self.assertEqual(metadata["author"], "Author Name")
+        self.assertEqual(metadata["alternate_titles"], ["English Title", "Titre français", "Alternate English Title"])
         self.assertEqual(metadata["available_languages"], ["en", "fr", "es-la"])
         self.assertEqual(metadata["original_language"], "ja")
         self.assertEqual(
