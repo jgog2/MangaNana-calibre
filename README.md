@@ -100,7 +100,7 @@ Metadata title language and download language are handled separately.
 
 Download the latest beta from the **Releases** section of this repository.
 
-Current public beta: **v0.9.8**
+Current development milestone: **MangaNana 0.10.0-dev — The Magician**
 
 > [!NOTE]
 > MangaNana is currently beta software. Testing across different operating systems, calibre versions, display scaling settings, eReaders, and MangaDex titles is appreciated.

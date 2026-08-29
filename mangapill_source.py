@@ -8,8 +8,10 @@ import urllib.request
 
 try:
     from .source_adapter import SourceAdapter
+    from .version_info import USER_AGENT
 except ImportError:
     from source_adapter import SourceAdapter
+    from version_info import USER_AGENT
 
 
 BASE_URL = 'https://mangapill.com'
@@ -106,7 +108,7 @@ class MangaPillSource(SourceAdapter):
     @staticmethod
     def _request(url, timeout=30):
         request = urllib.request.Request(url, headers={
-            'User-Agent': 'MangaNana-Calibre/0.9.8',
+            'User-Agent': USER_AGENT,
             'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8',
         })
         return urllib.request.urlopen(request, timeout=timeout)
@@ -130,7 +132,7 @@ class MangaPillSource(SourceAdapter):
         for attempt in range(1, retries + 1):
             try:
                 request = urllib.request.Request(url, headers={
-                    'User-Agent': 'MangaNana-Calibre/0.9.8', 'Accept': '*/*',
+                    'User-Agent': USER_AGENT, 'Accept': '*/*',
                     'Referer': BASE_URL + '/',
                 })
                 with urllib.request.urlopen(request, timeout=timeout) as response:

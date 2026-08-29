@@ -34,10 +34,11 @@ from calibre_plugins.manganana.i18n import tr, UI_LANGUAGES
 from calibre_plugins.manganana.mangadex_source import MangaDexSource
 from calibre_plugins.manganana.mangapill_source import MangaPillSource
 from calibre_plugins.manganana.source_registry import SourceRegistry
+from calibre_plugins.manganana.version_info import DISPLAY_VERSION, SHORT_VERSION_LABEL, USER_AGENT
 try:
-    from calibre_plugins.manganana.build_info import DISPLAY_VERSION
+    from calibre_plugins.manganana.build_info import GIT_COMMIT
 except ImportError:
-    DISPLAY_VERSION = 'MangaNana 0.9.8-dev (source)'
+    GIT_COMMIT = 'source'
 
 ORANGE = '#FF6740'
 VL_NAME = 'MangaNana'
@@ -284,7 +285,7 @@ MANGAPILL_SOURCE = MangaPillSource()
 SOURCE_REGISTRY = SourceRegistry((MANGADEX_SOURCE, MANGAPILL_SOURCE))
 
 
-def download_bytes(url, timeout=45, retries=5, user_agent='MangaNana-Calibre/0.9.8', retry_callback=None):
+def download_bytes(url, timeout=45, retries=5, user_agent=USER_AGENT, retry_callback=None):
     return MANGADEX_SOURCE.fetch_binary(
         url, timeout=timeout, retries=retries, user_agent=user_agent,
         retry_callback=retry_callback,
@@ -785,7 +786,7 @@ class ImageBatchWorker(QThread):
                 if not url:
                     continue
                 try:
-                    raw=download_bytes(url, timeout=14, retries=2, user_agent='MangaNana-Calibre/0.9.8')
+                    raw=download_bytes(url, timeout=14, retries=2, user_agent=USER_AGENT)
                     if raw:
                         break
                 except Exception:
@@ -1175,7 +1176,7 @@ class PairingPreviewWorker(QThread):
                                     url,
                                     timeout=45,
                                     retries=4,
-                                    user_agent='MangaNana-Calibre/0.9.8',
+                                    user_agent=USER_AGENT,
                                 ),
                                 self._orientation_verification_cache,
                             )
@@ -1732,7 +1733,7 @@ class MangaNanaDialog(QDialog):
         brand_row.addWidget(icon_label); brand_row.addWidget(brand)
         header.addWidget(brand_group)
         header.addStretch(1)
-        ver = QLabel('v0.9.8')
+        ver = QLabel(SHORT_VERSION_LABEL)
         ver.setFixedWidth(105); ver.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         ver.setStyleSheet('color:#777; font-size:10px; font-weight:700;')
         header.addWidget(ver)
@@ -2630,6 +2631,7 @@ class MangaNanaDialog(QDialog):
         box.setText(f'<b>{DISPLAY_VERSION} for Calibre</b>')
         box.setInformativeText(
             'Cross-platform MangaDex downloader and Calibre importer.\n\n'
+            f'Development commit: {GIT_COMMIT}\n'
             'Supported platforms: Windows, macOS, Linux\n'
             'Minimum Calibre version: 7.0\n'
             'Downloader: pure Python using the MangaDex API\n\n'

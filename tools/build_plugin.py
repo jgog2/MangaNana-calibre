@@ -6,13 +6,13 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import subprocess
-from datetime import datetime, timezone
 import zipfile
 
 
 PYTHON_FILES = (
     "__init__.py",
     "core_helpers.py",
+    "version_info.py",
     "source_adapter.py",
     "source_registry.py",
     "mangadex_source.py",
@@ -24,7 +24,6 @@ PYTHON_FILES = (
 )
 ROOT_FILES = (*PYTHON_FILES, "plugin-import-name-manganana.txt")
 OUTPUT_NAME = "MangaNana-Calibre-dev.zip"
-PUBLIC_VERSION = "0.9.8"
 
 
 def syntax_check(repository_root: Path) -> None:
@@ -46,7 +45,7 @@ def files_to_package(repository_root: Path) -> list[tuple[Path, str]]:
 
 
 def build_info_source(repository_root: Path) -> str:
-    """Create a visible identity for this exact development ZIP."""
+    """Create timestamp-free debug metadata for this development ZIP."""
     try:
         result = subprocess.run(
             [
@@ -65,13 +64,10 @@ def build_info_source(repository_root: Path) -> str:
         commit = result.stdout.strip() or "unknown"
     except Exception:
         commit = "unknown"
-    built_at = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
-    build_id = f"{commit}+{built_at}"
-    display_version = f"MangaNana {PUBLIC_VERSION}-dev ({build_id})"
     return (
         '"""Generated development-build identity."""\n\n'
-        f"BUILD_ID = {build_id!r}\n"
-        f"DISPLAY_VERSION = {display_version!r}\n"
+        f"GIT_COMMIT = {commit!r}\n"
+        f"BUILD_ID = {commit!r}\n"
     )
 
 
