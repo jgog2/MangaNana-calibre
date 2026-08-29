@@ -20,8 +20,11 @@ RATINGS = ('safe', 'suggestive', 'erotica', 'pornographic')
 
 
 class MangaDexSource(SourceAdapter):
-    key = 'mangadex'
+    source_id = 'mangadex'
+    key = source_id
     display_name = 'MangaDex'
+    domains = ('mangadex.org', 'www.mangadex.org')
+    enabled_by_default = True
 
     def __init__(self, api_json=None, fetch_binary=None):
         self._api_json = api_json or self._default_api_json
@@ -68,7 +71,11 @@ class MangaDexSource(SourceAdapter):
         raise RuntimeError(f'Failed to download after {retries} attempts: {last}')
 
     def parse_manga_ref(self, value):
-        match = UUID_RE.search(value or '')
+        text = value or ''
+        parsed = urllib.parse.urlparse(text if '://' in text else f'https://{text}')
+        if (parsed.hostname or '').casefold() not in self.domains:
+            return None
+        match = UUID_RE.search(parsed.path or '')
         return match.group(1) if match else None
 
     def _require_id(self, value, message='Enter a valid MangaDex title URL.'):

@@ -14,6 +14,7 @@ from core_helpers import (
 )
 from mangadex_source import MangaDexSource
 from source_adapter import SourceAdapter
+from source_registry import SourceRegistry
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
@@ -91,10 +92,12 @@ def load_mangadex_functions(api):
         for node in tree.body
         if isinstance(node, ast.FunctionDef) and node.name in names
     ]
+    source = MangaDexSource(api)
     namespace = {
         "urllib": urllib,
         "api_json": api,
-        "MANGADEX_SOURCE": MangaDexSource(api),
+        "MANGADEX_SOURCE": source,
+        "SOURCE_REGISTRY": SourceRegistry((source,)),
         "collect_titles": collect_titles,
         "choose_preferred_title": choose_preferred_title,
         "_iter_aggregate_nodes": _iter_aggregate_nodes,
