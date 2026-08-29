@@ -11,6 +11,7 @@ class SourceAdapter(ABC):
     display_name = ''
     domains = ()
     enabled_by_default = True
+    capabilities = frozenset()
 
     def can_handle_ref(self, value):
         """Return whether this adapter recognizes a direct manga reference."""

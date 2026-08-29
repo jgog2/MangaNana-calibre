@@ -25,6 +25,8 @@ class MangaDexSource(SourceAdapter):
     display_name = 'MangaDex'
     domains = ('mangadex.org', 'www.mangadex.org')
     enabled_by_default = True
+    capabilities = frozenset({'search', 'metadata', 'volumes', 'chapters', 'covers',
+                              'pages', 'data_saver', 'binary'})
 
     def __init__(self, api_json=None, fetch_binary=None):
         self._api_json = api_json or self._default_api_json
