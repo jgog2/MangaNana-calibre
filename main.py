@@ -32,6 +32,7 @@ from calibre_plugins.manganana.core_helpers import (
 )
 from calibre_plugins.manganana.i18n import tr, UI_LANGUAGES
 from calibre_plugins.manganana.mangadex_source import MangaDexSource
+from calibre_plugins.manganana.mangapill_source import MangaPillSource
 from calibre_plugins.manganana.source_registry import SourceRegistry
 try:
     from calibre_plugins.manganana.build_info import DISPLAY_VERSION
@@ -279,7 +280,8 @@ def fetch_volume_covers(url):
 
 
 MANGADEX_SOURCE = MangaDexSource()
-SOURCE_REGISTRY = SourceRegistry((MANGADEX_SOURCE,))
+MANGAPILL_SOURCE = MangaPillSource()
+SOURCE_REGISTRY = SourceRegistry((MANGADEX_SOURCE, MANGAPILL_SOURCE))
 
 
 def download_bytes(url, timeout=45, retries=5, user_agent='MangaNana-Calibre/0.9.8', retry_callback=None):
