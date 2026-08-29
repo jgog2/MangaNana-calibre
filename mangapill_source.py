@@ -16,6 +16,7 @@ except ImportError:
 
 BASE_URL = 'https://mangapill.com'
 MANGA_PATH_RE = re.compile(r'^/manga/(\d+)(?:/[^/?#]+)?/?$')
+CHAPTER_PATH_RE = re.compile(r'^/chapters/[A-Za-z0-9-]+(?:/[^/?#]+)?/?$')
 CHAPTER_NUMBER_RE = re.compile(r'(?i)chapter\s+([^\s]+)')
 
 
@@ -149,12 +150,34 @@ class MangaPillSource(SourceAdapter):
         if (parsed.hostname or '').casefold() not in self.domains:
             return None
         match = MANGA_PATH_RE.match(parsed.path or '')
-        return match.group(1) if match else None
+        if match:
+            return match.group(1)
+        if CHAPTER_PATH_RE.match(parsed.path or ''):
+            return urllib.parse.urlunparse(('https', 'mangapill.com', parsed.path, '', '', ''))
+        return None
+
+    def resolve_manga_ref(self, value):
+        """Resolve a title or chapter URL to its parent MangaPill manga id."""
+        reference = self.parse_manga_ref(value)
+        if reference is None:
+            raise ValueError('Enter a valid MangaPill manga or chapter URL.')
+        if str(reference).isdigit():
+            return str(reference)
+        doc = _parse_html(self._fetch_text(reference, timeout=30, retries=3))
+        candidates = []
+        for anchor in doc.anchors:
+            match = MANGA_PATH_RE.match(urllib.parse.urlparse(anchor['href']).path or '')
+            if match:
+                candidates.append((anchor.get('text', '').strip().casefold(), match.group(1)))
+        for text, manga_id in candidates:
+            if text == 'go to manga':
+                return manga_id
+        if candidates:
+            return candidates[0][1]
+        raise RuntimeError('MangaPill chapter page did not contain a parent manga link.')
 
     def _manga_url(self, value):
-        manga_id = self.parse_manga_ref(value)
-        if not manga_id:
-            raise ValueError('Enter a valid MangaPill manga URL.')
+        manga_id = self.resolve_manga_ref(value)
         return manga_id, f'{BASE_URL}/manga/{manga_id}'
 
     def search(self, query, offset=0, limit=12, include_adult=False,

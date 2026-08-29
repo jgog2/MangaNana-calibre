@@ -34,6 +34,7 @@ from calibre_plugins.manganana.i18n import tr, UI_LANGUAGES
 from calibre_plugins.manganana.mangadex_source import MangaDexSource
 from calibre_plugins.manganana.mangapill_source import MangaPillSource
 from calibre_plugins.manganana.source_registry import SourceRegistry
+from calibre_plugins.manganana.source_coordinator import SourceCoordinator
 from calibre_plugins.manganana.version_info import DISPLAY_VERSION, SHORT_VERSION_LABEL, USER_AGENT
 try:
     from calibre_plugins.manganana.build_info import GIT_COMMIT
@@ -283,6 +284,7 @@ def fetch_volume_covers(url):
 MANGADEX_SOURCE = MangaDexSource()
 MANGAPILL_SOURCE = MangaPillSource()
 SOURCE_REGISTRY = SourceRegistry((MANGADEX_SOURCE, MANGAPILL_SOURCE))
+SOURCE_COORDINATOR = SourceCoordinator(SOURCE_REGISTRY)
 
 
 def download_bytes(url, timeout=45, retries=5, user_agent=USER_AGENT, retry_callback=None):
@@ -702,12 +704,13 @@ def manga_has_downloadable_content(manga_id, attrs=None):
     return MANGADEX_SOURCE.has_downloadable_content(manga_id, attrs)
 
 
-class MangaDexSearchWorker(QThread):
+class SourceSearchWorker(QThread):
     ready = pyqtSignal(object)
-    failed = pyqtSignal(str)
+    failed = pyqtSignal(object)
 
-    def __init__(self, query, offset=0, limit=12, include_adult=False, preferred='en', availability_cache=None, parent=None):
+    def __init__(self, source, query, offset=0, limit=12, include_adult=False, preferred='en', availability_cache=None, parent=None):
         super().__init__(parent)
+        self.source = source
         self.query = query
         self.offset = int(offset)
         self.limit = int(limit)
@@ -721,29 +724,36 @@ class MangaDexSearchWorker(QThread):
 
     def run(self):
         try:
-            self.ready.emit(MANGADEX_SOURCE.search(
+            data = self.source.search(
                 self.query, offset=self.offset, limit=self.limit,
                 include_adult=self.include_adult, preferred=self.preferred,
                 availability_cache=self.availability_cache,
-            ))
+            )
+            self.ready.emit({'source_id': self.source.source_id, 'data': data})
         except Exception as e:
-            self.failed.emit(str(e))
+            self.failed.emit({'source_id': self.source.source_id, 'error': str(e)})
+
+
+MangaDexSearchWorker = SourceSearchWorker
 
 
 class MangaLoadWorker(QThread):
     ready = pyqtSignal(object)
     failed = pyqtSignal(object)
 
-    def __init__(self, request_id, url, preferred='en', parent=None):
+    def __init__(self, request_id, source, url, preferred='en', parent=None):
         super().__init__(parent)
-        self.request_id=request_id; self.url=url; self.preferred=preferred or 'en'
+        self.request_id=request_id; self.source=source; self.url=url; self.preferred=preferred or 'en'
 
     def run(self):
         try:
             # Keep title switching lightweight. Volume-cover discovery happens
             # with the volume plan only after this result is still current.
-            md=MANGADEX_SOURCE.get_manga(self.url, preferred=self.preferred)
-            self.ready.emit({'request_id':self.request_id,'url':self.url,'metadata':md})
+            md=self.source.get_manga(self.url, preferred=self.preferred)
+            original_ref=self.source.parse_manga_ref(self.url)
+            resolved_url=(md.get('source_url') or self.url) if str(original_ref).startswith('http') else self.url
+            self.ready.emit({'request_id':self.request_id,'url':resolved_url,'metadata':md,
+                             'source_id':self.source.source_id})
         except Exception as e:
             self.failed.emit({'request_id':self.request_id,'error':str(e)})
 
@@ -752,20 +762,20 @@ class VolumePlanWorker(QThread):
     ready = pyqtSignal(object)
     failed = pyqtSignal(object)
 
-    def __init__(self, request_id, url, language, parent=None):
+    def __init__(self, request_id, source, url, language, parent=None):
         super().__init__(parent)
-        self.request_id=request_id; self.url=url; self.language=language
+        self.request_id=request_id; self.source=source; self.url=url; self.language=language
 
     def run(self):
         try:
-            plan=fetch_download_plan(self.url, self.language)
+            plan=self.source.get_download_plan(self.url, self.language)
             cover_error=''
             try:
-                covers=fetch_volume_covers(self.url)
+                covers=self.source.get_volume_covers(self.url)
             except Exception as e:
                 covers={}; cover_error=str(e)
             self.ready.emit({'request_id':self.request_id,'url':self.url,'language':self.language,
-                             'plan':plan,'covers':covers,'cover_error':cover_error})
+                             'source_id':self.source.source_id,'plan':plan,'covers':covers,'cover_error':cover_error})
         except Exception as e:
             self.failed.emit({'request_id':self.request_id,'url':self.url,'language':self.language,'error':str(e)})
 
@@ -774,19 +784,22 @@ class ImageBatchWorker(QThread):
     image_ready = pyqtSignal(object)
     batch_done = pyqtSignal(object)
 
-    def __init__(self, batch_id, entries, parent=None):
+    def __init__(self, batch_id, entries, parent=None, source=None):
         super().__init__(parent)
         self.batch_id=batch_id
         self.entries=list(entries or [])
+        self.source=source or MANGADEX_SOURCE
 
     def run(self):
-        for key, urls in self.entries:
+        for entry in self.entries:
+            key, urls = entry[:2]
+            source = entry[2] if len(entry) > 2 else self.source
             raw=None
             for url in urls:
                 if not url:
                     continue
                 try:
-                    raw=download_bytes(url, timeout=14, retries=2, user_agent=USER_AGENT)
+                    raw=source.fetch_binary(url, timeout=14, retries=2, user_agent=USER_AGENT)
                     if raw:
                         break
                 except Exception:
@@ -804,8 +817,10 @@ class DownloadWorker(QThread):
     failed = pyqtSignal(str)
     cancelled_ok = pyqtSignal()
 
-    def __init__(self, url, title, author, series, language, start, end, covers, zero_pad, existing_volumes, selected_volumes=None, include_bonus=True, page_layout='original_pages', reading_direction='rtl', main_cover_url=''):
+    def __init__(self, source, url, title, author, series, language, start, end, covers, zero_pad, existing_volumes, selected_volumes=None, include_bonus=True, page_layout='original_pages', reading_direction='rtl', main_cover_url=''):
         super().__init__()
+        self.source = source
+        self.source_name = source.display_name
         self.url, self.title, self.author, self.series = url, title, author, series
         self.main_cover_url = main_cover_url or ''
         self.language = language
@@ -851,7 +866,7 @@ class DownloadWorker(QThread):
             self._check_cancel()
             try:
                 self.log.emit(f'Downloading volume cover for {final_title}...')
-                cover_blob = download_bytes(cover_url, timeout=40, retries=4, retry_callback=self.log.emit)
+                cover_blob = self.source.fetch_binary(cover_url, timeout=40, retries=4, retry_callback=self.log.emit)
                 cover_ext = image_extension(cover_url)
                 cover_blob, _cover_size, cover_exif_changed, cover_orientation = _normalize_exif_orientation(cover_blob, cover_ext)
                 if cover_exif_changed:
@@ -866,13 +881,13 @@ class DownloadWorker(QThread):
             ch_label = chapter.get('chapter') or 'unnumbered'
             if volume is None: self.log.emit(f'Downloading standalone Chapter {ch_label}...')
             else: self.log.emit(f'Downloading Volume {volume:g}, Chapter {ch_label}...')
-            urls = chapter_page_urls(chapter['id'], retry_callback=self.log.emit)
+            urls = self.source.get_page_manifest(chapter['id'], retry_callback=self.log.emit)['full']
             if len(urls) != int(chapter.get('pages') or 0):
                 state['pages_total'] += len(urls) - int(chapter.get('pages') or 0)
                 volume_pages_total += len(urls) - int(chapter.get('pages') or 0)
             for page_in_chapter, url in enumerate(urls, 1):
                 self._check_cancel()
-                blob = download_bytes(url, timeout=50, retries=5, retry_callback=self.log.emit)
+                blob = self.source.fetch_binary(url, timeout=50, retries=5, retry_callback=self.log.emit)
                 ext = image_extension(url)
                 blob, size, exif_changed, exif_orientation = _normalize_exif_orientation(blob, ext)
                 if exif_changed:
@@ -909,8 +924,8 @@ class DownloadWorker(QThread):
         t0 = time.time()
         work = tempfile.mkdtemp(prefix='manganana-calibre-')
         try:
-            self.log.emit('Reading MangaDex chapter information and page counts...')
-            chapters = fetch_chapter_entries(self.url, self.language, self.start_volume, self.end_volume)
+            self.log.emit(f'[{self.source_name}] Reading chapter information and page counts...')
+            chapters = self.source.get_chapters(self.url, self.language, self.start_volume, self.end_volume)
             if not chapters:
                 raise RuntimeError('No downloadable chapters were found for the selected language and volume range.')
 
@@ -939,7 +954,7 @@ class DownloadWorker(QThread):
             covers = {}
             if self.covers:
                 try:
-                    covers = fetch_volume_covers(self.url)
+                    covers = self.source.get_volume_covers(self.url)
                 except Exception as e:
                     self.log.emit(f'Warning: volume-cover metadata unavailable: {e}')
 
@@ -1017,8 +1032,9 @@ class PreviewWorker(QThread):
     ready = pyqtSignal(object)
     failed = pyqtSignal(str)
 
-    def __init__(self, url, title, author, series, language, start, end, zero_pad, existing_volumes, selected_volumes=None, include_standalone=False, bytes_per_page=450*1024):
+    def __init__(self, source, url, title, author, series, language, start, end, zero_pad, existing_volumes, selected_volumes=None, include_standalone=False, bytes_per_page=450*1024):
         super().__init__()
+        self.source = source
         self.url = url
         self.title = title
         self.author = author
@@ -1034,7 +1050,7 @@ class PreviewWorker(QThread):
 
     def run(self):
         try:
-            chapters = fetch_chapter_entries(self.url, self.language, self.start_volume, self.end_volume)
+            chapters = self.source.get_chapters(self.url, self.language, self.start_volume, self.end_volume)
             if not chapters:
                 raise RuntimeError('No downloadable chapters were found for the selected language and volume range.')
             groups = {}
@@ -1097,8 +1113,9 @@ class PairingPreviewWorker(QThread):
     log = pyqtSignal(str)
     cancelled_ok = pyqtSignal()
 
-    def __init__(self, url, language, volume, direction):
+    def __init__(self, source, url, language, volume, direction):
         super().__init__()
+        self.source = source
         self.url, self.language, self.volume, self.direction = url, language, volume, direction
         self.cancelled = False
         self._orientation_verification_cache = {}
@@ -1112,7 +1129,7 @@ class PairingPreviewWorker(QThread):
 
     def _fetch_preview_page(self, saver_url, full_url, page_number):
         """Fetch a data-saver page with transient retries, then fall back to full quality."""
-        return MANGADEX_SOURCE.fetch_preview_page(
+        return self.source.fetch_preview_page(
             saver_url, full_url, page_number,
             log=self.log.emit, check_cancel=self._check_cancel,
         )
@@ -1120,7 +1137,7 @@ class PairingPreviewWorker(QThread):
     def run(self):
         started = time.monotonic()
         try:
-            chapters = fetch_chapter_entries(self.url, self.language, self.volume, self.volume)
+            chapters = self.source.get_chapters(self.url, self.language, self.volume, self.volume)
             chapters = [c for c in chapters if c.get('volume') == self.volume]
             if not chapters:
                 raise RuntimeError('No chapters were found for the selected pairing-preview item.')
@@ -1128,7 +1145,7 @@ class PairingPreviewWorker(QThread):
             base_limit = 12
             hard_limit = 14
             self.log.emit(f'Pairing preview starts with the first {base_limit} source pages and may sample up to {hard_limit} to finish a complete pair.')
-            self.log.emit('Preview mode: using MangaDex reduced-quality data-saver images when available.')
+            self.log.emit(f'Preview mode: using {self.source.display_name} reduced-quality images when available.')
 
             # Build a lightweight ordered page queue first. This lets the sample
             # request one or two extra source pages only when its current ending
@@ -1138,8 +1155,9 @@ class PairingPreviewWorker(QThread):
                 self._check_cancel()
                 ch_label=chapter.get('chapter') or 'unnumbered'
                 ch_title=str(chapter.get('title') or '').strip()
-                saver_urls=chapter_page_urls(chapter['id'], data_saver=True)
-                full_urls=chapter_page_urls(chapter['id'], data_saver=False)
+                manifest=self.source.get_page_manifest(chapter['id'])
+                full_urls=manifest.get('full') or []
+                saver_urls=manifest.get('data_saver') or list(full_urls)
                 if len(full_urls) != len(saver_urls):
                     raise RuntimeError(f'MangaDex returned mismatched preview page lists for Chapter {ch_label}.')
                 for page_in_chapter, saver_url in enumerate(saver_urls, 1):
@@ -1167,12 +1185,12 @@ class PairingPreviewWorker(QThread):
                     t0=time.monotonic()
                     blob, used_fallback=self._fetch_preview_page(saver_url, full_url, page_no)
                     orientation_verification=None
-                    if not used_fallback:
+                    if not used_fallback and 'data_saver' in self.source.capabilities and saver_url != full_url:
                         try:
                             blob, verified_full, orientation_verification = _select_verified_preview_source(
                                 blob,
                                 full_url,
-                                lambda url: download_bytes(
+                                lambda url: self.source.fetch_binary(
                                     url,
                                     timeout=45,
                                     retries=4,
@@ -1559,9 +1577,12 @@ class MangaNanaDialog(QDialog):
         self._preview_build_signature = None
         self.loaded_metadata = None
         self.current_manga_url = ''
+        self.current_source = MANGADEX_SOURCE
+        self.current_source_id = MANGADEX_SOURCE.source_id
         self._loaded_covers = {}
         self._main_cover_url = ''
         self._pending_search_url = ''
+        self._pending_source_id = ''
         self._pending_search_cover_url = ''
         self._current_plan = None
         self._download_language_valid = False
@@ -1576,7 +1597,8 @@ class MangaNanaDialog(QDialog):
         self._image_cache = {}
         self._search_page_size = 12
         self._search_query = ''
-        self._search_offset = 0
+        self._search_offsets = {}
+        self._search_has_more = {}
         self._search_total = 0
         self._search_request_id = 0
         self._manga_request_id = 0
@@ -1598,6 +1620,8 @@ class MangaNanaDialog(QDialog):
         self._pending_auto_preview = False
         self._auto_preview_delay_ms = 360
         self.search_worker = None
+        self.search_workers = {}
+        self.search_coordinator = SourceCoordinator(SOURCE_REGISTRY)
         self.search_thumb_worker = None
         self.volume_thumb_worker = None
         self._manga_workers = []
@@ -1734,7 +1758,8 @@ class MangaNanaDialog(QDialog):
         header.addWidget(brand_group)
         header.addStretch(1)
         ver = QLabel(SHORT_VERSION_LABEL)
-        ver.setFixedWidth(105); ver.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        ver.adjustSize(); ver.setMinimumWidth(ver.sizeHint().width() + 8)
+        ver.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         ver.setStyleSheet('color:#777; font-size:10px; font-weight:700;')
         header.addWidget(ver)
         shell.addLayout(header)
@@ -1751,10 +1776,10 @@ class MangaNanaDialog(QDialog):
         search_col = QVBoxLayout(); search_col.setSpacing(7)
         search_top = QWidget(); search_top.setMinimumHeight(228)
         search_top_l = QVBoxLayout(search_top); search_top_l.setContentsMargins(0,0,0,0); search_top_l.setSpacing(7)
-        search_label=QLabel('Search MangaDex'); search_label.setStyleSheet('font-size:11px; font-weight:700; color:#D8D8D8;'); search_top_l.addWidget(search_label)
+        search_label=QLabel('Search manga sources'); search_label.setStyleSheet('font-size:11px; font-weight:700; color:#D8D8D8;'); search_top_l.addWidget(search_label)
         search_row = QHBoxLayout()
-        self.search_box = QLineEdit(); self.search_box.setPlaceholderText('Search MangaDex...')
-        self.search_box.setToolTip('Search MangaDex by title. Select a result to load it into MangaNana.')
+        self.search_box = QLineEdit(); self.search_box.setPlaceholderText('Search MangaDex and MangaPill...')
+        self.search_box.setToolTip('Search every enabled manga source by title.')
         self.search_btn = QPushButton('Search'); self.search_btn.setObjectName('secondaryAction'); self.search_btn.clicked.connect(lambda: self.search_mangadex(True))
         self.search_box.returnPressed.connect(lambda: self.search_mangadex(True))
         search_row.addWidget(self.search_box,1); search_row.addWidget(self.search_btn); search_top_l.addLayout(search_row)
@@ -1764,11 +1789,11 @@ class MangaNanaDialog(QDialog):
         or_right=QFrame(); or_right.setFrameShape(QFrame.Shape.HLine); or_right.setStyleSheet('color:#34383C;')
         or_row.addWidget(or_left,1); or_row.addWidget(or_text); or_row.addWidget(or_right,1); search_top_l.addLayout(or_row)
 
-        direct_label=QLabel('Have a MangaDex link?'); direct_label.setStyleSheet('font-size:11px; font-weight:700; color:#D8D8D8;'); search_top_l.addWidget(direct_label)
-        direct_note=QLabel('Paste a MangaDex title URL directly, or browse MangaDex in your normal browser.')
+        direct_label=QLabel('Have a title link?'); direct_label.setStyleSheet('font-size:11px; font-weight:700; color:#D8D8D8;'); search_top_l.addWidget(direct_label)
+        direct_note=QLabel('Paste a MangaDex or MangaPill title URL directly.')
         direct_note.setWordWrap(True); direct_note.setStyleSheet('color:#92979C; font-size:11px;'); search_top_l.addWidget(direct_note)
-        urlrow=QHBoxLayout(); self.url = QLineEdit(); self.url.setPlaceholderText('https://mangadex.org/title/...')
-        self.url.setToolTip('Paste a MangaDex title-page URL directly. Search selections do not overwrite this field.')
+        urlrow=QHBoxLayout(); self.url = QLineEdit(); self.url.setPlaceholderText('Paste a supported title URL...')
+        self.url.setToolTip('Paste a MangaDex or MangaPill title-page URL directly.')
         self.load_btn = QPushButton('Load Manga'); self.load_btn.setObjectName('secondaryAction'); self.load_btn.clicked.connect(self.load_metadata); self.url.returnPressed.connect(self.load_metadata)
         urlrow.addWidget(self.url,1); urlrow.addWidget(self.load_btn); search_top_l.addLayout(urlrow)
         search_top_l.addStretch(1)
@@ -1985,35 +2010,43 @@ class MangaNanaDialog(QDialog):
         QDesktopServices.openUrl(QUrl('https://mangadex.org/'))
 
     def search_mangadex(self, reset=True):
+        """Compatibility name for the provider-neutral coordinated search."""
         query=self.search_box.text().strip()
         if not query:
             return
         if not reset and query != self._search_query:
             reset=True
-        if self.search_worker and self.search_worker.isRunning():
+        if any(worker.isRunning() for worker in self.search_workers.values()):
             return
         if reset:
             self._search_query=query
-            self._search_offset=0
-            self._search_total=0
+            self._search_offsets={source.source_id:0 for source in self.search_coordinator.sources}
+            self._search_has_more={source.source_id:False for source in self.search_coordinator.sources}
+            self.search_coordinator.reset()
             self.search_results.clear()
             self.show_more_btn.setVisible(False)
-        offset=self._search_offset
         self.search_btn.setEnabled(False); self.search_btn.setText('Searching...')
         self.show_more_btn.setEnabled(False)
         include_adult=bool(prefs['show_adult_search_results'])
-        key=(query.casefold(),offset,self._search_page_size,include_adult,prefs['language'])
-        cached=self._search_cache.get(key)
-        if cached is not None:
-            QTimer.singleShot(0, lambda d=cached: self._apply_search_page(d))
-            return
-        self.search_worker=MangaDexSearchWorker(query, offset, self._search_page_size, include_adult, prefs['language'], self._download_availability_cache, self)
-        self.search_worker.ready.connect(lambda d,k=key: self._on_search_ready(k,d))
-        self.search_worker.failed.connect(self._on_search_failed)
-        self.search_worker.finished.connect(self._search_worker_finished)
-        self.search_worker.start()
+        started=0
+        for source in self.search_coordinator.sources:
+            if not reset and not self._search_has_more.get(source.source_id):
+                continue
+            offset=self._search_offsets.get(source.source_id,0)
+            key=(source.source_id,query.casefold(),offset,self._search_page_size,include_adult,prefs['language'])
+            self.search_coordinator.mark_running(source.source_id)
+            worker=SourceSearchWorker(source,query,offset,self._search_page_size,include_adult,prefs['language'],self._download_availability_cache,self)
+            self.search_workers[source.source_id]=worker
+            worker.ready.connect(lambda payload,k=key:self._on_search_ready(k,payload))
+            worker.failed.connect(self._on_search_failed)
+            worker.finished.connect(lambda sid=source.source_id:self._search_worker_finished(sid))
+            worker.start(); started += 1
+        if not started:
+            self._finish_coordinated_search()
 
-    def _on_search_ready(self, key, data):
+    def _on_search_ready(self, key, payload):
+        source_id=payload.get('source_id')
+        data=self.search_coordinator.complete(source_id,payload.get('data') or {})
         self._search_cache[key]=data
         self._apply_search_page(data)
 
@@ -2024,51 +2057,77 @@ class MangaNanaDialog(QDialog):
         for i in range(self.search_results.count()):
             info=self.search_results.item(i).data(Qt.ItemDataRole.UserRole) or {}
             if isinstance(info,dict) and info.get('id'):
-                existing.add(info.get('id'))
+                existing.add((info.get('source_id'),info.get('id')))
         appended=0
         for row in data.get('rows') or []:
             mid=row.get('id')
-            if not mid or mid in existing:
+            source_id=row.get('source_id') or data.get('source_id')
+            identity=(source_id,mid)
+            if not mid or identity in existing:
                 continue
             item=QListWidgetItem()
-            info={'id':mid,'cover_url':row.get('cover_url') or ''}
+            source=SOURCE_REGISTRY.get(source_id)
+            url=row.get('url') or (f'https://mangadex.org/title/{mid}' if source_id=='mangadex' else '')
+            info={'id':mid,'url':url,'cover_url':row.get('cover_url') or '',
+                  'source_id':source_id,'source_name':row.get('source_name') or data.get('source_name')}
             item.setData(Qt.ItemDataRole.UserRole, info)
             title=row.get('title') or 'Untitled'; author=row.get('author') or ''; badge=row.get('badge') or ''
-            item.setText(title + (f'   [{badge}]' if badge else '') + (f'\n{author}' if author else ''))
+            provider=info.get('source_name') or (source.display_name if source else source_id)
+            item.setText(title + f'   [{provider}]' + (f'   [{badge}]' if badge else '') + (f'\n{author}' if author else ''))
             item.setSizeHint(QSize(0,122))
-            self.search_results.addItem(item)
-            existing.add(mid); appended += 1
+            provider_order={s.source_id:i for i,s in enumerate(self.search_coordinator.sources)}
+            target_order=provider_order.get(source_id,999)
+            insert_at=self.search_results.count()
+            for position in range(self.search_results.count()):
+                other=self.search_results.item(position).data(Qt.ItemDataRole.UserRole) or {}
+                if provider_order.get(other.get('source_id'),999) > target_order:
+                    insert_at=position; break
+            self.search_results.insertItem(insert_at,item)
+            existing.add(identity); appended += 1
         fetched=int(data.get('fetched_count') if data.get('fetched_count') is not None else len(data.get('rows') or []))
-        self._search_total=max(int(data.get('total') or 0), self.search_results.count())
         next_offset=data.get('next_offset')
-        self._search_offset=max(self._search_offset, int(next_offset if next_offset is not None else int(data.get('offset') or 0)+fetched))
+        source_id=data.get('source_id')
+        self._search_offsets[source_id]=int(next_offset if next_offset is not None else int(data.get('offset') or 0)+fetched)
         found=self.search_results.count()>0
-        more=bool(data.get('has_more')) if data.get('has_more') is not None else (self._search_offset < self._search_total and fetched > 0)
+        more=bool(data.get('has_more'))
+        self._search_has_more[source_id]=more
         # The number of usable post-filter results remaining is unknown until
         # later MangaDex rows are scanned, so do not show the raw API remainder.
         self.show_more_btn.setText('Show More Results')
-        self.show_more_btn.setVisible(more); self.show_more_btn.setEnabled(more)
-        self.search_btn.setEnabled(True); self.search_btn.setText('Search')
-        parts=[f'MangaDex search: {self.search_results.count()} result(s) shown for “{self._search_query}”.']
-        if more: parts.append('More MangaDex results are available.')
+        parts=[f'[{data.get("source_name")}] Search returned {len(data.get("rows") or [])} result(s) for “{self._search_query}”.']
+        if more: parts.append('More results are available from this provider.')
         if not prefs['show_adult_search_results']: parts.append('Adult content excluded.')
         filtered=int(data.get('filtered_doujinshi') or 0)
         empty_filtered=int(data.get('filtered_empty') or 0)
         if empty_filtered: parts.append(f'{empty_filtered} title(s) with no downloadable chapters filtered.')
         if filtered: parts.append(f'{filtered} doujinshi result(s) filtered while filling this page.')
         self.add_log(' '.join(parts))
-        if not found and not more and int(data.get('offset') or 0)==0:
-            info_dialog(self,'MangaDex search','No matching MangaDex titles were found after filters.',show=True)
         QTimer.singleShot(0, self._load_visible_search_thumbs)
 
-    def _on_search_failed(self, msg):
-        self.search_btn.setEnabled(True); self.search_btn.setText('Search'); self.show_more_btn.setEnabled(True)
-        error_dialog(self,'MangaDex search failed',msg,show=True)
+    def _on_search_failed(self, data):
+        source_id=data.get('source_id'); source=SOURCE_REGISTRY.get(source_id)
+        self.search_coordinator.fail(source_id,data.get('error'))
+        self.add_log(f'[{source.display_name if source else source_id}] Search failed: {data.get("error")}')
 
-    def _search_worker_finished(self):
-        if self.search_worker:
-            self.search_worker.deleteLater()
-        self.search_worker=None
+    def _search_worker_finished(self, source_id):
+        worker=self.search_workers.pop(source_id,None)
+        if worker: worker.deleteLater()
+        self._finish_coordinated_search()
+
+    def _finish_coordinated_search(self):
+        if self.search_workers:
+            snap=self.search_coordinator.snapshot()
+            self.progress_text.setText(f'Searching providers: {snap["completed"]}/{snap["total"]} complete')
+            return
+        snap=self.search_coordinator.snapshot()
+        self.search_btn.setEnabled(True); self.search_btn.setText('Search')
+        more=any(self._search_has_more.values())
+        self.show_more_btn.setVisible(more); self.show_more_btn.setEnabled(more)
+        self.progress_text.setText(f'Search complete: {snap["completed"]}/{snap["total"]} providers')
+        if snap['all_failed']:
+            error_dialog(self,'Search failed',snap['combined_error'],show=True)
+        elif self.search_results.count()==0:
+            info_dialog(self,'MangaNana search','No matching titles were found.',show=True)
 
     def _show_more_search_results(self):
         self.search_mangadex(False)
@@ -2109,7 +2168,9 @@ class MangaNanaDialog(QDialog):
                 if pix is not None: item.setIcon(QIcon(pix))
             elif not info.get('thumb_requested'):
                 info['thumb_requested']=True; item.setData(Qt.ItemDataRole.UserRole,info)
-                batch.append((url,[url+'.256.jpg',url]))
+                source=SOURCE_REGISTRY.get(info.get('source_id')) or MANGADEX_SOURCE
+                urls=[url+'.256.jpg',url] if source.source_id == 'mangadex' else [url]
+                batch.append((url,urls,source))
         if not batch:
             return
         self.search_thumb_worker=ImageBatchWorker('search',batch,self)
@@ -2140,7 +2201,8 @@ class MangaNanaDialog(QDialog):
         info=item.data(Qt.ItemDataRole.UserRole) or {}
         mid=info.get('id') if isinstance(info,dict) else info
         if not mid: return
-        self._pending_search_url='https://mangadex.org/title/'+str(mid)
+        self._pending_search_url=info.get('url') or ('https://mangadex.org/title/'+str(mid))
+        self._pending_source_id=info.get('source_id') or MANGADEX_SOURCE.source_id
         self._pending_search_cover_url=(info.get('cover_url') or '') if isinstance(info,dict) else ''
         had_preview=bool(self.preview_data is not None or self.preview_signature is not None or self._preview_build_signature is not None)
         self._invalidate_inflight_preview()
@@ -2163,22 +2225,26 @@ class MangaNanaDialog(QDialog):
 
     def _load_debounced_search_result(self, token):
         if token == self._pending_result_token and self._pending_search_url:
-            self.load_metadata(self._pending_search_url)
+            self.load_metadata(self._pending_search_url, self._pending_source_id)
 
-    def load_metadata(self, url_override=None):
+    def load_metadata(self, url_override=None, source_id=None):
         # QPushButton.clicked may supply a bool. Only strings are URL overrides.
         if not isinstance(url_override, str):
             url_override=None
-        url=(url_override or self.url.text()).strip(); mid=manga_uuid(url)
+        url=(url_override or self.url.text()).strip()
+        match=SOURCE_REGISTRY.identify(url)
+        source=SOURCE_REGISTRY.get(source_id) if source_id else (match.source if match else None)
+        ref=source.parse_manga_ref(url) if source else None
         if url_override is None and hasattr(self, 'url'):
             self.url.setCursorPosition(0); self.url.deselect()
-        if not mid:
-            error_dialog(self,'Metadata error','Paste a MangaDex title-page URL, for example https://mangadex.org/title/...',show=True)
+        if not source or ref is None:
+            error_dialog(self,'Metadata error','Paste a supported MangaDex or MangaPill title-page URL.',show=True)
             return
         self._manga_request_id += 1
         request_id=self._manga_request_id
         had_preview=bool(self.preview_data is not None or self.preview_signature is not None or self._preview_build_signature is not None or self._pending_auto_preview)
         self.current_manga_url=url
+        self.current_source=source; self.current_source_id=source.source_id
         self._invalidate_inflight_preview()
         if had_preview:
             self._pending_auto_preview=True
@@ -2189,7 +2255,7 @@ class MangaNanaDialog(QDialog):
         self.load_btn.setEnabled(False); self.load_btn.setText('Loading...'); self.preview_btn.setEnabled(False)
         self.alt_titles_btn.setEnabled(False)
         self.selected_cover.setVisible(True); self.alt_titles_btn.setVisible(False); self.selected_title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop); self.selected_title.setStyleSheet('font-size:15px; font-weight:700;'); self.selected_title.setText('Loading manga...'); self.selected_author.setText(''); self._set_edition_badge(''); self.availability_badge.setVisible(False)
-        self.volume_list.clear(); self.volume_list.setEnabled(False); self.volume_count_label.clear(); self.meta_summary.setText('Loading MangaDex metadata...')
+        self.volume_list.clear(); self.volume_list.setEnabled(False); self.volume_count_label.clear(); self.meta_summary.setText(f'Loading {source.display_name} metadata...')
         if not self._pending_search_cover_url or url != self._pending_search_url:
             self.selected_cover.clear()
         populate_download_languages(self.language, available=None, preferred=prefs['language'])
@@ -2200,11 +2266,12 @@ class MangaNanaDialog(QDialog):
         finally:
             self._range_syncing=False
         self._manual_range_invalid=False; self._manual_range_error=''; self._last_invalid_range_log_key=None
-        cached=self._manga_cache.get(mid)
+        cache_key=(source.source_id,ref)
+        cached=self._manga_cache.get(cache_key)
         if cached is not None:
             QTimer.singleShot(0,lambda d=cached,r=request_id:self._apply_loaded_manga(r,d))
             return
-        worker=MangaLoadWorker(request_id,url,prefs['language'],self)
+        worker=MangaLoadWorker(request_id,source,url,prefs['language'],self)
         self._manga_workers.append(worker)
         worker.ready.connect(self._on_manga_worker_ready)
         worker.failed.connect(self._on_manga_worker_failed)
@@ -2214,7 +2281,7 @@ class MangaNanaDialog(QDialog):
 
     def _on_manga_worker_ready(self, data):
         mid=(data.get('metadata') or {}).get('uuid')
-        if mid: self._manga_cache[mid]=data
+        if mid: self._manga_cache[(data.get('source_id'),mid)]=data
         self._apply_loaded_manga(data.get('request_id'),data)
 
     def _on_manga_worker_failed(self, data):
@@ -2223,12 +2290,14 @@ class MangaNanaDialog(QDialog):
         self.loaded_metadata=None; self.alt_titles_btn.setEnabled(False); self.volume_list.setEnabled(False); self.preview_btn.setEnabled(False)
         self.load_btn.setEnabled(True); self.load_btn.setText('Load Manga')
         self.selected_cover.clear(); self.selected_cover.setVisible(False); self.alt_titles_btn.setVisible(False); self.selected_title.setAlignment(Qt.AlignmentFlag.AlignCenter); self.selected_title.setStyleSheet('font-size:12px; font-weight:600; color:#777;'); self.selected_title.setText('No manga selected'); self.meta_summary.clear()
-        error_dialog(self,'Metadata error',data.get('error') or 'Unknown MangaDex error.',show=True)
+        error_dialog(self,'Metadata error',data.get('error') or 'Unknown source error.',show=True)
 
     def _apply_loaded_manga(self, request_id, data):
         if request_id != self._manga_request_id:
             return
         md=data.get('metadata') or {}; self.loaded_metadata=md; self.current_manga_url=data.get('url') or self.current_manga_url
+        self.current_source=SOURCE_REGISTRY.get(data.get('source_id')) or self.current_source
+        self.current_source_id=self.current_source.source_id
         self._loaded_covers={}
         self._main_cover_url=md.get('main_cover_url') or (self._pending_search_cover_url if self.current_manga_url == self._pending_search_url else '')
         self.title.setText(md.get('title','')); self.author.setText(md.get('author','')); self.series.setText(md.get('title',''))
@@ -2243,7 +2312,7 @@ class MangaNanaDialog(QDialog):
         self._selected_volume=None; self._selected_volumes.clear(); self._standalone_selected=False; self._using_entire_series=False; self._current_plan=None; self._download_language_valid=False; self.volume_list.setEnabled(False); self.preview_btn.setEnabled(False)
         self._rebuild_volume_list()
         self.load_btn.setEnabled(True); self.load_btn.setText('Load Manga')
-        self.add_log(f"Loaded MangaDex metadata: {md.get('title','')} | {md.get('author','')}")
+        self.add_log(f"[{self.current_source.display_name}] Loaded metadata: {md.get('title','')} | {md.get('author','')}")
         if self.language.currentData():
             if auto_fallback:
                 self.add_log(f'Preferred download language ({language_label(prefs["language"])}) is unavailable; using {self.language.currentText()} automatically.')
@@ -2281,25 +2350,26 @@ class MangaNanaDialog(QDialog):
         if not lang or not mid:
             return
         self._volume_plan_request_id += 1; request_id=self._volume_plan_request_id
-        key=(mid,lang)
+        key=(self.current_source_id,mid,lang)
         cached=self._plan_cache.get(key)
         self._volume_plan_loading=True; self.meta_summary.setText(f'Loading {self.language.currentText()} volume information...')
         if cached is not None:
             cached_data=dict(cached); cached_data['request_id']=request_id
             QTimer.singleShot(0,lambda d=cached_data:self._apply_volume_plan_data(d))
             return
-        worker=VolumePlanWorker(request_id,self.current_manga_url,lang,self)
+        worker=VolumePlanWorker(request_id,self.current_source,self.current_manga_url,lang,self)
         self._plan_workers.append(worker)
         worker.ready.connect(self._on_volume_plan_ready); worker.failed.connect(self._on_volume_plan_failed)
         worker.finished.connect(lambda w=worker:self._cleanup_worker(w,self._plan_workers)); worker.finished.connect(worker.deleteLater)
         worker.start()
 
     def _on_volume_plan_ready(self, data):
-        mid=manga_uuid(data.get('url') or '')
+        source=SOURCE_REGISTRY.get(data.get('source_id')) or self.current_source
+        mid=source.parse_manga_ref(data.get('url') or '')
         if mid:
-            self._plan_cache[(mid,data.get('language'))]={
+            self._plan_cache[(source.source_id,mid,data.get('language'))]={
                 'url':data.get('url'),'language':data.get('language'),'plan':data.get('plan') or {},
-                'covers':data.get('covers') or {},'cover_error':data.get('cover_error') or ''
+                'source_id':source.source_id,'covers':data.get('covers') or {},'cover_error':data.get('cover_error') or ''
             }
         self._apply_volume_plan_data(data)
 
@@ -2317,9 +2387,9 @@ class MangaNanaDialog(QDialog):
             return
         self._volume_plan_loading=False; self._current_plan=plan
         if plan.get('aggregate_error'):
-            self.add_log('MangaDex aggregate lookup warning: '+str(plan.get('aggregate_error')))
+            self.add_log(f'[{self.current_source.display_name}] Aggregate lookup warning: '+str(plan.get('aggregate_error')))
         if plan.get('feed_error'):
-            self.add_log('MangaDex chapter-feed lookup warning: '+str(plan.get('feed_error')))
+            self.add_log(f'[{self.current_source.display_name}] Chapter-feed lookup warning: '+str(plan.get('feed_error')))
         chapter_total=sum(int(v or 0) for v in (plan.get('chapters_by_volume') or {}).values()) + int(plan.get('bonus_chapters') or 0)
         self._download_language_valid=chapter_total > 0
         self._rebuild_volume_list(); self.volume_list.setEnabled(self._download_language_valid)
@@ -2352,7 +2422,7 @@ class MangaNanaDialog(QDialog):
             message=f'No downloadable chapters in {lang_name}. Try another edition or Download Language.'
             self.meta_summary.setText(message)
             self._show_volume_empty_message(message)
-            self.add_log(f'No downloadable MangaDex chapters found in {lang_name} after checking both aggregate and chapter feed.')
+            self.add_log(f'[{self.current_source.display_name}] No downloadable chapters found in {lang_name}.')
         QTimer.singleShot(0,self._load_visible_volume_thumbs)
 
     def _on_volume_plan_failed(self, data):
@@ -2462,7 +2532,7 @@ class MangaNanaDialog(QDialog):
                 seen.add(entry[0]); unique.append(entry)
         if not unique:
             return
-        self.volume_thumb_worker=ImageBatchWorker('volume',unique,self)
+        self.volume_thumb_worker=ImageBatchWorker('volume',unique,self,source=self.current_source)
         self.volume_thumb_worker.image_ready.connect(self._on_volume_thumb_ready)
         self.volume_thumb_worker.finished.connect(self._on_volume_thumb_batch_done)
         self.volume_thumb_worker.start()
@@ -2516,7 +2586,7 @@ class MangaNanaDialog(QDialog):
 
     def current_signature(self):
         return (
-            self.current_manga_url, self.title.text().strip(), self.author.text().strip(), self.series.text().strip(),
+            self.current_source_id, self.current_manga_url, self.title.text().strip(), self.author.text().strip(), self.series.text().strip(),
             self.language.currentData(), self.start.text().strip(), self.end.text().strip(), tuple(sorted(self._selected_volumes)), bool(self._standalone_selected), bool(self._using_entire_series),
             self.covers.isChecked(), self.pad.isChecked(), self.page_layout.currentData(), self.reading_direction.currentData()
         )
@@ -2871,7 +2941,10 @@ class MangaNanaDialog(QDialog):
             self.range_hint.setText(f'{selected_count} selection' + ('' if selected_count==1 else 's') + f': {shown}')
             self.range_hint.setStyleSheet(f'color:{ORANGE}; font-size:11px; font-weight:600;')
         else:
-            self.range_hint.setText('Select volumes from the list, or use the optional range shortcut above.')
+            if 'volumes' not in self.current_source.capabilities:
+                self.range_hint.setText('Select Standalone Chapters, or use Use Entire Series.')
+            else:
+                self.range_hint.setText('Select volumes from the list, or use the optional range shortcut above.')
             self.range_hint.setStyleSheet('color:#8F9499; font-size:11px;')
         if hasattr(self,'clear_volume_btn'):
             plan=self._current_plan or {}
@@ -3091,8 +3164,8 @@ class MangaNanaDialog(QDialog):
 
     def validate_details(self):
         url = self.current_manga_url.strip(); title = self.title.text().strip(); author = self.author.text().strip(); series = self.series.text().strip()
-        if not manga_uuid(url): raise ValueError('Enter a valid MangaDex title URL.')
-        if not title or not author or not series: raise ValueError('Load a MangaDex title first.')
+        if not self.current_source or self.current_source.parse_manga_ref(url) is None: raise ValueError('Enter a valid supported title URL.')
+        if not title or not series: raise ValueError('Load a manga title first.')
         if not self.language.currentData(): raise ValueError('Choose an available Download Language before continuing.')
         if self._volume_plan_loading: raise ValueError('MangaNana is still checking chapters for the selected Download Language.')
         if not self._download_language_valid: raise ValueError(f'No downloadable chapters are available in {self.language.currentText()}. Choose another Download Language.')
@@ -3100,7 +3173,7 @@ class MangaNanaDialog(QDialog):
             raise ValueError(self._manual_range_error or 'Volume range is not valid.')
         s, e = self.parse_range()
         if not self._has_volume_selection():
-            raise ValueError('Select at least one volume, enter a valid range, or use Use Entire Series.')
+            raise ValueError('Select at least one available item, enter a valid volume range, or use Use Entire Series.')
         if self._current_plan is not None:
             vols=[float(v) for v in (self._current_plan.get('volumes') or [])]
             if self._selected_volumes:
@@ -3190,7 +3263,7 @@ class MangaNanaDialog(QDialog):
                 self.resize(1320, max(self.height(), 700))
             if not silent:
                 self.preview_table.setRowCount(0)
-                self.preview_summary.setText('Loading MangaDex chapter information and checking your Calibre library...')
+                self.preview_summary.setText(f'Loading {self.current_source.display_name} chapter information and checking your Calibre library...')
                 self.progress_text.setText('Building download preview...')
                 self.add_log('Building download preview...')
             self.preview_table.setVisible(True)
@@ -3200,7 +3273,7 @@ class MangaNanaDialog(QDialog):
             request_id=self._preview_request_id
             build_signature=self.current_signature()
             self._preview_build_signature=build_signature
-            worker = PreviewWorker(url, title, author, series, self.language.currentData(), fetch_s, fetch_e,
+            worker = PreviewWorker(self.current_source, url, title, author, series, self.language.currentData(), fetch_s, fetch_e,
                                    self.pad.isChecked(), existing, selected_volumes=None if self._using_entire_series else exact,
                                    include_standalone=bool(self._standalone_selected or self._using_entire_series),
                                    bytes_per_page=self._bytes_per_page_estimate)
@@ -3354,7 +3427,7 @@ class MangaNanaDialog(QDialog):
         self.progress.setValue(0)
         self.progress_text.setText(f'Building pairing preview for {label}...')
         self.add_log(f'Building pairing preview for {label}...')
-        self.pairing_preview_worker = PairingPreviewWorker(self.current_manga_url, self.language.currentData(), volume, self.reading_direction.currentData())
+        self.pairing_preview_worker = PairingPreviewWorker(self.current_source, self.current_manga_url, self.language.currentData(), volume, self.reading_direction.currentData())
         self.pairing_preview_worker.ready.connect(self.on_pairing_preview_ready)
         self.pairing_preview_worker.failed.connect(self.on_pairing_preview_failed)
         self.pairing_preview_worker.progress.connect(self.on_pairing_preview_progress)
@@ -3499,7 +3572,7 @@ class MangaNanaDialog(QDialog):
                 fetch_s, fetch_e = None, None
             elif self._selected_volumes:
                 fetch_s, fetch_e = min(self._selected_volumes), max(self._selected_volumes)
-            self.worker = DownloadWorker(url, title, author, series, self.language.currentData(), fetch_s, fetch_e,
+            self.worker = DownloadWorker(self.current_source, url, title, author, series, self.language.currentData(), fetch_s, fetch_e,
                                          self.covers.isChecked(), self.pad.isChecked(), existing,
                                          selected_volumes=self.preview_data.get('selected_volumes'),
                                          include_bonus=self.preview_data.get('include_bonus', True),
@@ -3665,7 +3738,7 @@ class MangaNanaDialog(QDialog):
                 if v is not None: mi.series_index = float(v)
                 mi.languages = [self.language.currentData()]
                 mi.tags = [VL_TAG]
-                mi.set_identifier('mangadex', manga_uuid(self.current_manga_url))
+                mi.set_identifier(self.current_source_id, self.current_source.parse_manga_ref(self.current_manga_url))
                 cp = item.get('cover_path')
                 if cp and Path(cp).exists():
                     ext = Path(cp).suffix.lower().lstrip('.') or 'jpg'

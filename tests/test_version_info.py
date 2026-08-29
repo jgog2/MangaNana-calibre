@@ -25,6 +25,11 @@ class VersionInfoTests(unittest.TestCase):
         self.assertEqual(DISPLAY_VERSION, "MangaNana 0.10.0-dev — The Magician")
         self.assertEqual(SHORT_VERSION_LABEL, "v0.10.0-dev — The Magician")
 
+    def test_main_header_uses_unclipped_central_short_label(self):
+        main_source = (Path(__file__).resolve().parents[1] / "main.py").read_text(encoding="utf-8")
+        self.assertIn("ver = QLabel(SHORT_VERSION_LABEL)", main_source)
+        self.assertNotIn("ver.setFixedWidth(105)", main_source)
+
     def test_calibre_tuple_remains_numeric(self):
         self.assertEqual(CALIBRE_VERSION, (0, 10, 0))
         self.assertTrue(all(isinstance(component, int) for component in CALIBRE_VERSION))
