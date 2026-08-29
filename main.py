@@ -5,6 +5,7 @@ import tempfile
 import time
 import urllib.parse
 import zipfile
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 
@@ -37,6 +38,7 @@ from calibre_plugins.manganana.source_registry import SourceRegistry
 from calibre_plugins.manganana.source_coordinator import SourceCoordinator, count_chapter_pages, format_page_count, review_manifest_progress
 from calibre_plugins.manganana.canonical_identity import edition_identity, filter_relevant_results, group_canonical_results, source_badge_specs
 from calibre_plugins.manganana.inventory_comparison import compare_inventories, inspect_source_inventory
+from calibre_plugins.manganana.cross_source_fallback import build_cross_source_plan
 from calibre_plugins.manganana.version_info import DISPLAY_VERSION, SHORT_VERSION_LABEL, USER_AGENT
 try:
     from calibre_plugins.manganana.build_info import GIT_COMMIT
@@ -764,7 +766,16 @@ class InventoryComparisonWorker(QThread):
                 self.progress.emit(index,total,f'{source.display_name} inventory checked ({index}/{total})')
             if self.isInterruptionRequested():
                 return
-            self.ready.emit(compare_inventories(inventories,expected_edition,self.workflow))
+            decision=compare_inventories(inventories,expected_edition,self.workflow)
+            if decision.selected is not None:
+                # Keep the plan available to later Chapter-mode work without
+                # forcing an unsafe mixed-provider volume CBZ today.
+                fallback_plan=build_cross_source_plan(
+                    inventories, self.registry, primary=decision.selected,
+                    workflow=self.workflow,
+                )
+                decision=replace(decision, fallback_plan=fallback_plan)
+            self.ready.emit(decision)
         except Exception as exc:
             self.failed.emit(str(exc))
 
@@ -2330,8 +2341,22 @@ class MangaNanaDialog(QDialog):
             self.add_log(f'[{inventory.source_name}] Inventory: {inventory.summary}.')
         if decision.selected is not None:
             selected=decision.selected
+            fallback_plan=decision.fallback_plan
+            self.add_log(f'Primary source: {selected.source_name}.')
+            fallback_blocked=False
+            if fallback_plan and fallback_plan.fallback_items:
+                if fallback_plan.can_execute:
+                    self.add_log(fallback_plan.notice)
+                else:
+                    fallback_blocked=True
+                    self.add_log(
+                        'Compatible fallback chapters were identified, but mixed-provider '
+                        'volume output is not supported yet; using the primary source only.'
+                    )
             language_name=language_label(selected.language)
             status=f'Using {selected.source_name} — best available {language_name} inventory'
+            if fallback_blocked:
+                status += ' (compatible chapter gaps need Chapter mode)'
             self.progress.setValue(100); self.progress_text.setText(status)
             self.add_log(status+f'. {decision.reason}')
             self._begin_search_result(selected.result)

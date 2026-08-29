@@ -51,6 +51,7 @@ class InventoryDecision:
     ambiguous: bool = False
     reason: str = ''
     error: str = ''
+    fallback_plan: object = None
 
 
 def inspect_source_inventory(source, result, language):

@@ -17,6 +17,7 @@ PYTHON_FILES = (
     "source_registry.py",
     "source_coordinator.py",
     "canonical_identity.py",
+    "cross_source_fallback.py",
     "inventory_comparison.py",
     "mangadex_source.py",
     "mangapill_source.py",
