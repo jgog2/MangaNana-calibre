@@ -205,7 +205,8 @@ class MangaPillSource(SourceAdapter):
             title = row['title']; folded = title.casefold(); needle = (query or '').casefold().strip()
             score = 1000 if folded == needle else 500 if folded.startswith(needle) else 250 if needle in folded else 0
             rows.append({'score': score, 'title': title, 'full_title': title, 'author': '',
-                         'id': row['id'], 'url': row['url'], 'cover_url': row['cover_url'], 'badge': ''})
+                         'alternate_titles': [], 'year': None, 'id': row['id'], 'url': row['url'],
+                         'cover_url': row['cover_url'], 'badge': ''})
         rows.sort(key=lambda row: (-row['score'], row['title'].casefold()))
         rows = rows[:max(0, int(limit))]
         has_more = any('page=' in anchor['href'] and 'next' in anchor['text'].casefold() for anchor in doc.anchors)
@@ -227,6 +228,7 @@ class MangaPillSource(SourceAdapter):
         cover = next((image['url'] for image in doc.images if '/mangapill/i/' in image['url']), '')
         return {'uuid': manga_id, 'title': title, 'author': '',
                 'titles': [{'language': 'en', 'title': title, 'primary': True}],
+                'alternate_titles': [], 'year': None,
                 'available_languages': ['en'], 'original_language': '',
                 'main_cover_url': urllib.parse.urljoin(url, cover) if cover else '',
                 'description': doc.description, 'source_url': url}

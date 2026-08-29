@@ -1,7 +1,10 @@
 import unittest
 
 from source_adapter import SourceAdapter
-from source_coordinator import SourceCoordinator, SourceSearchError, count_chapter_pages, format_page_count
+from source_coordinator import (
+    SourceCoordinator, SourceSearchError, count_chapter_pages, format_page_count,
+    review_manifest_progress,
+)
 from source_registry import SourceRegistry
 
 
@@ -54,6 +57,7 @@ class SourceCoordinatorTests(unittest.TestCase):
         result = coordinator.search('Edition')
         self.assertEqual(['mangadex', 'mangapill'], [row['source_id'] for row in result['rows']])
         self.assertEqual(['MangaDex', 'MangaPill'], [row['source_name'] for row in result['rows']])
+        self.assertTrue(all('alternate_titles' in row for row in result['rows']))
         self.assertEqual(2, len(result['rows']))
 
     def test_one_provider_failure_does_not_hide_success(self):
@@ -107,6 +111,37 @@ class SourceCoordinatorTests(unittest.TestCase):
     def test_unknown_review_page_count_is_not_rendered_as_zero(self):
         self.assertEqual('Unknown', format_page_count(None))
         self.assertEqual('12', format_page_count(12))
+
+    def test_review_manifest_progress_reports_real_completion(self):
+        coordinator, _dex, pill = self.make_coordinator()
+        del coordinator
+        calls = []
+        pill.get_page_manifest = lambda chapter_id, **_kwargs: {'full': [chapter_id + '/1', chapter_id + '/2']}
+        total = count_chapter_pages(
+            pill,
+            [{'id': 'a', 'pages': None}, {'id': 'b', 'pages': None}],
+            progress=lambda current, count: calls.append((current, count)),
+        )
+        self.assertEqual(total, 4)
+        self.assertEqual(calls, [(1, 2), (2, 2)])
+        self.assertEqual(review_manifest_progress('MangaPill', 37, 144),
+                         'MangaPill: checking chapter manifests 37/144')
+
+    def test_review_manifest_count_honors_cancellation_between_requests(self):
+        coordinator, _dex, pill = self.make_coordinator()
+        del coordinator
+        checks = []
+        pill.get_page_manifest = lambda chapter_id, **_kwargs: {'full': [chapter_id + '/1']}
+        def check_cancel():
+            checks.append(True)
+            if len(checks) > 1:
+                raise InterruptedError('cancelled')
+        with self.assertRaises(InterruptedError):
+            count_chapter_pages(
+                pill,
+                [{'id': 'a', 'pages': None}, {'id': 'b', 'pages': None}],
+                check_cancel=check_cancel,
+            )
 
 
 if __name__ == '__main__':

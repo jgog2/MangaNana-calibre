@@ -99,9 +99,12 @@ class MangaDexSource(SourceAdapter):
                 author = rel['attributes'].get('name', '')
             elif rel.get('type') == 'cover_art' and rel.get('attributes') and not cover_filename:
                 cover_filename = rel['attributes'].get('fileName', '') or ''
+        selected_title = choose_preferred_title(titles, preferred)
         return {
-            'uuid': manga_id, 'title': choose_preferred_title(titles, preferred), 'author': author,
+            'uuid': manga_id, 'title': selected_title, 'author': author,
             'titles': titles,
+            'alternate_titles': [row.get('title') for row in titles if str(row.get('title') or '').casefold() != selected_title.casefold()],
+            'year': attrs.get('year'),
             'available_languages': [str(x) for x in (attrs.get('availableTranslatedLanguages') or []) if x],
             'original_language': attrs.get('originalLanguage') or '',
             'main_cover_url': f'https://uploads.mangadex.org/covers/{manga_id}/{cover_filename}' if cover_filename else '',
@@ -161,7 +164,8 @@ class MangaDexSource(SourceAdapter):
                 for rel in entry.get('relationships') or []:
                     if rel.get('type')=='author' and not author: author=(rel.get('attributes') or {}).get('name') or ''
                     elif rel.get('type')=='cover_art' and not cover: cover=(rel.get('attributes') or {}).get('fileName') or ''
-                rows.append({'score':self._score(query,display,full_title,preferred in (attrs.get('availableTranslatedLanguages') or [])), 'title':display,'full_title':full_title,'author':author,'id':manga_id,'cover_url':f'https://uploads.mangadex.org/covers/{manga_id}/{cover}' if manga_id and cover else '','badge':badge})
+                alternate_titles=[row.get('title') for row in titles if str(row.get('title') or '').casefold() != display.casefold()]
+                rows.append({'score':self._score(query,display,full_title,preferred in (attrs.get('availableTranslatedLanguages') or [])), 'title':display,'full_title':full_title,'alternate_titles':alternate_titles,'author':author,'year':attrs.get('year'),'id':manga_id,'cover_url':f'https://uploads.mangadex.org/covers/{manga_id}/{cover}' if manga_id and cover else '','badge':badge})
                 if len(rows)>=limit: break
             api_offset += processed; scanned += processed
             exhausted=bool((api_total and api_offset>=api_total) or (processed>=len(fetched) and len(fetched)<batch_size))

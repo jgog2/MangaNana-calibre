@@ -5,6 +5,7 @@
       "id": "search-color",
       "attributes": {
         "title": {"en": "Example Full Color"},
+        "altTitles": [{"ja": "サンプル"}, {"en": "Example Alias"}],
         "availableTranslatedLanguages": ["en"],
         "tags": []
       },

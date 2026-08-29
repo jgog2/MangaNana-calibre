@@ -7,15 +7,20 @@ class SourceSearchError(RuntimeError):
     """Raised when every enabled provider fails a coordinated search."""
 
 
-def count_chapter_pages(source, chapters):
+def count_chapter_pages(source, chapters, progress=None, check_cancel=None):
     """Return a selected chapter total without fetching any image bytes.
 
     Providers may report ``pages=None`` when discovery cannot cheaply know the
     count. In that case, use only the provider's lightweight page manifest. If
     any selected chapter remains indeterminate, the combined total is unknown.
     """
+    chapter_rows = list(chapters or ())
+    manifest_total = sum(chapter.get('pages') is None for chapter in chapter_rows)
+    manifest_done = 0
     total = 0
-    for chapter in chapters or ():
+    for chapter in chapter_rows:
+        if check_cancel:
+            check_cancel()
         pages = chapter.get('pages')
         if pages is None:
             try:
@@ -26,6 +31,9 @@ def count_chapter_pages(source, chapters):
                 pages = len(urls)
             except Exception:
                 return None
+            manifest_done += 1
+            if progress:
+                progress(manifest_done, manifest_total)
         try:
             total += max(0, int(pages))
         except (TypeError, ValueError):
@@ -36,6 +44,11 @@ def count_chapter_pages(source, chapters):
 def format_page_count(pages):
     """Format a Review page count without turning unknown into zero."""
     return 'Unknown' if pages is None else str(int(pages))
+
+
+def review_manifest_progress(source_name, current, total):
+    """Format determinate Review progress for lightweight manifest checks."""
+    return f'{source_name}: checking chapter manifests {int(current)}/{int(total)}'
 
 
 @dataclass
@@ -75,6 +88,9 @@ class SourceCoordinator:
         rows = []
         for original in (data or {}).get('rows') or []:
             row = dict(original)
+            row.setdefault('alternate_titles', [])
+            row.setdefault('author', '')
+            row.setdefault('year', None)
             row['source_id'] = source.source_id
             row['source_name'] = source.display_name
             rows.append(row)

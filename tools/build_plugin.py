@@ -16,6 +16,7 @@ PYTHON_FILES = (
     "source_adapter.py",
     "source_registry.py",
     "source_coordinator.py",
+    "canonical_identity.py",
     "mangadex_source.py",
     "mangapill_source.py",
     "main.py",
