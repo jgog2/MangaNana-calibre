@@ -12,6 +12,7 @@ import zipfile
 PYTHON_FILES = (
     "__init__.py",
     "core_helpers.py",
+    "diagnostics.py",
     "version_info.py",
     "source_adapter.py",
     "source_registry.py",

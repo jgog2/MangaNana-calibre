@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from chapter_workflow import chapter_label, chapter_output_title, chapter_series_index, chapter_sort_key, chapter_selection_ids
 from inventory_comparison import SourceInventory, compare_inventories
@@ -36,6 +37,10 @@ class ChapterWorkflowTests(unittest.TestCase):
         decision = compare_inventories((pill,), workflow='volume')
         self.assertIsNone(decision.selected)
         self.assertIn('MangaPill', decision.error)
+
+    def test_readme_has_the_plain_language_tagline(self):
+        readme = (Path(__file__).resolve().parent.parent / 'README.md').read_text(encoding='utf-8')
+        self.assertIn("Reading manga shouldn't turn into a damn IT project.", readme)
 
 
 if __name__ == '__main__':

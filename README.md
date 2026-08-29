@@ -20,6 +20,10 @@
   </a>
 </p>
 
+**Reading manga shouldn't turn into a damn IT project.**
+
+MangaNana lets you search, download, prepare, and add manga to your Calibre library without juggling separate downloaders, scripts, converters, and metadata tools.
+
 ## Overview
 
 MangaNana is a calibre plugin designed to make finding, preparing, and adding manga from MangaDex easier.
