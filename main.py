@@ -35,7 +35,8 @@ from calibre_plugins.manganana.mangadex_source import MangaDexSource
 from calibre_plugins.manganana.mangapill_source import MangaPillSource
 from calibre_plugins.manganana.source_registry import SourceRegistry
 from calibre_plugins.manganana.source_coordinator import SourceCoordinator, count_chapter_pages, format_page_count, review_manifest_progress
-from calibre_plugins.manganana.canonical_identity import filter_relevant_results, group_canonical_results, source_badge_specs
+from calibre_plugins.manganana.canonical_identity import edition_identity, filter_relevant_results, group_canonical_results, source_badge_specs
+from calibre_plugins.manganana.inventory_comparison import compare_inventories, inspect_source_inventory
 from calibre_plugins.manganana.version_info import DISPLAY_VERSION, SHORT_VERSION_LABEL, USER_AGENT
 try:
     from calibre_plugins.manganana.build_info import GIT_COMMIT
@@ -736,6 +737,36 @@ class SourceSearchWorker(QThread):
 
 
 MangaDexSearchWorker = SourceSearchWorker
+
+
+class InventoryComparisonWorker(QThread):
+    progress = pyqtSignal(int, int, str)
+    ready = pyqtSignal(object)
+    failed = pyqtSignal(str)
+
+    def __init__(self, registry, candidates, language, workflow='volume', parent=None):
+        super().__init__(parent)
+        self.registry=registry; self.candidates=list(candidates or [])
+        self.language=language or 'en'; self.workflow=workflow
+
+    def run(self):
+        try:
+            inventories=[]; total=len(self.candidates)
+            expected_edition=edition_identity(self.candidates[0]) if self.candidates else 'original'
+            for index,candidate in enumerate(self.candidates,1):
+                if self.isInterruptionRequested():
+                    return
+                source=self.registry.get(candidate.get('source_id'))
+                if source is None:
+                    continue
+                self.progress.emit(index-1,total,f'Checking {source.display_name} inventory...')
+                inventories.append(inspect_source_inventory(source,candidate,self.language))
+                self.progress.emit(index,total,f'{source.display_name} inventory checked ({index}/{total})')
+            if self.isInterruptionRequested():
+                return
+            self.ready.emit(compare_inventories(inventories,expected_edition,self.workflow))
+        except Exception as exc:
+            self.failed.emit(str(exc))
 
 
 class MangaLoadWorker(QThread):
@@ -1671,6 +1702,9 @@ class MangaNanaDialog(QDialog):
         self.search_worker = None
         self.search_workers = {}
         self.search_coordinator = SourceCoordinator(SOURCE_REGISTRY)
+        self.inventory_comparison_worker = None
+        self._inventory_comparison_request_id = 0
+        self._last_inventory_decision = None
         self.search_thumb_worker = None
         self.volume_thumb_worker = None
         self._manga_workers = []
@@ -2253,25 +2287,92 @@ class MangaNanaDialog(QDialog):
         info=item.data(Qt.ItemDataRole.UserRole) or {}
         candidates=info.get('candidates') if isinstance(info,dict) else None
         if candidates and len(candidates) > 1:
-            box=QMessageBox(self)
-            box.setWindowTitle('Choose a source for this series')
-            box.setText(f'{info.get("title") or "This manga"} is available from multiple sources.')
-            source_list=', '.join(info.get('source_names') or [c.get('source_name') for c in candidates])
-            box.setInformativeText(
-                f'MangaNana identified these as the same canonical series: {source_list}.\n\n'
-                'Choose which provider to use for metadata, chapters, preview, and download. '
-                'MangaNana does not rank or combine provider inventories yet.'
-            )
-            buttons=[]
-            for candidate in candidates:
-                button=box.addButton(candidate.get('source_name') or candidate.get('source_id'), QMessageBox.ButtonRole.ActionRole)
-                buttons.append((button,candidate))
-            box.addButton(QMessageBox.StandardButton.Cancel)
-            box.exec()
-            selected=next((candidate for button,candidate in buttons if box.clickedButton() is button),None)
-            if selected is None:
-                return
-            info=selected
+            self._start_inventory_comparison(info,candidates)
+            return
+        self._begin_search_result(info)
+
+    def _start_inventory_comparison(self, group_info, candidates):
+        if self.inventory_comparison_worker and self.inventory_comparison_worker.isRunning():
+            self.inventory_comparison_worker.requestInterruption()
+        self._inventory_comparison_request_id += 1
+        self._last_inventory_decision=None
+        request_id=self._inventory_comparison_request_id
+        self.search_results.setEnabled(False)
+        self.progress.setValue(0)
+        self.progress_text.setText('Checking provider inventories...')
+        worker=InventoryComparisonWorker(SOURCE_REGISTRY,candidates,prefs['language'],'volume',self)
+        self.inventory_comparison_worker=worker
+        worker.progress.connect(lambda done,total,text,rid=request_id:self._on_inventory_comparison_progress(rid,done,total,text))
+        worker.ready.connect(lambda decision,rid=request_id,info=dict(group_info):self._on_inventory_comparison_ready(rid,info,decision))
+        worker.failed.connect(lambda message,rid=request_id:self._on_inventory_comparison_failed(rid,message))
+        worker.finished.connect(lambda w=worker:self._inventory_comparison_finished(w))
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
+    def _inventory_comparison_finished(self, worker):
+        if self.inventory_comparison_worker is worker:
+            self.inventory_comparison_worker=None
+            self.search_results.setEnabled(True)
+
+    def _on_inventory_comparison_progress(self, request_id, done, total, text):
+        if request_id != self._inventory_comparison_request_id:
+            return
+        self.progress.setValue(int(done*100/max(1,total)))
+        self.progress_text.setText(text)
+
+    def _on_inventory_comparison_ready(self, request_id, group_info, decision):
+        if request_id != self._inventory_comparison_request_id:
+            return
+        self.inventory_comparison_worker=None
+        self._last_inventory_decision=decision
+        self.search_results.setEnabled(True)
+        for inventory in decision.inventories:
+            self.add_log(f'[{inventory.source_name}] Inventory: {inventory.summary}.')
+        if decision.selected is not None:
+            selected=decision.selected
+            language_name=language_label(selected.language)
+            status=f'Using {selected.source_name} — best available {language_name} inventory'
+            self.progress.setValue(100); self.progress_text.setText(status)
+            self.add_log(status+f'. {decision.reason}')
+            self._begin_search_result(selected.result)
+            return
+        if decision.error:
+            self.progress.setValue(0); self.progress_text.setText('No usable provider inventory found.')
+            error_dialog(self,'No usable inventory',decision.error,show=True)
+            return
+        self.progress.setValue(100); self.progress_text.setText('Provider inventories require a choice.')
+        selected=self._choose_ambiguous_inventory(group_info,decision)
+        if selected is not None:
+            self._begin_search_result(selected.result)
+
+    def _choose_ambiguous_inventory(self, group_info, decision):
+        box=QMessageBox(self)
+        box.setWindowTitle('Choose a source for this series')
+        box.setText(f'{group_info.get("title") or "This manga"} has similarly usable provider inventories.')
+        comparison='\n'.join(f'{row.source_name}: {row.summary}' for row in decision.inventories)
+        box.setInformativeText(
+            'MangaNana identified one canonical series, but no provider is clearly better.\n\n'
+            + comparison + '\n\nChoose which provider to use. Inventories will not be combined.'
+        )
+        buttons=[]
+        for inventory in decision.inventories:
+            if not inventory.usable:
+                continue
+            button=box.addButton(inventory.source_name,QMessageBox.ButtonRole.ActionRole)
+            buttons.append((button,inventory))
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        return next((inventory for button,inventory in buttons if box.clickedButton() is button),None)
+
+    def _on_inventory_comparison_failed(self, request_id, message):
+        if request_id != self._inventory_comparison_request_id:
+            return
+        self.inventory_comparison_worker=None
+        self.search_results.setEnabled(True)
+        self.progress.setValue(0); self.progress_text.setText('Inventory comparison failed.')
+        error_dialog(self,'Inventory comparison failed',message,show=True)
+
+    def _begin_search_result(self, info):
         mid=info.get('id') if isinstance(info,dict) else info
         if not mid: return
         self._pending_search_url=info.get('url') or ('https://mangadex.org/title/'+str(mid))
