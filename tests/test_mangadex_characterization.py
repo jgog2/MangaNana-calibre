@@ -145,6 +145,61 @@ class MangaDexSourceBoundaryTests(unittest.TestCase):
             adapter.get_manga(MANGA_URL, preferred="fr"),
         )
 
+    def test_search_normalizes_and_filters_mangadex_rows(self):
+        fixture = load_fixture("search_results.json")
+
+        def api(url, **_kwargs):
+            self.assertIn("/manga?", url)
+            return copy.deepcopy(fixture)
+
+        result = MangaDexSource(api).search(
+            "Example", limit=3, preferred="en",
+            availability_cache={"search-color": True},
+        )
+        self.assertEqual([row["id"] for row in result["rows"]], ["search-color"])
+        self.assertEqual(result["rows"][0]["title"], "Example")
+        self.assertEqual(result["rows"][0]["badge"], "COLOR")
+        self.assertEqual(result["rows"][0]["author"], "Example Author")
+        self.assertEqual(
+            result["rows"][0]["cover_url"],
+            "https://uploads.mangadex.org/covers/search-color/cover.jpg",
+        )
+        self.assertEqual(result["filtered_doujinshi"], 1)
+        self.assertEqual(result["filtered_empty"], 1)
+
+    def test_page_manifest_returns_aligned_quality_urls(self):
+        fixture = load_fixture("page_manifest.json")
+        calls = []
+
+        def api(url, **kwargs):
+            calls.append((url, kwargs))
+            return copy.deepcopy(fixture)
+
+        manifest = MangaDexSource(api).get_page_manifest("chapter-id")
+        self.assertEqual(manifest["full"], [
+            "https://uploads.example.test/data/fixture-hash/001.jpg",
+            "https://uploads.example.test/data/fixture-hash/002.png",
+        ])
+        self.assertEqual(manifest["data_saver"], [
+            "https://uploads.example.test/data-saver/fixture-hash/001-s.jpg",
+            "https://uploads.example.test/data-saver/fixture-hash/002-s.png",
+        ])
+        self.assertIn("/at-home/server/chapter-id", calls[0][0])
+
+    def test_binary_fetch_delegates_to_configured_transport(self):
+        calls = []
+
+        def transport(url, **kwargs):
+            calls.append((url, kwargs))
+            return b"image-bytes"
+
+        source = MangaDexSource(lambda _url, **_kwargs: None, transport)
+        self.assertEqual(
+            source.fetch_binary("https://uploads.example.test/page.jpg", timeout=17),
+            b"image-bytes",
+        )
+        self.assertEqual(calls, [("https://uploads.example.test/page.jpg", {"timeout": 17})])
+
 
 class MetadataCharacterizationTests(unittest.TestCase):
     def test_metadata_normalizes_preferred_title_author_languages_and_cover(self):

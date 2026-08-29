@@ -1,12 +1,9 @@
-import json
 import os
 import re
 import shutil
 import tempfile
 import time
 import urllib.parse
-import urllib.request
-import urllib.error
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -200,39 +197,9 @@ def language_label(code):
 
 
 def api_json(url, timeout=30, retries=3, retry_callback=None):
-    """Fetch MangaDex JSON with small transient-error retries."""
-    transient = {429, 500, 502, 503, 504}
-    last = None
-    for attempt in range(1, max(1, int(retries)) + 1):
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'MangaNana-Calibre/0.9.8'})
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                return json.loads(r.read().decode('utf-8'))
-        except urllib.error.HTTPError as e:
-            last = e
-            if e.code not in transient or attempt >= retries:
-                break
-            wait = min(8, 0.8 * (2 ** (attempt - 1)))
-            if e.code == 429:
-                try:
-                    wait = max(wait, float(e.headers.get('Retry-After') or 0))
-                except Exception:
-                    pass
-            if retry_callback:
-                retry_callback(f'MangaDex request temporarily failed (HTTP {e.code}). Retrying {attempt + 1}/{retries} in {wait:g}s...')
-            time.sleep(wait)
-        except Exception as e:
-            last = e
-            if attempt >= retries:
-                break
-            wait = min(8, 0.8 * (2 ** (attempt - 1)))
-            if retry_callback:
-                retry_callback(f'Network request failed. Retrying {attempt + 1}/{retries} in {wait:g}s...')
-            time.sleep(wait)
-    raise RuntimeError(f'MangaDex request failed after {retries} attempt(s): {last}')
-
-
-MANGADEX_SOURCE = MangaDexSource(api_json)
+    return MANGADEX_SOURCE._api_json(
+        url, timeout=timeout, retries=retries, retry_callback=retry_callback
+    )
 
 
 def manga_uuid(url):
@@ -244,41 +211,7 @@ def load_manga_metadata(url, preferred='en'):
 
 
 def _plan_from_aggregate(url, language, start_volume=None, end_volume=None):
-    mid = manga_uuid(url)
-    params = [('translatedLanguage[]', language), ('includeUnavailable', '0')]
-    data = api_json('https://api.mangadex.org/manga/%s/aggregate?%s' % (mid, urllib.parse.urlencode(params)), timeout=35)
-    volumes = {}
-    bonus_chapters = 0
-    for key, volume_data in _iter_aggregate_nodes(data.get('volumes') or {}):
-        raw_volume = volume_data.get('volume')
-        if raw_volume in (None, ''):
-            raw_volume = key
-        chapters = volume_data.get('chapters') or {}
-        usable = 0
-        for _chapter_key, chapter_data in _iter_aggregate_nodes(chapters):
-            if chapter_data.get('isUnavailable') is True:
-                continue
-            # Some valid aggregate rows do not expose an id consistently.
-            # A count or chapter number is enough to establish that the row exists.
-            if chapter_data.get('id') or chapter_data.get('chapter') not in (None, '') or int(chapter_data.get('count') or 0) > 0:
-                usable += max(1, int(chapter_data.get('count') or 1))
-        if usable <= 0:
-            usable = int(volume_data.get('count') or 0)
-        if usable <= 0:
-            continue
-        try:
-            numeric = float(str(raw_volume).strip())
-        except Exception:
-            numeric = None
-        if numeric is not None and numeric > 0:
-            if start_volume is not None and numeric < start_volume:
-                continue
-            if end_volume is not None and numeric > end_volume:
-                continue
-            volumes[numeric] = max(volumes.get(numeric, 0), usable)
-        else:
-            bonus_chapters += usable
-    return volumes, bonus_chapters
+    return MANGADEX_SOURCE._aggregate_plan(url, language, start_volume, end_volume)
 
 
 def _plan_from_feed(url, language, start_volume=None, end_volume=None):
@@ -296,49 +229,7 @@ def _plan_from_feed(url, language, start_volume=None, end_volume=None):
 
 
 def fetch_download_plan(url, language, start_volume=None, end_volume=None):
-    """Discover readable volumes using both MangaDex aggregate and chapter feed.
-
-    MangaDex's aggregate and feed endpoints have had edge cases over time. The
-    volume browser therefore unions both lightweight views and never uses the
-    chapter ``pages`` field as an availability test.
-    """
-    mid = manga_uuid(url)
-    if not mid:
-        raise ValueError('Enter a valid MangaDex title URL.')
-
-    aggregate_volumes = {}
-    aggregate_bonus = 0
-    feed_volumes = {}
-    feed_bonus = 0
-    aggregate_error = ''
-    feed_error = ''
-
-    try:
-        aggregate_volumes, aggregate_bonus = _plan_from_aggregate(url, language, start_volume, end_volume)
-    except Exception as e:
-        aggregate_error = str(e)
-    try:
-        feed_volumes, feed_bonus = _plan_from_feed(url, language, start_volume, end_volume)
-    except Exception as e:
-        feed_error = str(e)
-
-    if aggregate_error and feed_error:
-        raise RuntimeError('MangaDex volume lookup failed. Aggregate: %s | Feed: %s' % (aggregate_error, feed_error))
-
-    volumes = dict(aggregate_volumes)
-    for volume, count in feed_volumes.items():
-        volumes[volume] = max(volumes.get(volume, 0), count)
-    ordered = sorted(volumes)
-    bonus_chapters = max(aggregate_bonus, feed_bonus)
-    return {
-        'volumes': ordered,
-        'pages_by_volume': {v: 0 for v in ordered},
-        'chapters_by_volume': {v: volumes[v] for v in ordered},
-        'bonus_pages': 0,
-        'bonus_chapters': bonus_chapters,
-        'aggregate_error': aggregate_error,
-        'feed_error': feed_error,
-    }
+    return MANGADEX_SOURCE.get_download_plan(url, language, start_volume, end_volume)
 
 def format_eta(seconds):
     if seconds is None or seconds < 0:
@@ -376,131 +267,26 @@ def directory_size(path):
 
 
 def fetch_chapter_entries(url, language, start_volume=None, end_volume=None):
-    """Return readable MangaDex chapters for the requested language/range."""
-    mid = manga_uuid(url)
-    if not mid:
-        raise ValueError('Enter a valid MangaDex title URL.')
-    entries = []
-    seen_ids = set()
-    seen_logical = set()
-    offset = 0
-    limit = 500
-    while True:
-        params = [
-            ('limit', str(limit)), ('offset', str(offset)),
-            ('order[volume]', 'asc'), ('order[chapter]', 'asc'),
-            ('order[readableAt]', 'asc'),
-            ('translatedLanguage[]', language),
-        ]
-        for rating in ('safe', 'suggestive', 'erotica', 'pornographic'):
-            params.append(('contentRating[]', rating))
-        data = api_json('https://api.mangadex.org/manga/%s/feed?%s' % (mid, urllib.parse.urlencode(params)), timeout=35)
-        rows = data.get('data') or []
-        if not rows:
-            break
-        for item in rows:
-            cid = item.get('id')
-            if not cid or cid in seen_ids:
-                continue
-            seen_ids.add(cid)
-            attrs = item.get('attributes') or {}
-            if attrs.get('externalUrl'):
-                continue
-            vol_raw = attrs.get('volume')
-            numeric = None
-            try:
-                if vol_raw not in (None, ''):
-                    numeric = float(str(vol_raw).strip())
-            except Exception:
-                numeric = None
-            if numeric is not None:
-                if start_volume is not None and numeric < start_volume:
-                    continue
-                if end_volume is not None and numeric > end_volume:
-                    continue
-            elif start_volume is not None or end_volume is not None:
-                # Explicit volume ranges should not unexpectedly add unnumbered extras.
-                continue
-            chapter_raw = str(attrs.get('chapter') or '').strip()
-            # MangaDex can return the same translated chapter from multiple groups.
-            # Keep one copy per numbered chapter, while preserving distinct unnumbered extras.
-            logical = (numeric, chapter_raw) if chapter_raw else ('bonus', cid)
-            if logical in seen_logical:
-                continue
-            seen_logical.add(logical)
-            entries.append({
-                'id': cid,
-                'volume': numeric,
-                'chapter': chapter_raw,
-                'title': str(attrs.get('title') or '').strip(),
-                'pages': int(attrs.get('pages') or 0),
-            })
-        offset += len(rows)
-        if len(rows) < limit:
-            break
-    return entries
+    return MANGADEX_SOURCE.get_chapters(url, language, start_volume, end_volume)
 
 
 def fetch_volume_covers(url):
-    """Return {volume: cover_url} from MangaDex cover-art metadata."""
-    mid = manga_uuid(url)
-    if not mid:
-        return {}
-    result = {}
-    offset = 0
-    limit = 100
-    while True:
-        params = [('limit', str(limit)), ('offset', str(offset)), ('manga[]', mid), ('order[volume]', 'asc')]
-        data = api_json('https://api.mangadex.org/cover?%s' % urllib.parse.urlencode(params), timeout=30)
-        rows = data.get('data') or []
-        if not rows:
-            break
-        for item in rows:
-            attrs = item.get('attributes') or {}
-            fn = attrs.get('fileName')
-            if not fn:
-                continue
-            vol = attrs.get('volume')
-            try:
-                key = float(str(vol).strip()) if vol not in (None, '') else None
-            except Exception:
-                key = None
-            result[key] = f'https://uploads.mangadex.org/covers/{mid}/{fn}'
-        offset += len(rows)
-        if len(rows) < limit:
-            break
-    return result
+    return MANGADEX_SOURCE.get_volume_covers(url)
+
+
+MANGADEX_SOURCE = MangaDexSource()
 
 
 def download_bytes(url, timeout=45, retries=5, user_agent='MangaNana-Calibre/0.9.8', retry_callback=None):
-    last = None
-    for attempt in range(1, retries + 1):
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': user_agent, 'Accept': '*/*'})
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                return r.read()
-        except Exception as e:
-            last = e
-            if attempt < retries:
-                wait = min(8, 0.75 * (2 ** (attempt - 1)))
-                if retry_callback:
-                    retry_callback(f'Download interrupted. Retrying {attempt + 1}/{retries} in {wait:g}s...')
-                time.sleep(wait)
-    raise RuntimeError(f'Failed to download after {retries} attempts: {last}')
+    return MANGADEX_SOURCE.fetch_binary(
+        url, timeout=timeout, retries=retries, user_agent=user_agent,
+        retry_callback=retry_callback,
+    )
 
 
 def chapter_page_urls(chapter_id, data_saver=False, retry_callback=None):
-    data = api_json(f'https://api.mangadex.org/at-home/server/{chapter_id}', timeout=30, retries=3, retry_callback=retry_callback)
-    base = data.get('baseUrl')
-    chapter = data.get('chapter') or {}
-    h = chapter.get('hash')
-    full_files = chapter.get('data') or []
-    saver_files = chapter.get('dataSaver') or []
-    files = saver_files if data_saver and saver_files else full_files
-    route = 'data-saver' if data_saver and saver_files else 'data'
-    if not base or not h or not files:
-        raise RuntimeError('MangaDex returned no readable page data for this chapter.')
-    return [f'{base}/{route}/{h}/{name}' for name in files]
+    manifest = MANGADEX_SOURCE.get_page_manifest(chapter_id, retry_callback=retry_callback)
+    return manifest['data_saver'] if data_saver and manifest['data_saver'] else manifest['full']
 
 
 def image_extension(url):
@@ -905,36 +691,7 @@ def _validate_cbz_output(path, page_layout):
 
 
 def manga_has_downloadable_content(manga_id, attrs=None):
-    """Return True when MangaDex exposes at least one internally readable chapter.
-
-    Search results with no translated languages can be rejected without another
-    network call. For the remaining candidates we check the chapter feed directly
-    so external-only or stale title metadata does not produce a dead downloader row.
-    """
-    if not manga_id:
-        return False
-    attrs = attrs or {}
-    reported = attrs.get('availableTranslatedLanguages')
-    if isinstance(reported, list) and len(reported) == 0:
-        return False
-    offset = 0
-    limit = 20
-    # Usually the first page is enough. Continue only when it contains external
-    # chapter links so we can still find an internally readable chapter later.
-    for _ in range(3):
-        params=[('limit',str(limit)),('offset',str(offset)),('order[readableAt]','desc')]
-        for rating in ('safe','suggestive','erotica','pornographic'):
-            params.append(('contentRating[]',rating))
-        data=api_json('https://api.mangadex.org/manga/%s/feed?%s' % (manga_id, urllib.parse.urlencode(params)), timeout=18)
-        rows=data.get('data') or []
-        for item in rows:
-            iattrs=item.get('attributes') or {}
-            if item.get('id') and not iattrs.get('externalUrl'):
-                return True
-        if len(rows) < limit:
-            break
-        offset += len(rows)
-    return False
+    return MANGADEX_SOURCE.has_downloadable_content(manga_id, attrs)
 
 
 class MangaDexSearchWorker(QThread):
@@ -952,100 +709,15 @@ class MangaDexSearchWorker(QThread):
 
     @staticmethod
     def score(query, title, full_title='', preferred_available=False):
-        q=(query or '').casefold().strip(); t=(title or '').casefold().strip(); raw=(full_title or title or '').casefold().strip()
-        score=0
-        if t == q: score += 1000
-        elif t.startswith(q): score += 500
-        elif q in t: score += 250
-        if preferred_available: score += 75
-        if 'official colored' in raw or 'official coloured' in raw: score += 120
-        elif any(x in raw for x in ('digital colored','digital coloured','digital color','digital colour')): score += 55
-        if 'fan-colored' in raw or 'fan colored' in raw or 'fan-coloured' in raw or 'fan coloured' in raw: score -= 350
-        if 'doujinshi' in raw or 'doujin' in raw: score -= 500
-        score -= abs(len(t)-len(q)) * 0.25
-        return score
+        return MangaDexSource._score(query, title, full_title, preferred_available)
 
     def run(self):
         try:
-            # A visible search page means accepted results, not raw MangaDex rows.
-            # Keep scanning raw API pages until MangaNana has enough non-doujinshi
-            # titles to fill the requested page, or MangaDex is exhausted.
-            rows=[]
-            filtered_doujinshi=0
-            filtered_empty=0
-            api_offset=max(0, self.offset)
-            api_total=0
-            scanned=0
-            exhausted=False
-            batch_size=max(12, min(40, self.limit * 2))
-
-            while len(rows) < self.limit and not exhausted:
-                params=[('title',self.query),('limit',str(batch_size)),('offset',str(api_offset)),
-                        ('order[relevance]','desc'),('includes[]','author'),('includes[]','cover_art')]
-                if not self.include_adult:
-                    params += [('contentRating[]','safe'),('contentRating[]','suggestive')]
-                data=api_json('https://api.mangadex.org/manga?'+urllib.parse.urlencode(params), timeout=30)
-                fetched_rows=data.get('data',[]) or []
-                api_total=max(api_total, int(data.get('total') or 0))
-                if not fetched_rows:
-                    exhausted=True
-                    break
-
-                processed=0
-                for entry in fetched_rows:
-                    processed += 1
-                    attrs=entry.get('attributes') or {}
-                    if is_doujinshi_entry(attrs):
-                        filtered_doujinshi += 1
-                        continue
-                    mid=entry.get('id')
-                    availability=self.availability_cache.get(mid) if mid else False
-                    if availability is None:
-                        try:
-                            availability=manga_has_downloadable_content(mid, attrs)
-                        except Exception:
-                            # A transient availability-check failure should not hide a
-                            # legitimate search result. Loading the title will perform
-                            # the normal language/volume validation later.
-                            availability=True
-                        if mid:
-                            self.availability_cache[mid]=bool(availability)
-                    if not availability:
-                        filtered_empty += 1
-                        continue
-                    title_rows=collect_titles(attrs)
-                    full_title=choose_preferred_title(title_rows, self.preferred) or 'Untitled'
-                    raw_titles=' '.join(r.get('title','') for r in title_rows).casefold()
-                    badge = 'FAN COLOR' if ('fan-colored' in raw_titles or 'fan colored' in raw_titles) else ('COLOR' if any(x in raw_titles for x in ('digital colored','digital colour','full color','full colour','color edition','colored comics','colour edition')) else '')
-                    display_title=re.sub(r'(?i)\s*[-–—:(]*\s*(digital\s+colou?red\s+comics|full\s+colou?r(?:\s+edition)?|colou?red\s+edition|fan[- ]colou?red)\s*[)]*\s*$', '', full_title).strip(' -–—:()') or full_title
-                    author=''; cover_filename=''
-                    for rel in entry.get('relationships') or []:
-                        if rel.get('type')=='author' and not author:
-                            author=((rel.get('attributes') or {}).get('name') or '')
-                        elif rel.get('type')=='cover_art' and not cover_filename:
-                            cover_filename=((rel.get('attributes') or {}).get('fileName') or '')
-                    cover_url=(f'https://uploads.mangadex.org/covers/{mid}/{cover_filename}' if mid and cover_filename else '')
-                    rows.append({
-                        'score': self.score(self.query, display_title, full_title, self.preferred in (attrs.get('availableTranslatedLanguages') or [])), 'title': display_title, 'full_title': full_title,
-                        'author': author, 'id': mid, 'cover_url': cover_url, 'badge': badge,
-                    })
-                    # Stop at exactly the requested number of accepted rows.
-                    # next_offset advances only through raw rows actually consumed.
-                    if len(rows) >= self.limit:
-                        break
-
-                api_offset += processed
-                scanned += processed
-                if api_total and api_offset >= api_total:
-                    exhausted=True
-                elif processed >= len(fetched_rows) and len(fetched_rows) < batch_size:
-                    exhausted=True
-
-            rows.sort(key=lambda x:x['score'], reverse=True)
-            self.ready.emit({'query':self.query,'offset':self.offset,'next_offset':api_offset,'limit':self.limit,
-                             'total':api_total,'rows':rows,'fetched_count':scanned,
-                             'filtered_doujinshi':filtered_doujinshi,'filtered_empty':filtered_empty,
-                             'has_more':bool(api_total and api_offset < api_total and not exhausted)})
+            self.ready.emit(MANGADEX_SOURCE.search(
+                self.query, offset=self.offset, limit=self.limit,
+                include_adult=self.include_adult, preferred=self.preferred,
+                availability_cache=self.availability_cache,
+            ))
         except Exception as e:
             self.failed.emit(str(e))
 
@@ -1432,42 +1104,10 @@ class PairingPreviewWorker(QThread):
 
     def _fetch_preview_page(self, saver_url, full_url, page_number):
         """Fetch a data-saver page with transient retries, then fall back to full quality."""
-        transient = {429, 500, 502, 503, 504}
-        delays = (1, 2, 4)
-        last = None
-        for attempt in range(1, 4):
-            self._check_cancel()
-            try:
-                req = urllib.request.Request(saver_url, headers={'User-Agent': 'MangaNana-Calibre/0.9.8', 'Accept': '*/*'})
-                with urllib.request.urlopen(req, timeout=35) as r:
-                    return r.read(), False
-            except urllib.error.HTTPError as e:
-                last = e
-                if e.code not in transient:
-                    break
-                if attempt < 3:
-                    wait = delays[attempt - 1]
-                    if e.code == 429:
-                        try:
-                            wait = max(wait, min(30, int(e.headers.get('Retry-After', wait))))
-                        except Exception:
-                            pass
-                    self.log.emit(f'Preview: page {page_number} returned HTTP {e.code}. Retry {attempt}/3 in {wait}s...')
-                    for _ in range(wait * 10):
-                        self._check_cancel(); time.sleep(0.1)
-            except Exception as e:
-                last = e
-                if attempt < 3:
-                    wait = delays[attempt - 1]
-                    self.log.emit(f'Preview: page {page_number} download failed. Retry {attempt}/3 in {wait}s...')
-                    for _ in range(wait * 10):
-                        self._check_cancel(); time.sleep(0.1)
-        self._check_cancel()
-        self.log.emit(f'Preview: reduced-quality page {page_number} unavailable after retries. Using full-quality fallback.')
-        try:
-            return download_bytes(full_url, timeout=45, retries=4, user_agent='MangaNana-Calibre/0.9.8'), True
-        except Exception as e:
-            raise RuntimeError(f'Preview page {page_number} failed in both reduced and full quality. Data-saver error: {last}; full-quality error: {e}')
+        return MANGADEX_SOURCE.fetch_preview_page(
+            saver_url, full_url, page_number,
+            log=self.log.emit, check_cancel=self._check_cancel,
+        )
 
     def run(self):
         started = time.monotonic()
