@@ -59,6 +59,20 @@ class MangaPillSourceTests(unittest.TestCase):
             "https://example.test/manga/5674/lookalike"
         ))
 
+    def test_chapter_url_is_recognized_and_resolves_to_parent_manga(self):
+        match = SourceRegistry((self.source,)).identify(CHAPTER_URL)
+        self.assertIs(match.source, self.source)
+        self.assertEqual(match.reference, CHAPTER_URL)
+        self.assertEqual(self.source.resolve_manga_ref(CHAPTER_URL), "5674")
+        metadata = self.source.get_manga(CHAPTER_URL)
+        self.assertEqual(metadata["uuid"], "5674")
+        self.assertEqual(metadata["source_url"], "https://mangapill.com/manga/5674")
+
+    def test_foreign_domain_chapter_lookalike_is_rejected(self):
+        lookalike = "https://example.test/chapters/5674-10001000/example-chapter-1"
+        self.assertIsNone(self.source.parse_manga_ref(lookalike))
+        self.assertIsNone(SourceRegistry((self.source,)).identify(lookalike))
+
     def test_search_normalization(self):
         result = self.source.search("One Piece", limit=12)
         self.assertEqual([row["id"] for row in result["rows"]], ["2", "5674"])
@@ -105,6 +119,8 @@ class MangaPillSourceTests(unittest.TestCase):
             malformed.get_manga(MANGA_URL)
         with self.assertRaisesRegex(RuntimeError, "did not contain readable images"):
             malformed.get_page_manifest(CHAPTER_URL)
+        with self.assertRaisesRegex(RuntimeError, "did not contain a parent manga link"):
+            malformed.resolve_manga_ref(CHAPTER_URL)
         with self.assertRaisesRegex(ValueError, "valid MangaPill"):
             self.source.get_manga("https://example.test/manga/5674/example")
         with self.assertRaisesRegex(ValueError, "valid MangaPill chapter"):

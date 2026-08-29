@@ -10,9 +10,11 @@ import urllib.request
 try:
     from .core_helpers import _iter_aggregate_nodes, choose_preferred_title, collect_titles, is_doujinshi_entry
     from .source_adapter import SourceAdapter
+    from .version_info import USER_AGENT
 except ImportError:
     from core_helpers import _iter_aggregate_nodes, choose_preferred_title, collect_titles, is_doujinshi_entry
     from source_adapter import SourceAdapter
+    from version_info import USER_AGENT
 
 
 UUID_RE = re.compile(r'/title/([0-9a-fA-F-]{36})')
@@ -37,7 +39,7 @@ class MangaDexSource(SourceAdapter):
         transient={429,500,502,503,504}; last=None
         for attempt in range(1,max(1,int(retries))+1):
             try:
-                req=urllib.request.Request(url,headers={'User-Agent':'MangaNana-Calibre/0.9.8'})
+                req=urllib.request.Request(url,headers={'User-Agent':USER_AGENT})
                 with urllib.request.urlopen(req,timeout=timeout) as response:
                     return json.loads(response.read().decode('utf-8'))
             except urllib.error.HTTPError as exc:
@@ -58,7 +60,7 @@ class MangaDexSource(SourceAdapter):
         raise RuntimeError(f'MangaDex request failed after {retries} attempt(s): {last}')
 
     @staticmethod
-    def _default_fetch_binary(url, timeout=45, retries=5, user_agent='MangaNana-Calibre/0.9.8', retry_callback=None):
+    def _default_fetch_binary(url, timeout=45, retries=5, user_agent=USER_AGENT, retry_callback=None):
         last=None
         for attempt in range(1,retries+1):
             try:
@@ -266,7 +268,7 @@ class MangaDexSource(SourceAdapter):
         for attempt in range(1,4):
             check()
             try:
-                req=urllib.request.Request(saver_url,headers={'User-Agent':'MangaNana-Calibre/0.9.8','Accept':'*/*'})
+                req=urllib.request.Request(saver_url,headers={'User-Agent':USER_AGENT,'Accept':'*/*'})
                 with urllib.request.urlopen(req,timeout=35) as response: return response.read(),False
             except urllib.error.HTTPError as exc:
                 last=exc
@@ -284,5 +286,5 @@ class MangaDexSource(SourceAdapter):
                     wait=delays[attempt-1]; emit(f'Preview: page {page_number} download failed. Retry {attempt}/3 in {wait}s...')
                     for _ in range(wait*10): check(); time.sleep(0.1)
         check(); emit(f'Preview: reduced-quality page {page_number} unavailable after retries. Using full-quality fallback.')
-        try: return self.fetch_binary(full_url,timeout=45,retries=4,user_agent='MangaNana-Calibre/0.9.8'),True
+        try: return self.fetch_binary(full_url,timeout=45,retries=4,user_agent=USER_AGENT),True
         except Exception as exc: raise RuntimeError(f'Preview page {page_number} failed in both reduced and full quality. Data-saver error: {last}; full-quality error: {exc}')
