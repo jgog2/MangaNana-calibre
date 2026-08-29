@@ -15,6 +15,17 @@ class FakeSource:
             raise RuntimeError(self.error)
         return self.plan
 
+    def get_chapters(self, value, language):
+        if self.error:
+            raise RuntimeError(self.error)
+        rows=[]
+        for volume, count in (self.plan.get('chapters_by_volume') or {}).items():
+            for index in range(int(count or 0)):
+                rows.append({'id':f'{self.source_id}-{volume}-{index}', 'volume':float(volume), 'chapter':str(index + 1)})
+        for index in range(int(self.plan.get('bonus_chapters') or 0)):
+            rows.append({'id':f'{self.source_id}-bonus-{index}', 'volume':None, 'chapter':str(index + 1)})
+        return rows
+
 
 def candidate(source_id, badge='', full_title='Series'):
     return {'source_id':source_id,'source_name':'MangaDex' if source_id=='mangadex' else 'MangaPill',
@@ -114,6 +125,13 @@ class InventoryComparisonTests(unittest.TestCase):
         decision=compare_inventories((dex,))
         self.assertEqual(decision.selected.source_id,'mangadex')
         self.assertFalse(decision.ambiguous)
+
+    def test_native_metadata_without_readable_volume_chapters_is_not_usable(self):
+        source=FakeSource('mangadex','MangaDex',plan((1,),(),0))
+        inventory=self.inspect(source)
+        self.assertEqual(inventory.native_volume_metadata, 1)
+        self.assertEqual(inventory.native_volumes, 0)
+        self.assertFalse(compare_inventories((inventory,), workflow='volume').selected)
 
 
 if __name__ == '__main__':
