@@ -34,7 +34,7 @@ from calibre_plugins.manganana.i18n import tr, UI_LANGUAGES
 from calibre_plugins.manganana.mangadex_source import MangaDexSource
 from calibre_plugins.manganana.mangapill_source import MangaPillSource
 from calibre_plugins.manganana.source_registry import SourceRegistry
-from calibre_plugins.manganana.source_coordinator import SourceCoordinator
+from calibre_plugins.manganana.source_coordinator import SourceCoordinator, count_chapter_pages, format_page_count
 from calibre_plugins.manganana.version_info import DISPLAY_VERSION, SHORT_VERSION_LABEL, USER_AGENT
 try:
     from calibre_plugins.manganana.build_info import GIT_COMMIT
@@ -1068,7 +1068,7 @@ class PreviewWorker(QThread):
             numbered = sorted(v for v in groups if v is not None)
             for volume in numbered:
                 final_title = f'{self.title} (Vol. {fmt_volume(volume, self.zero_pad)})'
-                pages = sum(int(c.get('pages') or 0) for c in groups[volume])
+                pages = count_chapter_pages(self.source, groups[volume])
                 rows.append({
                     'title': final_title,
                     'author': self.author,
@@ -1080,7 +1080,7 @@ class PreviewWorker(QThread):
                     'existing': volume in self.existing,
                 })
             if None in groups:
-                pages = sum(int(c.get('pages') or 0) for c in groups[None])
+                pages = count_chapter_pages(self.source, groups[None])
                 rows.append({
                     'title': f'{self.title} (Standalone Chapters)',
                     'author': self.author,
@@ -1093,8 +1093,8 @@ class PreviewWorker(QThread):
                 })
 
             to_download = [r for r in rows if not r['existing']]
-            pages = sum(r['pages'] for r in to_download)
-            estimate = pages * self.bytes_per_page
+            pages = None if any(r['pages'] is None for r in to_download) else sum(r['pages'] for r in to_download)
+            estimate = None if pages is None else pages * self.bytes_per_page
             self.ready.emit({
                 'rows': rows,
                 'existing_count': sum(1 for r in rows if r['existing']),
@@ -3319,7 +3319,8 @@ class MangaNanaDialog(QDialog):
             if volume_label and not str(volume_label).lower().startswith(('vol', 'bonus', 'standalone')):
                 volume_label = 'Vol. ' + str(volume_label)
             status_text = 'In Calibre' if item.get('existing') else ('Ready' if str(item.get('status') or '').lower() in ('will download','ready') else str(item.get('status') or 'Ready'))
-            vals = [volume_label, item['title'], str(int(item.get('pages') or 0)), status_text]
+            page_value=item.get('pages')
+            vals = [volume_label, item['title'], format_page_count(page_value), status_text]
             for c, val in enumerate(vals, 1):
                 cell=QTableWidgetItem(str(val)); cell.setTextAlignment(int(Qt.AlignmentFlag.AlignCenter))
                 self.preview_table.setItem(r, c, cell)
@@ -3357,6 +3358,7 @@ class MangaNanaDialog(QDialog):
         selected_volumes = []
         include_bonus = False
         selected_pages = 0
+        selected_pages_unknown = False
         rows = self.preview_data.get('rows') or []
         selected_count = 0
         for r, row in enumerate(rows):
@@ -3364,27 +3366,32 @@ class MangaNanaDialog(QDialog):
             row['selected'] = checked
             if checked:
                 selected_count += 1
-                selected_pages += int(row.get('pages') or 0)
+                if row.get('pages') is None:
+                    selected_pages_unknown = True
+                else:
+                    selected_pages += int(row.get('pages') or 0)
                 if row.get('volume') is None:
                     include_bonus = True
                 else:
                     selected_volumes.append(float(row['volume']))
-        est = selected_pages * int(self._bytes_per_page_estimate)
+        selected_pages = None if selected_pages_unknown else selected_pages
+        est = None if selected_pages is None else selected_pages * int(self._bytes_per_page_estimate)
         self.preview_data['selected_volumes'] = selected_volumes
         self.preview_data['include_bonus'] = include_bonus
         self.preview_data['selected_download_count'] = selected_count
         self.preview_data['selected_pages'] = selected_pages
         self.preview_data['selected_estimated_bytes'] = est
-        est_s = f'~{est/(1024**3):.2f} GB' if est >= 1024**3 else f'~{est/(1024**2):.1f} MB'
+        est_s = 'Size unknown' if est is None else (f'~{est/(1024**3):.2f} GB' if est >= 1024**3 else f'~{est/(1024**2):.1f} MB')
+        pages_s = format_page_count(selected_pages)
         existing_count = int(self.preview_data.get('existing_count', 0) or 0)
         layout_text = 'Landscape paired pages' if self.page_layout.currentData() == 'paired_landscape' else 'Portrait pages'
         language_text = self.language.currentText() or 'Unknown language'
         standalone_selected=any(bool(r.get('selected')) and r.get('volume') is None for r in rows)
         if existing_count:
-            first_line = f"{selected_count} to download   •   {existing_count} already in Calibre   •   {selected_pages} pages   •   {est_s}"
+            first_line = f"{selected_count} to download   •   {existing_count} already in Calibre   •   {pages_s} pages   •   {est_s}"
         else:
             noun = 'item' if standalone_selected else 'volume'
-            first_line = f"{selected_count} {noun}{'s' if selected_count != 1 else ''}   •   {selected_pages} pages   •   {est_s}"
+            first_line = f"{selected_count} {noun}{'s' if selected_count != 1 else ''}   •   {pages_s} pages   •   {est_s}"
         self.preview_summary.setText(first_line + f"<br>{layout_text}   •   {language_text}")
         self._update_workflow_actions()
         if hasattr(self, 'pairing_preview_btn'):

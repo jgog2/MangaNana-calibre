@@ -7,6 +7,37 @@ class SourceSearchError(RuntimeError):
     """Raised when every enabled provider fails a coordinated search."""
 
 
+def count_chapter_pages(source, chapters):
+    """Return a selected chapter total without fetching any image bytes.
+
+    Providers may report ``pages=None`` when discovery cannot cheaply know the
+    count. In that case, use only the provider's lightweight page manifest. If
+    any selected chapter remains indeterminate, the combined total is unknown.
+    """
+    total = 0
+    for chapter in chapters or ():
+        pages = chapter.get('pages')
+        if pages is None:
+            try:
+                manifest = source.get_page_manifest(chapter.get('id')) or {}
+                urls = manifest.get('full')
+                if urls is None:
+                    return None
+                pages = len(urls)
+            except Exception:
+                return None
+        try:
+            total += max(0, int(pages))
+        except (TypeError, ValueError):
+            return None
+    return total
+
+
+def format_page_count(pages):
+    """Format a Review page count without turning unknown into zero."""
+    return 'Unknown' if pages is None else str(int(pages))
+
+
 @dataclass
 class ProviderSearch:
     source_id: str

@@ -246,7 +246,7 @@ class MangaPillSource(SourceAdapter):
             if not number:
                 continue
             chapters.append({'id': urllib.parse.urljoin(BASE_URL, anchor['href']), 'volume': None,
-                             'chapter': number, 'title': '', 'pages': 0})
+                             'chapter': number, 'title': '', 'pages': None})
         chapters.sort(key=_chapter_sort_key)
         return chapters
 

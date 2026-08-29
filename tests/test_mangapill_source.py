@@ -7,6 +7,7 @@ from mangadex_source import MangaDexSource
 from mangapill_source import MangaPillSource
 from source_adapter import SourceAdapter
 from source_registry import SourceRegistry
+from source_coordinator import count_chapter_pages
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -94,10 +95,18 @@ class MangaPillSourceTests(unittest.TestCase):
         chapters = self.source.get_chapters(MANGA_URL, "en")
         self.assertEqual([row["chapter"] for row in chapters], ["1", "2", "4.5"])
         self.assertTrue(all(row["volume"] is None for row in chapters))
+        self.assertTrue(all(row["pages"] is None for row in chapters))
         self.assertEqual(self.source.get_download_plan(MANGA_URL, "en")["bonus_chapters"], 3)
         self.assertEqual(self.source.get_download_plan(MANGA_URL, "en")["volumes"], [])
         self.assertEqual(self.source.get_chapters(MANGA_URL, "fr"), [])
         self.assertEqual(self.source.get_chapters(MANGA_URL, "en", 1, 2), [])
+
+    def test_multiple_standalone_review_counts_sum_manifests_without_image_bytes(self):
+        binary_calls = []
+        source = MangaPillSource(self.html, lambda url, **_kwargs: binary_calls.append(url))
+        chapters = source.get_chapters(MANGA_URL, "en")
+        self.assertEqual(count_chapter_pages(source, chapters), 6)
+        self.assertEqual(binary_calls, [])
 
     def test_page_manifest_extracts_only_ordered_reader_images(self):
         manifest = self.source.get_page_manifest(CHAPTER_URL)

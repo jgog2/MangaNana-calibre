@@ -1,7 +1,7 @@
 import unittest
 
 from source_adapter import SourceAdapter
-from source_coordinator import SourceCoordinator, SourceSearchError
+from source_coordinator import SourceCoordinator, SourceSearchError, count_chapter_pages, format_page_count
 from source_registry import SourceRegistry
 
 
@@ -89,6 +89,24 @@ class SourceCoordinatorTests(unittest.TestCase):
         coordinator, _dex, _pill = self.make_coordinator()
         self.assertEqual(('mangadex', 'mangapill'),
                          tuple(state['source_id'] for state in coordinator.snapshot()['providers']))
+
+    def test_mangadex_known_page_counts_are_summed_without_manifest_requests(self):
+        coordinator, dex, _pill = self.make_coordinator()
+        del coordinator
+        dex.get_page_manifest = lambda *_args, **_kwargs: self.fail('manifest should not be requested')
+        self.assertEqual(12, count_chapter_pages(dex, [
+            {'id': 'a', 'pages': 5}, {'id': 'b', 'pages': 7},
+        ]))
+
+    def test_unknown_count_remains_unknown_when_manifest_is_unavailable(self):
+        coordinator, _dex, pill = self.make_coordinator()
+        del coordinator
+        pill.get_page_manifest = lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError('unavailable'))
+        self.assertIsNone(count_chapter_pages(pill, [{'id': 'a', 'pages': None}]))
+
+    def test_unknown_review_page_count_is_not_rendered_as_zero(self):
+        self.assertEqual('Unknown', format_page_count(None))
+        self.assertEqual('12', format_page_count(12))
 
 
 if __name__ == '__main__':
