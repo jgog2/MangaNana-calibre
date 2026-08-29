@@ -1,0 +1,35 @@
+{
+  "total": 3,
+  "data": [
+    {
+      "id": "search-color",
+      "attributes": {
+        "title": {"en": "Example Full Color"},
+        "availableTranslatedLanguages": ["en"],
+        "tags": []
+      },
+      "relationships": [
+        {"type": "author", "attributes": {"name": "Example Author"}},
+        {"type": "cover_art", "attributes": {"fileName": "cover.jpg"}}
+      ]
+    },
+    {
+      "id": "search-doujin",
+      "attributes": {
+        "title": {"en": "Example Doujinshi"},
+        "availableTranslatedLanguages": ["en"],
+        "tags": []
+      },
+      "relationships": []
+    },
+    {
+      "id": "search-empty",
+      "attributes": {
+        "title": {"en": "Example Empty"},
+        "availableTranslatedLanguages": [],
+        "tags": []
+      },
+      "relationships": []
+    }
+  ]
+}

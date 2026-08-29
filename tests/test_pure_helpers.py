@@ -56,15 +56,20 @@ class VolumeHelpersTests(unittest.TestCase):
         self.assertEqual(fmt_volume(12.5), "12.5")
 
     def test_download_plan_sorts_numeric_volumes(self):
-        self.helpers["_plan_from_aggregate"] = lambda *_args, **_kwargs: (
-            {10.0: 2, 2.5: 1},
-            0,
-        )
-        self.helpers["_plan_from_feed"] = lambda *_args, **_kwargs: (
-            {1.0: 3, 10.0: 1},
-            0,
-        )
-        plan = self.helpers["fetch_download_plan"](
+        def fake_api(url, **_kwargs):
+            if "/aggregate?" in url:
+                return {"volumes": {
+                    "10": {"volume": "10", "count": 2},
+                    "2.5": {"volume": "2.5", "count": 1},
+                }}
+            return {"data": [
+                {"id": "one", "attributes": {"volume": "1", "chapter": "1"}},
+                {"id": "two", "attributes": {"volume": "1", "chapter": "2"}},
+                {"id": "three", "attributes": {"volume": "1", "chapter": "3"}},
+                {"id": "ten", "attributes": {"volume": "10", "chapter": "1"}},
+            ]}
+
+        plan = MangaDexSource(fake_api).get_download_plan(
             "https://mangadex.org/title/12345678-1234-1234-1234-123456789abc",
             "en",
         )
