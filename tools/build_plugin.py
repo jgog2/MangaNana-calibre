@@ -14,6 +14,7 @@ PYTHON_FILES = (
     "__init__.py",
     "core_helpers.py",
     "source_adapter.py",
+    "source_registry.py",
     "mangadex_source.py",
     "main.py",
     "ui.py",

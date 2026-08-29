@@ -32,6 +32,7 @@ from calibre_plugins.manganana.core_helpers import (
 )
 from calibre_plugins.manganana.i18n import tr, UI_LANGUAGES
 from calibre_plugins.manganana.mangadex_source import MangaDexSource
+from calibre_plugins.manganana.source_registry import SourceRegistry
 try:
     from calibre_plugins.manganana.build_info import DISPLAY_VERSION
 except ImportError:
@@ -203,7 +204,10 @@ def api_json(url, timeout=30, retries=3, retry_callback=None):
 
 
 def manga_uuid(url):
-    return MANGADEX_SOURCE.parse_manga_ref(url)
+    match = SOURCE_REGISTRY.identify(url)
+    if match and match.source.source_id == MANGADEX_SOURCE.source_id:
+        return match.reference
+    return None
 
 
 def load_manga_metadata(url, preferred='en'):
@@ -275,6 +279,7 @@ def fetch_volume_covers(url):
 
 
 MANGADEX_SOURCE = MangaDexSource()
+SOURCE_REGISTRY = SourceRegistry((MANGADEX_SOURCE,))
 
 
 def download_bytes(url, timeout=45, retries=5, user_agent='MangaNana-Calibre/0.9.8', retry_callback=None):

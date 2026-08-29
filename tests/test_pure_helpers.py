@@ -15,6 +15,7 @@ from core_helpers import (
     volume_from_name,
 )
 from mangadex_source import MangaDexSource
+from source_registry import SourceRegistry
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
@@ -37,11 +38,13 @@ def load_main_helpers(*names, globals_=None):
 class VolumeHelpersTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        source = MangaDexSource(lambda _url, **_kwargs: None)
         cls.helpers = load_main_helpers(
             "manga_uuid",
             "fetch_download_plan",
             globals_={
-                "MANGADEX_SOURCE": MangaDexSource(lambda _url, **_kwargs: None),
+                "MANGADEX_SOURCE": source,
+                "SOURCE_REGISTRY": SourceRegistry((source,)),
             },
         )
 
@@ -91,11 +94,13 @@ class StandaloneChapterOrderingTests(unittest.TestCase):
             requested_urls.append(url)
             return {"data": rows}
 
+        source = MangaDexSource(fake_api_json)
         helpers = load_main_helpers(
             "manga_uuid",
             "fetch_chapter_entries",
             globals_={
-                "MANGADEX_SOURCE": MangaDexSource(fake_api_json),
+                "MANGADEX_SOURCE": source,
+                "SOURCE_REGISTRY": SourceRegistry((source,)),
                 "urllib": urllib,
                 "api_json": fake_api_json,
             },

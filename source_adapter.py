@@ -6,8 +6,15 @@ from abc import ABC, abstractmethod
 class SourceAdapter(ABC):
     """Calibre-independent interface implemented by a manga source."""
 
+    source_id = ''
     key = ''
     display_name = ''
+    domains = ()
+    enabled_by_default = True
+
+    def can_handle_ref(self, value):
+        """Return whether this adapter recognizes a direct manga reference."""
+        return self.parse_manga_ref(value) is not None
 
     @abstractmethod
     def parse_manga_ref(self, value):
