@@ -1,6 +1,8 @@
 import os
 import re
+import math
 import shutil
+import sys
 import tempfile
 import time
 import urllib.parse
@@ -17,8 +19,8 @@ from calibre.gui2 import error_dialog, info_dialog
 from qt.core import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGridLayout,
     QFileDialog, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, Qt, QSize,
-    QProgressBar, QPushButton, QTableWidget, QTableWidgetItem, QThread, QVBoxLayout, QWidget, QScrollArea, QPixmap, QIcon,
-    QDesktopServices, QUrl, QPainter, QColor, QPen, QTimer, QEvent, pyqtSignal, QGraphicsDropShadowEffect, QHeaderView
+    QProgressBar, QPushButton, QTableWidget, QTableWidgetItem, QThread, QVBoxLayout, QWidget, QScrollArea, QPixmap, QIcon, QLayout,
+    QDesktopServices, QUrl, QPainter, QColor, QPen, QRect, QTimer, QEvent, pyqtSignal, QGraphicsDropShadowEffect, QHeaderView
 )
 
 from calibre_plugins.manganana.config import prefs
@@ -39,13 +41,16 @@ from calibre_plugins.manganana.source_coordinator import SourceCoordinator, coun
 from calibre_plugins.manganana.canonical_identity import edition_identity, filter_relevant_results, group_canonical_results, source_badge_specs
 from calibre_plugins.manganana.inventory_comparison import compare_inventories, inspect_source_inventory
 from calibre_plugins.manganana.cross_source_fallback import build_cross_source_plan
+from calibre_plugins.manganana.chapter_workflow import chapter_label, chapter_output_title, chapter_series_index, chapter_sort_key, chapter_selection_ids
 from calibre_plugins.manganana.version_info import DISPLAY_VERSION, SHORT_VERSION_LABEL, USER_AGENT
+from calibre_plugins.manganana.diagnostics import write_diagnostic_report
 try:
     from calibre_plugins.manganana.build_info import GIT_COMMIT
 except ImportError:
     GIT_COMMIT = 'source'
 
 ORANGE = '#FF6740'
+COVER_BATCH_LIMIT = 8
 VL_NAME = 'MangaNana'
 VL_TAG = 'MangaNana'
 PAGE_RE = re.compile(r'(?i)Downloading\s+(.+?)\s+page\s+([0-9]+)\s*$')
@@ -261,6 +266,11 @@ def format_speed(bps):
     if bps >= 1024**2:
         return f'{bps / (1024**2):.2f} MB/s'
     return f'{bps / 1024:.0f} KB/s'
+
+
+def determinate_fill_width(track_width, completed, total):
+    """Return accumulated progress width without depending on animation phase."""
+    return int(max(0, track_width) * max(0, min(1, float(completed) / max(1, total))))
 
 
 def directory_size(path):
@@ -812,6 +822,25 @@ class VolumePlanWorker(QThread):
     def run(self):
         try:
             plan=self.source.get_download_plan(self.url, self.language)
+            # Do not expose aggregate-only volume rows. Review and Download
+            # require real chapter references in the requested language.
+            chapters=self.source.get_chapters(self.url, self.language)
+            actual_by_volume={}
+            actual_bonus=0
+            for chapter in chapters or ():
+                volume=chapter.get('volume')
+                if volume is None:
+                    actual_bonus += 1
+                    continue
+                try:
+                    volume=float(volume)
+                except (TypeError, ValueError):
+                    continue
+                actual_by_volume[volume]=actual_by_volume.get(volume,0)+1
+            plan=dict(plan or {})
+            plan['volumes']=sorted(actual_by_volume)
+            plan['chapters_by_volume']=actual_by_volume
+            plan['bonus_chapters']=actual_bonus
             cover_error=''
             try:
                 covers=self.source.get_volume_covers(self.url)
@@ -823,8 +852,27 @@ class VolumePlanWorker(QThread):
             self.failed.emit({'request_id':self.request_id,'url':self.url,'language':self.language,'error':str(e)})
 
 
+class ChapterPlanWorker(QThread):
+    """Discover a chapter-native selection list off the Qt GUI thread."""
+    ready = pyqtSignal(object)
+    failed = pyqtSignal(object)
+
+    def __init__(self, request_id, source, url, language, parent=None):
+        super().__init__(parent)
+        self.request_id=request_id; self.source=source; self.url=url; self.language=language
+
+    def run(self):
+        try:
+            chapters=self.source.get_chapters(self.url, self.language)
+            self.ready.emit({'request_id':self.request_id,'url':self.url,'language':self.language,
+                             'source_id':self.source.source_id,'chapters':chapters or []})
+        except Exception as e:
+            self.failed.emit({'request_id':self.request_id,'url':self.url,'language':self.language,'error':str(e)})
+
+
 class ImageBatchWorker(QThread):
     image_ready = pyqtSignal(object)
+    image_failed = pyqtSignal(object)
     batch_done = pyqtSignal(object)
 
     def __init__(self, batch_id, entries, parent=None, source=None):
@@ -835,10 +883,14 @@ class ImageBatchWorker(QThread):
 
     def run(self):
         for entry in self.entries:
+            if self.isInterruptionRequested():
+                break
             key, urls = entry[:2]
             source = entry[2] if len(entry) > 2 else self.source
             raw=None
             for url in urls:
+                if self.isInterruptionRequested():
+                    break
                 if not url:
                     continue
                 try:
@@ -849,6 +901,8 @@ class ImageBatchWorker(QThread):
                     raw=None
             if raw:
                 self.image_ready.emit({'batch_id':self.batch_id,'key':key,'raw':raw})
+            elif not self.isInterruptionRequested():
+                self.image_failed.emit({'batch_id':self.batch_id,'key':key})
         self.batch_done.emit({'batch_id':self.batch_id})
 
 
@@ -860,7 +914,7 @@ class DownloadWorker(QThread):
     failed = pyqtSignal(str)
     cancelled_ok = pyqtSignal()
 
-    def __init__(self, source, url, title, author, series, language, start, end, covers, zero_pad, existing_volumes, selected_volumes=None, include_bonus=True, page_layout='original_pages', reading_direction='rtl', main_cover_url=''):
+    def __init__(self, source, url, title, author, series, language, start, end, covers, zero_pad, existing_volumes, selected_volumes=None, include_bonus=True, page_layout='original_pages', reading_direction='rtl', main_cover_url='', chapter_jobs=None):
         super().__init__()
         self.source = source
         self.source_name = source.display_name
@@ -875,6 +929,7 @@ class DownloadWorker(QThread):
         self.page_layout = page_layout
         self.reading_direction = reading_direction
         self.cancelled = False
+        self.chapter_jobs=tuple(chapter_jobs or ())
 
     def cancel(self):
         self.cancelled = True
@@ -883,7 +938,7 @@ class DownloadWorker(QThread):
         if self.cancelled:
             raise RuntimeError('Download cancelled.')
 
-    def _comicinfo_xml(self, title, volume):
+    def _comicinfo_xml(self, title, volume, chapter_number=None):
         import xml.etree.ElementTree as ET
         root = ET.Element('ComicInfo')
         values = {
@@ -896,13 +951,15 @@ class DownloadWorker(QThread):
         if volume is not None:
             values['Volume'] = f'{volume:g}'
             values['Number'] = f'{volume:g}'
+        elif chapter_number:
+            values['Number'] = str(chapter_number)
         for tag, value in values.items():
             el = ET.SubElement(root, tag)
             el.text = str(value)
         return ET.tostring(root, encoding='utf-8', xml_declaration=True)
 
     def _download_group(self, group, output_path, final_title, volume, cover_url,
-                        state, job_index, job_total, volume_pages_total):
+                        state, job_index, job_total, volume_pages_total, chapter_number=None):
         cover_blob = None
         cover_ext = '.jpg'
         if self.covers and cover_url:
@@ -924,13 +981,14 @@ class DownloadWorker(QThread):
             ch_label = chapter.get('chapter') or 'unnumbered'
             if volume is None: self.log.emit(f'Downloading standalone Chapter {ch_label}...')
             else: self.log.emit(f'Downloading Volume {volume:g}, Chapter {ch_label}...')
-            urls = self.source.get_page_manifest(chapter['id'], retry_callback=self.log.emit)['full']
+            source=SOURCE_REGISTRY.get(chapter.get('_source_id')) or self.source
+            urls = source.get_page_manifest(chapter['id'], retry_callback=self.log.emit)['full']
             if len(urls) != int(chapter.get('pages') or 0):
                 state['pages_total'] += len(urls) - int(chapter.get('pages') or 0)
                 volume_pages_total += len(urls) - int(chapter.get('pages') or 0)
             for page_in_chapter, url in enumerate(urls, 1):
                 self._check_cancel()
-                blob = self.source.fetch_binary(url, timeout=50, retries=5, retry_callback=self.log.emit)
+                blob = source.fetch_binary(url, timeout=50, retries=5, retry_callback=self.log.emit)
                 ext = image_extension(url)
                 blob, size, exif_changed, exif_orientation = _normalize_exif_orientation(blob, ext)
                 if exif_changed:
@@ -960,13 +1018,15 @@ class DownloadWorker(QThread):
             else:
                 for rec in records:
                     zf.writestr(f'{page_index:05d}{rec["ext"]}', rec['blob']); page_index += 1
-            zf.writestr('ComicInfo.xml', self._comicinfo_xml(final_title, volume))
+            zf.writestr('ComicInfo.xml', self._comicinfo_xml(final_title, volume, chapter_number))
         return cover_path
 
     def run(self):
         t0 = time.time()
         work = tempfile.mkdtemp(prefix='manganana-calibre-')
         try:
+            if self.chapter_jobs:
+                return self._run_chapter_jobs(work, t0)
             self.log.emit(f'[{self.source_name}] Reading chapter information and page counts...')
             chapters = self.source.get_chapters(self.url, self.language, self.start_volume, self.end_volume)
             if not chapters:
@@ -1070,13 +1130,47 @@ class DownloadWorker(QThread):
             else:
                 self.failed.emit(str(e))
 
+    def _run_chapter_jobs(self, work, t0):
+        jobs=list(self.chapter_jobs)
+        planned_pages=sum(int(row.get('pages') or 0) for row in jobs)
+        state={'pages_done':0,'pages_total':planned_pages,'bytes':0,'started':time.time(),'volume_done':0}
+        outputs=[]; failures=[]
+        self.log.emit(f'Chapter plan: {len(jobs)} chapter CBZ file(s).')
+        for index, chapter in enumerate(jobs, 1):
+            self._check_cancel(); state['volume_done']=0
+            label=f'Chapter {chapter_label(chapter, self.zero_pad)}'
+            final_title=chapter_output_title(self.title, chapter, self.zero_pad)
+            output=Path(work) / (safe_filename(final_title) + '.cbz')
+            self.log.emit(f'Starting {label} [{chapter.get("_source_name") or self.source_name}]...')
+            before_done=state['pages_done']; before_bytes=state['bytes']
+            try:
+                cover_path=self._download_group([chapter], output, final_title, None,
+                                                self.main_cover_url, state, index, len(jobs),
+                                                int(chapter.get('pages') or 0),
+                                                chapter_number=chapter.get('chapter'))
+                _validate_cbz_output(output, self.page_layout)
+                outputs.append({'path':str(output),'volume':chapter_series_index(chapter),
+                                'title':final_title,'cover_path':cover_path,'kind':'chapter',
+                                'chapter_number':chapter.get('chapter'),'source_id':chapter.get('_source_id')})
+            except Exception as exc:
+                if self.cancelled: raise
+                output.unlink(missing_ok=True); state['pages_done']=before_done; state['bytes']=before_bytes
+                failures.append({'volume':None,'label':label,'error':str(exc)})
+                self.log.emit(f'FAILED {label}: {exc}')
+        final_bytes=sum(Path(item['path']).stat().st_size for item in outputs if Path(item['path']).exists())
+        self.finished_ok.emit({'files':outputs,'skipped':0,'elapsed':time.time()-t0,'workdir':work,
+                              'pages':state['pages_done'],'planned_pages':state['pages_total'],'bytes':state['bytes'],
+                              'final_bytes':final_bytes,'failed_volumes':[],'failed_bonus':False,
+                              'failed_labels':[item['label'] for item in failures],'failures':failures})
+
 
 class PreviewWorker(QThread):
     ready = pyqtSignal(object)
     failed = pyqtSignal(str)
+    cancelled_ok = pyqtSignal()
     progress = pyqtSignal(int, str)
 
-    def __init__(self, source, url, title, author, series, language, start, end, zero_pad, existing_volumes, selected_volumes=None, include_standalone=False, bytes_per_page=450*1024):
+    def __init__(self, source, url, title, author, series, language, start, end, zero_pad, existing_volumes, selected_volumes=None, include_standalone=False, bytes_per_page=450*1024, planned_chapters=None, chapter_items=None):
         super().__init__()
         self.source = source
         self.url = url
@@ -1091,9 +1185,14 @@ class PreviewWorker(QThread):
         self.selected_volumes = None if selected_volumes is None else set(float(v) for v in selected_volumes)
         self.include_standalone = bool(include_standalone)
         self.bytes_per_page = max(128*1024, min(2*1024*1024, int(bytes_per_page or 450*1024)))
+        self.planned_chapters=tuple(planned_chapters or ())
+        self.chapter_items=None if chapter_items is None else set(chapter_items)
 
     def run(self):
         try:
+            self._check_cancel()
+            if hasattr(self, 'chapter_items') and self.chapter_items is not None:
+                return self._run_chapter_mode()
             chapters = self.source.get_chapters(self.url, self.language, self.start_volume, self.end_volume)
             if not chapters:
                 raise RuntimeError('No downloadable chapters were found for the selected language and volume range.')
@@ -1123,6 +1222,7 @@ class PreviewWorker(QThread):
                     self.source,chapter_group,progress=report,
                     check_cancel=lambda: (_ for _ in ()).throw(InterruptedError()) if self.isInterruptionRequested() else None,
                 )
+                self._check_cancel()
                 manifest_base += group_missing
                 return result
 
@@ -1163,8 +1263,45 @@ class PreviewWorker(QThread):
                 'pages': pages,
                 'estimated_bytes': estimate,
             })
+        except InterruptedError:
+            self.cancelled_ok.emit()
         except Exception as e:
             self.failed.emit(str(e))
+
+    def _check_cancel(self):
+        if self.isInterruptionRequested():
+            raise InterruptedError()
+
+    def _run_chapter_mode(self):
+        rows=[]; selected=set(self.chapter_items)
+        planned=list(getattr(self, 'planned_chapters', ()) or ())
+        total=len(planned); done=0
+        for chapter in planned:
+            self._check_cancel()
+            chapter_id=str(chapter.get('id') or '')
+            if chapter_id not in selected:
+                continue
+            source=SOURCE_REGISTRY.get(chapter.get('_source_id')) or self.source
+            pages=chapter.get('pages')
+            if pages is None:
+                try:
+                    manifest=source.get_page_manifest(chapter_id) or {}; pages=len(manifest.get('full') or [])
+                    self._check_cancel()
+                except Exception:
+                    self._check_cancel(); pages=None
+                    pages=None
+            done += 1
+            self.progress.emit(int(done*100/max(1,total)), review_manifest_progress(source.display_name, done, total))
+            label=chapter_label(chapter, self.zero_pad)
+            rows.append({'title':chapter_output_title(self.title, chapter, self.zero_pad), 'author':self.author,
+                         'volume':None,'volume_text':f'Ch. {label}','series':self.series,'status':'Will download',
+                         'pages':pages,'existing':False,'kind':'chapter','chapter':chapter,
+                         'source_name':source.display_name,'fallback':bool(chapter.get('_fallback_reason') not in ('', 'primary', None))})
+        pages=None if any(row['pages'] is None for row in rows) else sum(row['pages'] for row in rows)
+        self._check_cancel()
+        self.ready.emit({'rows':rows,'existing_count':0,'download_count':len(rows),'pages':pages,
+                         'estimated_bytes':None if pages is None else pages*self.bytes_per_page,
+                         'chapter_mode':True})
 
 
 class PairingPreviewWorker(QThread):
@@ -1471,20 +1608,82 @@ class PreferencesDialog(QDialog):
         super().accept()
 
 
+class CoverLoadingLabel(QLabel):
+    """Themed cover surface; only the selected cover owns a spinner timer."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._loading=False; self._failed=False; self._loading_style='spinner'; self._phase=0
+        self._spinner_timer=QTimer(self); self._spinner_timer.setInterval(85)
+        self._spinner_timer.timeout.connect(self._spin)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    def _spin(self):
+        self._phase=(self._phase + 1) % 12; self.update()
+
+    def set_loading(self, loading=True, style='spinner'):
+        self._loading=bool(loading); self._failed=False
+        self._loading_style=style
+        if self._loading and style == 'spinner':
+            super().clear(); self._spinner_timer.start()
+        else:
+            self._spinner_timer.stop()
+        self.update()
+
+    def set_failed(self, text='No Cover'):
+        self._loading=False; self._failed=True; self._spinner_timer.stop()
+        super().setText(text); self.update()
+
+    def setPixmap(self, pixmap):
+        self._loading=False; self._failed=False; self._spinner_timer.stop()
+        super().setPixmap(pixmap); self.update()
+
+    def clear(self):
+        self._loading=False; self._failed=False; self._spinner_timer.stop()
+        super().clear(); self.update()
+
+    def paintEvent(self, event):
+        if not self._loading:
+            return super().paintEvent(event)
+        painter=QPainter(self); painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.fillRect(self.rect(), QColor('#17191B'))
+        if self._loading_style == 'pulse':
+            # The dialog's shared timer advances this only for visible rows.
+            glow=46 + (self._phase % 8) * 9
+            painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor(255,103,64,glow))
+            size=max(9, min(self.width(), self.height()) // 3)
+            center=self.rect().center()
+            painter.drawRoundedRect(center.x()-size//2, center.y()-size//2, size, size, 3, 3)
+            painter.end()
+            return
+        center=self.rect().center(); radius=max(5, min(self.width(), self.height()) // 4)
+        dot=max(2, min(5, radius // 3))
+        for index in range(12):
+            trail=(index - self._phase) % 12
+            alpha=max(28, 255 - trail * 19)
+            angle=(index / 12.0) * math.tau - math.pi / 2
+            x=center.x() + math.cos(angle) * radius
+            y=center.y() + math.sin(angle) * radius
+            painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor(255,103,64,alpha))
+            painter.drawEllipse(int(x-dot), int(y-dot), dot*2, dot*2)
+        painter.end()
+
+
 class VolumeRowWidget(QFrame):
     """Compact volume selector row with a right-side round multi-select control."""
     toggled = pyqtSignal(bool)
 
-    def __init__(self, title, parent=None):
+    def __init__(self, title, parent=None, cover_loading=False):
         super().__init__(parent)
         self.setObjectName('volumeRow')
         # Let the row derive its height from the cover and current font/DPI.
         # This avoids text/header overlap on laptops using larger Windows scaling.
         self.setMinimumHeight(68)
         row=QHBoxLayout(self); row.setContentsMargins(8,5,8,5); row.setSpacing(10)
-        self.cover=QLabel(); self.cover.setFixedSize(42,58); self.cover.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cover=CoverLoadingLabel(); self.cover.setFixedSize(42,58); self.cover.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.cover.setStyleSheet('background:#17191B; color:#FF6740; border:0; border-radius:3px; font-size:10px; font-weight:800;')
-        self.cover.setText('MN')
+        if cover_loading: self.cover.set_loading(style='pulse')
+        else: self.cover.set_failed()
         row.addWidget(self.cover,0,Qt.AlignmentFlag.AlignVCenter)
         self.title=QLabel(title); self.title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.title.setWordWrap(False); self.title.setMinimumWidth(0)
@@ -1520,19 +1719,21 @@ class VolumeRowWidget(QFrame):
 
     def set_cover(self, pixmap):
         if pixmap is None:
-            self.cover.clear(); self.cover.setText('MN')
+            self.cover.set_failed()
         else:
             self.cover.setPixmap(pixmap)
 
 
 class SearchResultRowWidget(QFrame):
     """Existing compact search row with readable provider chips."""
-    def __init__(self, title, author, source_names, badge='', parent=None):
+    def __init__(self, title, author, source_names, badge='', parent=None, cover_loading=False):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         row=QHBoxLayout(self); row.setContentsMargins(6,5,8,5); row.setSpacing(10)
-        self.cover=QLabel('MN'); self.cover.setFixedSize(70,98); self.cover.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cover=CoverLoadingLabel(); self.cover.setFixedSize(70,98); self.cover.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.cover.setStyleSheet('background:#17191B; color:#FF6740; border-radius:4px; font-size:11px; font-weight:800;')
+        if cover_loading: self.cover.set_loading(style='pulse')
+        else: self.cover.set_failed()
         row.addWidget(self.cover,0,Qt.AlignmentFlag.AlignVCenter)
         details=QVBoxLayout(); details.setContentsMargins(0,2,0,2); details.setSpacing(5)
         title_text=title + (f'   [{badge}]' if badge else '')
@@ -1552,6 +1753,11 @@ class SearchResultRowWidget(QFrame):
     def set_cover(self, pixmap):
         if pixmap is not None:
             self.cover.setPixmap(pixmap)
+        else:
+            self.cover.set_failed()
+
+    def cover_failed(self):
+        self.cover.set_failed()
 
 
 class StripedProgressBar(QWidget):
@@ -1562,6 +1768,7 @@ class StripedProgressBar(QWidget):
         self._maximum = 100
         self._value = 0
         self._stripe_offset = 0
+        self._indeterminate = False
         self.setMinimumHeight(15)
         self.setMaximumHeight(15)
         self._timer = QTimer(self)
@@ -1575,7 +1782,7 @@ class StripedProgressBar(QWidget):
 
     def setValue(self, value):
         self._value = max(self._minimum, min(self._maximum, int(value)))
-        if self._minimum < self._value < self._maximum:
+        if self._indeterminate:
             if not self._timer.isActive():
                 self._timer.start()
         else:
@@ -1585,11 +1792,29 @@ class StripedProgressBar(QWidget):
     def value(self):
         return self._value
 
+    def setIndeterminate(self, active):
+        """Animate activity without implying a percentage that we do not know."""
+        self._indeterminate = bool(active)
+        if self._indeterminate:
+            if not self._timer.isActive():
+                self._timer.start()
+        elif not (self._minimum < self._value < self._maximum):
+            self._timer.stop()
+        self.update()
+
+    def isIndeterminate(self):
+        return self._indeterminate
+
+    def setDeterminateValue(self, value):
+        """Anchor known progress at the track's left edge."""
+        self.setIndeterminate(False)
+        self.setValue(value)
+
     def setTextVisible(self, _visible):
         pass
 
     def _animate(self):
-        self._stripe_offset = (self._stripe_offset + 2) % 12
+        self._stripe_offset = (self._stripe_offset + 1) % 1000
         self.update()
 
     def paintEvent(self, event):
@@ -1599,25 +1824,34 @@ class StripedProgressBar(QWidget):
         painter.setPen(QPen(QColor(ORANGE), 1.5))
         painter.setBrush(QColor('#151719'))
         painter.drawRoundedRect(outer, 6, 6)
+        # Leave one pixel inside the outline for the usable track.  The
+        # marquee is clipped to this *whole* track, never to the already
+        # intersected segment, so it can enter and exit at either edge.
+        track = outer.adjusted(1, 1, -1, -1)
         span = max(1, self._maximum - self._minimum)
         ratio = max(0.0, min(1.0, (self._value - self._minimum) / span))
-        fill_w = int(max(0, outer.width() - 4) * ratio)
-        if fill_w > 0:
-            inner = outer.adjusted(2, 2, -2, -2)
-            fill = inner
-            fill.setWidth(min(fill_w, inner.width()))
+        if self._indeterminate:
+            # A broad marquee segment reads as activity, not as partial completion.
+            chunk=max(56, track.width() // 3)
+            travel=max(1, track.width() + chunk)
+            left=track.left() - chunk + (self._stripe_offset * 4 % travel)
+            fill=QRect(left, track.top(), chunk, track.height())
+        else:
+            fill_w = determinate_fill_width(track.width(), self._value - self._minimum, span)
+            fill = QRect(track.left(), track.top(), min(fill_w, track.width()), track.height())
+        if fill.width() > 0 and (not self._indeterminate or fill.intersects(track)):
             painter.save()
-            painter.setClipRect(fill)
-            painter.fillRect(fill, QColor(255, 103, 64, 28))
-            pen = QPen(QColor(ORANGE), 2)
-            painter.setPen(pen)
-            h = max(1, fill.height())
-            start = fill.left() - h + self._stripe_offset
-            end = fill.right() + h
-            x = start
-            while x < end:
-                painter.drawLine(x, fill.bottom(), x + h, fill.top())
-                x += 10
+            painter.setClipRect(track if self._indeterminate else fill)
+            painter.fillRect(fill, QColor(255, 103, 64, 28) if self._indeterminate else QColor(ORANGE))
+            if self._indeterminate:
+                painter.setPen(QPen(QColor(ORANGE), 2))
+                h = max(1, fill.height())
+                start = fill.left() - h + self._stripe_offset
+                end = fill.right() + h
+                x = start
+                while x < end:
+                    painter.drawLine(x, fill.bottom(), x + h, fill.top())
+                    x += 10
             painter.restore()
         painter.end()
 
@@ -1674,7 +1908,15 @@ class MangaNanaDialog(QDialog):
         self._pending_search_url = ''
         self._pending_source_id = ''
         self._pending_search_cover_url = ''
+        self._last_discovery_kind = None
+        self._last_discovery_value = ''
+        self._manga_discovery_kinds = {}
         self._current_plan = None
+        self.workflow_mode = None
+        self._mode_generation = 0
+        self._chapter_plan_items = ()
+        self._pending_cross_source_plan = None
+        self._selected_chapter_ids = set()
         self._download_language_valid = False
         self._volume_plan_loading = False
         self._session_replace_existing = False
@@ -1685,6 +1927,7 @@ class MangaNanaDialog(QDialog):
         self._manga_cache = {}
         self._plan_cache = {}
         self._image_cache = {}
+        self._failed_image_urls = set()
         self._search_page_size = 12
         self._search_query = ''
         self._search_raw_results = []
@@ -1709,6 +1952,7 @@ class MangaNanaDialog(QDialog):
         self._range_syncing = False
         self._volume_check_syncing = False
         self._pending_auto_preview = False
+        self._review_cancel_requested = False
         self._auto_preview_delay_ms = 360
         self.search_worker = None
         self.search_workers = {}
@@ -1718,6 +1962,10 @@ class MangaNanaDialog(QDialog):
         self._last_inventory_decision = None
         self.search_thumb_worker = None
         self.volume_thumb_worker = None
+        self._cover_generation = 0
+        self._search_cover_batch_token = 0
+        self._volume_cover_batch_token = 0
+        self._closing = False
         self._manga_workers = []
         self._plan_workers = []
         self.setWindowTitle(f'{DISPLAY_VERSION} for calibre')
@@ -1725,6 +1973,10 @@ class MangaNanaDialog(QDialog):
         self.resize(int(prefs.get('window_w', 1450) or 1450), int(prefs.get('window_h', 850) or 850))
         self.setMinimumSize(1280, 760)
         self.build_ui()
+        self._cover_pulse_timer=QTimer(self); self._cover_pulse_timer.setInterval(170)
+        self._cover_pulse_timer.timeout.connect(self._refresh_visible_cover_pulses)
+        self._cover_pulse_timer.start()
+        self._install_diagnostic_hook()
         self._install_range_focus_behavior()
         self._restore_session()
 
@@ -1732,6 +1984,62 @@ class MangaNanaDialog(QDialog):
         l = QLabel(text)
         l.setStyleSheet(f'font-weight:700; color:{ORANGE}; font-size:14px;')
         return l
+
+    def _diagnostic_context(self):
+        source=getattr(self, 'current_source', None)
+        return {
+            'version': DISPLAY_VERSION,
+            'build_id': GIT_COMMIT,
+            'mode': getattr(self, 'workflow_mode', None),
+            'provider': getattr(source, 'display_name', None) or getattr(self, 'current_source_id', None),
+            'operation': getattr(self, '_diagnostic_operation', 'idle'),
+        }
+
+    def _record_diagnostic(self, exc_type, exc, tb, operation=None):
+        if operation:
+            self._diagnostic_operation=operation
+        try:
+            path=write_diagnostic_report(
+                Path(config_dir) / 'plugins', exc_type=exc_type, exc=exc, tb=tb,
+                **self._diagnostic_context(),
+            )
+            if path and not self._closing and hasattr(self, 'log'):
+                self.add_log(f'Diagnostic report saved: {path}')
+            return path
+        except Exception:
+            return None
+
+    def _install_diagnostic_hook(self):
+        self._previous_excepthook=sys.excepthook
+
+        def report_uncaught(exc_type, exc, tb):
+            self._record_diagnostic(exc_type, exc, tb, 'uncaught Qt/Python callback')
+            self._previous_excepthook(exc_type, exc, tb)
+
+        self._diagnostic_excepthook=report_uncaught
+        sys.excepthook=report_uncaught
+
+    def _restore_diagnostic_hook(self):
+        if getattr(self, '_diagnostic_excepthook', None) is sys.excepthook:
+            sys.excepthook=getattr(self, '_previous_excepthook', sys.__excepthook__)
+
+    def _invalidate_cover_requests(self):
+        """Make in-flight thumbnail signals harmless after a new UI context."""
+        self._cover_generation += 1
+        for worker in (self.search_thumb_worker, self.volume_thumb_worker):
+            if worker and worker.isRunning():
+                worker.requestInterruption()
+
+    def _refresh_visible_cover_pulses(self):
+        if self._closing:
+            return
+        for widget, row_height in ((self.search_results,127), (self.volume_list,66)):
+            for index in self._visible_row_range(widget,row_height,1):
+                row=widget.itemWidget(widget.item(index))
+                cover=getattr(row, 'cover', None)
+                if isinstance(cover,CoverLoadingLabel) and cover._loading and cover._loading_style == 'pulse':
+                    cover._phase=(cover._phase + 1) % 16
+                    cover.update()
 
     def _set_edition_badge(self, text=None):
         text = str(text or '').strip()
@@ -1778,6 +2086,7 @@ class MangaNanaDialog(QDialog):
             QPushButton#secondaryAction:disabled {{ background:#17191B; color:#686868; border:1px solid #33373A; }}
             QPushButton#tertiaryAction {{ background:#181B1E; color:#AEB3B8; border:1px solid #3A3F44; font-weight:600; }}
             QPushButton#tertiaryAction:hover {{ background:#202428; color:#E6E6E6; border:1px solid #555B61; }}
+            QPushButton#modeChoice:checked {{ background:#3A211B; color:#FFFFFF; border:2px solid {ORANGE}; }}
             QCheckBox {{ spacing:7px; }}
             QCheckBox::indicator {{ width:15px; height:15px; }}
             QProgressBar {{ border:1px solid #3A3F44; border-radius:5px; background:#151719; min-height:11px; }}
@@ -1793,7 +2102,6 @@ class MangaNanaDialog(QDialog):
             target=max(228, *(p.sizeHint().height() for p in panels))
             for panel in panels:
                 panel.setMinimumHeight(target)
-                panel.setMaximumHeight(target)
         except Exception:
             pass
 
@@ -1868,8 +2176,19 @@ class MangaNanaDialog(QDialog):
         discovery = QHBoxLayout(); discovery.setSpacing(12)
 
         search_col = QVBoxLayout(); search_col.setSpacing(7)
-        search_top = QWidget(); search_top.setMinimumHeight(228)
+        search_top = QWidget(); search_top.setMinimumHeight(288)
         search_top_l = QVBoxLayout(search_top); search_top_l.setContentsMargins(0,0,0,0); search_top_l.setSpacing(7)
+        mode_label=QLabel('Search for:'); mode_label.setStyleSheet('font-size:11px; font-weight:700; color:#D8D8D8;')
+        mode_row=QHBoxLayout(); mode_row.addWidget(mode_label)
+        self.volume_mode_btn=QPushButton('Volumes'); self.chapter_mode_btn=QPushButton('Chapters')
+        for button in (self.volume_mode_btn, self.chapter_mode_btn):
+            button.setCheckable(True); button.setObjectName('modeChoice')
+            # Enter in the search field must not activate the dialog's first
+            # push button (Volumes) as an implicit default action.
+            button.setAutoDefault(False); button.setDefault(False)
+        self.volume_mode_btn.clicked.connect(lambda: self._set_workflow_mode('volume'))
+        self.chapter_mode_btn.clicked.connect(lambda: self._set_workflow_mode('chapter'))
+        mode_row.addWidget(self.volume_mode_btn); mode_row.addWidget(self.chapter_mode_btn); mode_row.addStretch(1); search_top_l.addLayout(mode_row)
         search_label=QLabel('Search manga sources'); search_label.setStyleSheet('font-size:11px; font-weight:700; color:#D8D8D8;'); search_top_l.addWidget(search_label)
         search_row = QHBoxLayout()
         self.search_box = QLineEdit(); self.search_box.setPlaceholderText('Search MangaDex and MangaPill...')
@@ -1877,6 +2196,9 @@ class MangaNanaDialog(QDialog):
         self.search_btn = QPushButton('Search'); self.search_btn.setObjectName('secondaryAction'); self.search_btn.clicked.connect(lambda: self.search_mangadex(True))
         self.search_box.returnPressed.connect(lambda: self.search_mangadex(True))
         search_row.addWidget(self.search_box,1); search_row.addWidget(self.search_btn); search_top_l.addLayout(search_row)
+        self.mode_helper=QLabel('Choose Volumes or Chapters to begin.')
+        self.mode_helper.setStyleSheet('color:#8F9499; font-size:11px;')
+        search_top_l.addWidget(self.mode_helper)
 
         or_row=QHBoxLayout(); or_left=QFrame(); or_left.setFrameShape(QFrame.Shape.HLine); or_left.setStyleSheet('color:#34383C;')
         or_text=QLabel('or'); or_text.setStyleSheet('color:#777; font-size:10px; font-weight:700;')
@@ -1919,12 +2241,16 @@ class MangaNanaDialog(QDialog):
         discovery.addLayout(search_col, 45)
 
         selected_col=QVBoxLayout(); selected_col.setSpacing(7)
-        selected_top = QWidget(); selected_top.setObjectName('selectedMangaCard'); selected_top.setMinimumHeight(228); selected_top.setStyleSheet('QWidget#selectedMangaCard { background:#171A1D; border:1px solid #2C3136; border-radius:7px; }')
+        selected_top = QWidget(); selected_top.setObjectName('selectedMangaCard'); selected_top.setStyleSheet('QWidget#selectedMangaCard { background:#171A1D; border:1px solid #2C3136; border-radius:7px; }')
         selected_top_l = QVBoxLayout(selected_top); selected_top_l.setContentsMargins(8,7,8,8); selected_top_l.setSpacing(7)
+        # Let Qt derive the card's minimum height from its cover, metadata and
+        # Alternate Title control. The inventory header is a sibling below it,
+        # never an overlay that may consume this button's hit area.
+        selected_top_l.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         self.title=QLineEdit(); self.author=QLineEdit(); self.series=QLineEdit(); self.title.hide(); self.author.hide(); self.series.hide()
         self.alt_titles_btn=QPushButton('Alternate Title...'); self.alt_titles_btn.setObjectName('tertiaryAction'); self.alt_titles_btn.setFixedHeight(32); self.alt_titles_btn.setEnabled(False); self.alt_titles_btn.setVisible(False); self.alt_titles_btn.clicked.connect(self.choose_alternate_title)
-        self.selected_cover=QLabel(); self.selected_cover.setFixedSize(130,180); self.selected_cover.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.selected_cover.setStyleSheet('background:#121416; border:1px solid #34393e; border-radius:6px;'); self.selected_cover.setVisible(False)
+        self.selected_cover=CoverLoadingLabel(); self.selected_cover.setFixedSize(130,180); self.selected_cover.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.selected_cover.setStyleSheet('background:#121416; color:#FF6740; border:1px solid #34393e; border-radius:6px; font-size:11px; font-weight:800;'); self.selected_cover.setVisible(False)
         self.selected_title=QLabel('No manga selected'); self.selected_title.setWordWrap(True); self.selected_title.setAlignment(Qt.AlignmentFlag.AlignCenter); self.selected_title.setStyleSheet('font-size:12px; font-weight:600; color:#777;')
         self.selected_author=QLabel(''); self.selected_author.setStyleSheet('color:#aaa;')
         self.edition_badge=QLabel(''); self.edition_badge.setAlignment(Qt.AlignmentFlag.AlignCenter); self.edition_badge.setVisible(False)
@@ -1940,7 +2266,7 @@ class MangaNanaDialog(QDialog):
         selected_col.addWidget(selected_top)
 
         vols_header=QWidget(); vols_header.setFixedHeight(36)
-        vols_head=QHBoxLayout(vols_header); vols_head.setContentsMargins(0,0,0,0); vols_head.setSpacing(6); vols_head.addWidget(self.heading('Volumes')); vols_head.addStretch(1)
+        vols_head=QHBoxLayout(vols_header); vols_head.setContentsMargins(0,0,0,0); vols_head.setSpacing(6); self.inventory_heading=self.heading('Volumes'); vols_head.addWidget(self.inventory_heading); vols_head.addStretch(1)
         self.volume_count_label=QLabel(''); self.volume_count_label.setStyleSheet('color:#999; font-size:11px;'); vols_head.addWidget(self.volume_count_label); selected_col.addWidget(vols_header)
         self.volume_list=QListWidget(); self.volume_list.setMinimumHeight(185); self.volume_list.setMaximumHeight(300); self.volume_list.setEnabled(False)
         self.volume_list.setSpacing(3); self.volume_list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel); self.volume_list.verticalScrollBar().setSingleStep(18)
@@ -1984,7 +2310,7 @@ class MangaNanaDialog(QDialog):
         self.reading_direction.setToolTip('Reading direction applies only to Landscape (Paired Pages).')
         rdi=self.reading_direction.findData(prefs['reading_direction']); self.reading_direction.setCurrentIndex(max(0,rdi))
         grid.addWidget(self.language,1,0); grid.addWidget(self.reading_direction,1,1)
-        grid.addWidget(QLabel('Select a Volume Range (Optional)'),2,0,1,2)
+        self.range_label=QLabel('Select a Volume Range (Optional)'); grid.addWidget(self.range_label,2,0,1,2)
         self.start=QLineEdit(); self.start.setPlaceholderText('From'); self.end=QLineEdit(); self.end.setPlaceholderText('To')
         grid.addWidget(self.start,3,0); grid.addWidget(self.end,3,1)
         cv.addLayout(grid)
@@ -2014,7 +2340,7 @@ class MangaNanaDialog(QDialog):
         self.preview_summary=QLabel('Load a manga, choose your settings, then build a download preview.')
         self.preview_summary.setWordWrap(True); self.preview_summary.setMinimumHeight(66); self.preview_summary.setMaximumHeight(86); self.preview_summary.setAlignment(Qt.AlignmentFlag.AlignTop); self.preview_summary.setStyleSheet('color:#B8B8B8;')
         rv.addWidget(self.preview_summary)
-        self.preview_table=QTableWidget(0,5); self.preview_table.setHorizontalHeaderLabels(['Use','Volume','Title','Pages','Status'])
+        self.preview_table=QTableWidget(0,6); self.preview_table.setHorizontalHeaderLabels(['Use','Type','Title','Source','Pages','Status'])
         self.preview_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers); self.preview_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.preview_table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel); self.preview_table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.preview_table.setAlternatingRowColors(True); self.preview_table.verticalHeader().setVisible(False)
@@ -2028,6 +2354,7 @@ class MangaNanaDialog(QDialog):
         ph.setSectionResizeMode(2,QHeaderView.ResizeMode.Stretch)
         ph.setSectionResizeMode(3,QHeaderView.ResizeMode.ResizeToContents)
         ph.setSectionResizeMode(4,QHeaderView.ResizeMode.ResizeToContents)
+        ph.setSectionResizeMode(5,QHeaderView.ResizeMode.ResizeToContents)
         self.preview_table.setVisible(True)
         rv.addWidget(self.preview_table,1)
         body.addWidget(right, 31)
@@ -2052,7 +2379,7 @@ class MangaNanaDialog(QDialog):
         self.log=QListWidget(); self.log.setMaximumHeight(105); self.log.setVisible(False); av.addWidget(self.log); self._activity_log_expanded=False
         shell.addWidget(activity)
 
-        self.workflow_hint=QLabel('Select at least one volume to continue.')
+        self.workflow_hint=QLabel('Choose Volumes or Chapters before searching.')
         self.workflow_hint.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.workflow_hint.setStyleSheet('color:#9EA3A8; font-size:11px; padding:0 4px 2px 4px;')
         shell.addWidget(self.workflow_hint)
@@ -2082,6 +2409,62 @@ class MangaNanaDialog(QDialog):
         self.page_layout.currentIndexChanged.connect(self._layout_mode_changed); self.reading_direction.currentIndexChanged.connect(self.invalidate_preview)
         self._preview_refresh_timer=QTimer(self); self._preview_refresh_timer.setSingleShot(True); self._preview_refresh_timer.timeout.connect(self._run_silent_preview_refresh)
         self._layout_mode_changed(); self._range_inputs_changed()
+        self.search_box.setEnabled(False); self.search_btn.setEnabled(False)
+        self.url.setEnabled(False); self.load_btn.setEnabled(False)
+
+    def _set_workflow_mode(self, mode):
+        """Choose an explicit workflow and discard mode-specific stale state."""
+        if mode not in ('volume', 'chapter'):
+            return
+        if self.workflow_mode == mode:
+            self.volume_mode_btn.setChecked(mode == 'volume'); self.chapter_mode_btn.setChecked(mode == 'chapter')
+            return
+        previous_mode=self.workflow_mode
+        replay_kind=self._last_discovery_kind
+        replay_value=self._last_discovery_value
+        should_research=bool(previous_mode and replay_kind == 'search' and replay_value and replay_value == self.search_box.text().strip())
+        should_reload_direct=bool(previous_mode and replay_kind == 'direct' and replay_value)
+        self.workflow_mode=mode
+        self._invalidate_cover_requests()
+        self._mode_generation += 1
+        self._search_request_id += 1; self._inventory_comparison_request_id += 1
+        self._manga_request_id += 1; self._volume_plan_request_id += 1
+        # Old network requests may finish later, but their mode/generation is
+        # rejected. Clearing this registry lets the new explicit mode search
+        # begin immediately instead of waiting behind obsolete requests.
+        self.search_workers={}
+        if self.inventory_comparison_worker and self.inventory_comparison_worker.isRunning():
+            self.inventory_comparison_worker.requestInterruption()
+        self.inventory_comparison_worker=None
+        self.volume_mode_btn.setChecked(mode == 'volume'); self.chapter_mode_btn.setChecked(mode == 'chapter')
+        self.search_box.setEnabled(True); self.search_btn.setEnabled(True); self.url.setEnabled(True); self.load_btn.setEnabled(True)
+        self._chapter_plan_items=(); self._selected_chapter_ids.clear(); self._pending_cross_source_plan=None
+        self._invalidate_inflight_preview()
+        if self.pairing_preview_worker and self.pairing_preview_worker.isRunning():
+            self.pairing_preview_worker.cancel()
+        self._selected_volumes.clear(); self._standalone_selected=False; self._using_entire_series=False
+        self._current_plan=None; self._download_language_valid=False; self._last_inventory_decision=None
+        self.loaded_metadata=None; self.current_manga_url=''; self._loaded_covers={}; self._main_cover_url=''
+        self.search_results.clear(); self._search_raw_results=[]; self.show_more_btn.setVisible(False)
+        self.title.clear(); self.author.clear(); self.series.clear(); self.selected_cover.clear(); self.selected_cover.setVisible(False)
+        self.selected_title.setText('No manga selected'); self.selected_author.clear(); self._set_edition_badge(''); self.availability_badge.setVisible(False)
+        self.volume_list.clear(); self.volume_list.setEnabled(False); self.clear_volume_btn.setEnabled(False)
+        self.start.setVisible(mode == 'volume'); self.end.setVisible(mode == 'volume')
+        self.range_label.setVisible(mode == 'volume'); self.range_help.setVisible(mode == 'volume')
+        self.inventory_heading.setText('Volumes' if mode == 'volume' else 'Chapters')
+        self.covers.setText('Use series cover in Calibre metadata' if mode == 'chapter' else 'Use MangaDex volume cover in Calibre metadata')
+        self.pad.setText('Zero-pad chapter numbers (Recommended)' if mode == 'chapter' else 'Zero-pad volume numbers (Recommended)')
+        self.clear_volume_btn.setText('Select All Chapters' if mode == 'chapter' else 'Use Entire Series')
+        self._clear_preview_state('Load a manga, choose your settings, then build a download preview.')
+        self.cancel_btn.setEnabled(False)
+        self.meta_summary.clear(); self.progress.setIndeterminate(False); self.progress.setValue(0); self.progress_text.setText(f'{mode.title()} mode selected. Search again to load availability.')
+        self.workflow_hint.setText(f'{mode.title()} mode selected. Search or load a title.')
+        self.mode_helper.setText(f'{mode.title()} mode selected.')
+        self.add_log(f'{mode.title()} mode selected.')
+        if should_research:
+            QTimer.singleShot(0, lambda generation=self._mode_generation: self.search_mangadex(True, generation))
+        elif should_reload_direct:
+            QTimer.singleShot(0, lambda value=replay_value: self.load_metadata(value, discovery_kind='direct'))
 
     def _choose_layout(self, mode):
         idx=self.page_layout.findData(mode)
@@ -2103,8 +2486,15 @@ class MangaNanaDialog(QDialog):
     def open_mangadex_homepage(self):
         QDesktopServices.openUrl(QUrl('https://mangadex.org/'))
 
-    def search_mangadex(self, reset=True):
+    def search_mangadex(self, reset=True, expected_generation=None):
         """Compatibility name for the provider-neutral coordinated search."""
+        if self.workflow_mode not in ('volume', 'chapter'):
+            info_dialog(self, 'Choose workflow', 'Choose Volumes or Chapters before searching.', show=True)
+            return
+        if expected_generation is not None and expected_generation != self._mode_generation:
+            return
+        mode=self.workflow_mode; generation=self._mode_generation
+        self._diagnostic_operation='provider search'
         query=self.search_box.text().strip()
         if not query:
             return
@@ -2113,6 +2503,7 @@ class MangaNanaDialog(QDialog):
         if any(worker.isRunning() for worker in self.search_workers.values()):
             return
         if reset:
+            self._last_discovery_kind='search'; self._last_discovery_value=query
             self._search_query=query
             self._search_offsets={source.source_id:0 for source in self.search_coordinator.sources}
             self._search_has_more={source.source_id:False for source in self.search_coordinator.sources}
@@ -2122,6 +2513,9 @@ class MangaNanaDialog(QDialog):
             self.show_more_btn.setVisible(False)
         self.search_btn.setEnabled(False); self.search_btn.setText('Searching...')
         self.show_more_btn.setEnabled(False)
+        self.progress.setValue(0)
+        self.progress.setIndeterminate(True)
+        self.progress_text.setText('Searching providers: 0/{} complete'.format(len(self.search_coordinator.sources)))
         include_adult=bool(prefs['show_adult_search_results'])
         started=0
         for source in self.search_coordinator.sources:
@@ -2132,14 +2526,16 @@ class MangaNanaDialog(QDialog):
             self.search_coordinator.mark_running(source.source_id)
             worker=SourceSearchWorker(source,query,offset,self._search_page_size,include_adult,prefs['language'],self._download_availability_cache,self)
             self.search_workers[source.source_id]=worker
-            worker.ready.connect(lambda payload,k=key:self._on_search_ready(k,payload))
-            worker.failed.connect(self._on_search_failed)
-            worker.finished.connect(lambda sid=source.source_id:self._search_worker_finished(sid))
+            worker.ready.connect(lambda payload,k=key,m=mode,g=generation:self._on_search_ready(k,payload,m,g))
+            worker.failed.connect(lambda payload,m=mode,g=generation:self._on_search_failed(payload,m,g))
+            worker.finished.connect(lambda sid=source.source_id,w=worker,m=mode,g=generation:self._search_worker_finished(sid,w,m,g))
             worker.start(); started += 1
         if not started:
             self._finish_coordinated_search()
 
-    def _on_search_ready(self, key, payload):
+    def _on_search_ready(self, key, payload, mode=None, generation=None):
+        if mode != self.workflow_mode or generation != self._mode_generation:
+            return
         source_id=payload.get('source_id')
         data=self.search_coordinator.complete(source_id,payload.get('data') or {})
         self._search_cache[key]=data
@@ -2197,28 +2593,48 @@ class MangaNanaDialog(QDialog):
             title=group.display_title or 'Untitled'; author=primary.get('author') or ''; badge=primary.get('badge') or ''
             item.setSizeHint(QSize(0,122))
             self.search_results.addItem(item)
-            self.search_results.setItemWidget(item,SearchResultRowWidget(title,author,group.source_names,badge,self.search_results))
+            self.search_results.setItemWidget(item,SearchResultRowWidget(
+                title, author, group.source_names, badge, self.search_results,
+                cover_loading=bool(primary.get('cover_url')),
+            ))
 
-    def _on_search_failed(self, data):
+    def _on_search_failed(self, data, mode=None, generation=None):
+        if mode != self.workflow_mode or generation != self._mode_generation:
+            return
         source_id=data.get('source_id'); source=SOURCE_REGISTRY.get(source_id)
         self.search_coordinator.fail(source_id,data.get('error'))
         self.add_log(f'[{source.display_name if source else source_id}] Search failed: {data.get("error")}')
 
-    def _search_worker_finished(self, source_id):
-        worker=self.search_workers.pop(source_id,None)
-        if worker: worker.deleteLater()
+    def _search_worker_finished(self, source_id, completed_worker=None, mode=None, generation=None):
+        worker=self.search_workers.get(source_id)
+        if worker is completed_worker:
+            self.search_workers.pop(source_id,None)
+            worker.deleteLater()
+        elif completed_worker is not None:
+            completed_worker.deleteLater()
+        if mode != self.workflow_mode or generation != self._mode_generation:
+            return
         self._finish_coordinated_search()
 
     def _finish_coordinated_search(self):
         if self.search_workers:
             snap=self.search_coordinator.snapshot()
+            self.progress.setIndeterminate(True)
             self.progress_text.setText(f'Searching providers: {snap["completed"]}/{snap["total"]} complete')
             return
         snap=self.search_coordinator.snapshot()
+        self.progress.setIndeterminate(False)
         self.search_btn.setEnabled(True); self.search_btn.setText('Search')
         more=any(self._search_has_more.values())
         self.show_more_btn.setVisible(more); self.show_more_btn.setEnabled(more)
-        self.progress_text.setText(f'Search complete: {snap["completed"]}/{snap["total"]} providers')
+        if snap['all_failed']:
+            self.progress.setValue(0)
+            self.progress_text.setText('Search failed: all providers failed.')
+        else:
+            self.progress.setValue(100)
+            failures=sum(provider.get('status') == 'failed' for provider in snap['providers'])
+            suffix=f' ({failures} failed)' if failures else ''
+            self.progress_text.setText(f'Search complete: {snap["completed"]}/{snap["total"]} providers{suffix}')
         if snap['all_failed']:
             error_dialog(self,'Search failed',snap['combined_error'],show=True)
         elif self.search_results.count()==0:
@@ -2247,9 +2663,9 @@ class MangaNanaDialog(QDialog):
         return None
 
     def _load_visible_search_thumbs(self):
-        if self.search_thumb_worker and self.search_thumb_worker.isRunning():
+        if self._closing or (self.search_thumb_worker and self.search_thumb_worker.isRunning()):
             return
-        batch=[]
+        batch=[]; queued_urls=set()
         for i in self._visible_row_range(self.search_results,127,4):
             item=self.search_results.item(i); info=item.data(Qt.ItemDataRole.UserRole) or {}
             if not isinstance(info,dict):
@@ -2257,24 +2673,39 @@ class MangaNanaDialog(QDialog):
             url=info.get('cover_url') or ''
             if not url:
                 continue
+            if url in self._failed_image_urls:
+                row=self.search_results.itemWidget(item)
+                if isinstance(row,SearchResultRowWidget): row.cover_failed()
+                continue
             raw=self._image_cache.get(url)
             if raw:
                 pix=self._pix_from_bytes(raw,78,108)
                 row=self.search_results.itemWidget(item)
-                if pix is not None and isinstance(row,SearchResultRowWidget): row.set_cover(pix)
-            elif not info.get('thumb_requested'):
+                if isinstance(row,SearchResultRowWidget):
+                    row.set_cover(pix) if pix is not None else row.cover_failed()
+            elif not info.get('thumb_requested') and url not in queued_urls and len(batch) < COVER_BATCH_LIMIT:
                 info['thumb_requested']=True; item.setData(Qt.ItemDataRole.UserRole,info)
                 source=SOURCE_REGISTRY.get(info.get('source_id')) or MANGADEX_SOURCE
                 urls=[url+'.256.jpg',url] if source.source_id == 'mangadex' else [url]
-                batch.append((url,urls,source))
+                batch.append((url,urls,source)); queued_urls.add(url)
         if not batch:
             return
-        self.search_thumb_worker=ImageBatchWorker('search',batch,self)
-        self.search_thumb_worker.image_ready.connect(self._on_search_thumb_ready)
-        self.search_thumb_worker.finished.connect(self._on_search_thumb_batch_done)
-        self.search_thumb_worker.start()
+        self._search_cover_batch_token += 1; token=self._search_cover_batch_token; generation=self._cover_generation
+        # Do not parent a running QThread to the dialog; it may outlive close
+        # briefly while an in-flight request notices interruption.
+        worker=ImageBatchWorker(('search',token,generation),batch); self.search_thumb_worker=worker
+        # Bound QObject methods are queued onto this dialog's GUI thread.
+        worker.image_ready.connect(self._on_search_thumb_ready)
+        worker.image_failed.connect(self._on_search_thumb_failed)
+        worker.batch_done.connect(self._on_search_thumb_batch_done)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
 
     def _on_search_thumb_ready(self, data):
+        batch_id=data.get('batch_id') or ()
+        _kind, token, generation=(batch_id + (None,None,None))[:3] if isinstance(batch_id,tuple) else (None,None,None)
+        if self._closing or generation != self._cover_generation or token != self._search_cover_batch_token:
+            return
         url=data.get('key'); raw=data.get('raw')
         if not url or not raw:
             return
@@ -2284,13 +2715,29 @@ class MangaNanaDialog(QDialog):
             if isinstance(info,dict) and info.get('cover_url')==url:
                 pix=self._pix_from_bytes(raw,78,108)
                 row=self.search_results.itemWidget(item)
-                if pix is not None and isinstance(row,SearchResultRowWidget): row.set_cover(pix)
+                if isinstance(row,SearchResultRowWidget):
+                    row.set_cover(pix) if pix is not None else row.cover_failed()
 
-    def _on_search_thumb_batch_done(self):
-        if self.search_thumb_worker:
-            self.search_thumb_worker.deleteLater()
+    def _on_search_thumb_failed(self, data):
+        batch_id=data.get('batch_id') or ()
+        _kind, token, generation=(batch_id + (None,None,None))[:3] if isinstance(batch_id,tuple) else (None,None,None)
+        if self._closing or generation != self._cover_generation or token != self._search_cover_batch_token:
+            return
+        url=data.get('key')
+        if not url:
+            return
+        self._failed_image_urls.add(url)
+        for i in range(self.search_results.count()):
+            item=self.search_results.item(i); info=item.data(Qt.ItemDataRole.UserRole) or {}
+            if isinstance(info,dict) and info.get('cover_url') == url:
+                row=self.search_results.itemWidget(item)
+                if isinstance(row,SearchResultRowWidget):
+                    row.cover_failed()
+
+    def _on_search_thumb_batch_done(self, data):
         self.search_thumb_worker=None
-        QTimer.singleShot(0,self._load_visible_search_thumbs)
+        if not self._closing:
+            QTimer.singleShot(0,self._load_visible_search_thumbs)
 
     def use_search_result(self, item=None):
         if item is None: item=self.search_results.currentItem()
@@ -2308,14 +2755,15 @@ class MangaNanaDialog(QDialog):
         self._inventory_comparison_request_id += 1
         self._last_inventory_decision=None
         request_id=self._inventory_comparison_request_id
+        mode=self.workflow_mode; generation=self._mode_generation
         self.search_results.setEnabled(False)
         self.progress.setValue(0)
         self.progress_text.setText('Checking provider inventories...')
-        worker=InventoryComparisonWorker(SOURCE_REGISTRY,candidates,prefs['language'],'volume',self)
+        worker=InventoryComparisonWorker(SOURCE_REGISTRY,candidates,prefs['language'],self.workflow_mode,self)
         self.inventory_comparison_worker=worker
-        worker.progress.connect(lambda done,total,text,rid=request_id:self._on_inventory_comparison_progress(rid,done,total,text))
-        worker.ready.connect(lambda decision,rid=request_id,info=dict(group_info):self._on_inventory_comparison_ready(rid,info,decision))
-        worker.failed.connect(lambda message,rid=request_id:self._on_inventory_comparison_failed(rid,message))
+        worker.progress.connect(lambda done,total,text,rid=request_id,m=mode,g=generation:self._on_inventory_comparison_progress(rid,done,total,text,m,g))
+        worker.ready.connect(lambda decision,rid=request_id,info=dict(group_info),m=mode,g=generation:self._on_inventory_comparison_ready(rid,info,decision,m,g))
+        worker.failed.connect(lambda message,rid=request_id,m=mode,g=generation:self._on_inventory_comparison_failed(rid,message,m,g))
         worker.finished.connect(lambda w=worker:self._inventory_comparison_finished(w))
         worker.finished.connect(worker.deleteLater)
         worker.start()
@@ -2325,14 +2773,14 @@ class MangaNanaDialog(QDialog):
             self.inventory_comparison_worker=None
             self.search_results.setEnabled(True)
 
-    def _on_inventory_comparison_progress(self, request_id, done, total, text):
-        if request_id != self._inventory_comparison_request_id:
+    def _on_inventory_comparison_progress(self, request_id, done, total, text, mode=None, generation=None):
+        if request_id != self._inventory_comparison_request_id or mode != self.workflow_mode or generation != self._mode_generation:
             return
         self.progress.setValue(int(done*100/max(1,total)))
         self.progress_text.setText(text)
 
-    def _on_inventory_comparison_ready(self, request_id, group_info, decision):
-        if request_id != self._inventory_comparison_request_id:
+    def _on_inventory_comparison_ready(self, request_id, group_info, decision, mode=None, generation=None):
+        if request_id != self._inventory_comparison_request_id or mode != self.workflow_mode or generation != self._mode_generation:
             return
         self.inventory_comparison_worker=None
         self._last_inventory_decision=decision
@@ -2342,6 +2790,7 @@ class MangaNanaDialog(QDialog):
         if decision.selected is not None:
             selected=decision.selected
             fallback_plan=decision.fallback_plan
+            self._pending_cross_source_plan=fallback_plan if self.workflow_mode == 'chapter' else None
             self.add_log(f'Primary source: {selected.source_name}.')
             fallback_blocked=False
             if fallback_plan and fallback_plan.fallback_items:
@@ -2362,6 +2811,17 @@ class MangaNanaDialog(QDialog):
             self._begin_search_result(selected.result)
             return
         if decision.error:
+            if self.workflow_mode == 'volume':
+                language_name=language_label(prefs['language'])
+                message=f'No usable {language_name} volumes are currently available from the enabled sources.'
+                self.progress.setValue(0); self.progress_text.setText(message)
+                self.add_log('Volume mode unavailable for this series with the enabled sources.')
+                for inventory in decision.inventories:
+                    if inventory.native_volume_metadata and not inventory.native_volumes:
+                        self.add_log(f'[{inventory.source_name}] Native volume metadata found, but no usable {language_name} volume content.')
+                    elif inventory.usable and not inventory.native_volumes:
+                        self.add_log(f'[{inventory.source_name}] {inventory.chapter_count} chapters available; native volumes unsupported. Try Chapter mode.')
+                return
             self.progress.setValue(0); self.progress_text.setText('No usable provider inventory found.')
             error_dialog(self,'No usable inventory',decision.error,show=True)
             return
@@ -2389,8 +2849,8 @@ class MangaNanaDialog(QDialog):
         box.exec()
         return next((inventory for button,inventory in buttons if box.clickedButton() is button),None)
 
-    def _on_inventory_comparison_failed(self, request_id, message):
-        if request_id != self._inventory_comparison_request_id:
+    def _on_inventory_comparison_failed(self, request_id, message, mode=None, generation=None):
+        if request_id != self._inventory_comparison_request_id or mode != self.workflow_mode or generation != self._mode_generation:
             return
         self.inventory_comparison_worker=None
         self.search_results.setEnabled(True)
@@ -2418,19 +2878,30 @@ class MangaNanaDialog(QDialog):
             if raw:
                 pix=self._pix_from_bytes(raw,130,180)
                 if pix is not None: self.selected_cover.setPixmap(pix)
+                else: self.selected_cover.set_failed()
+            else:
+                self.selected_cover.set_loading()
+        else:
+            self.selected_cover.set_loading()
         self._pending_result_token += 1
         token=self._pending_result_token
         QTimer.singleShot(250, lambda t=token: self._load_debounced_search_result(t))
 
     def _load_debounced_search_result(self, token):
         if token == self._pending_result_token and self._pending_search_url:
-            self.load_metadata(self._pending_search_url, self._pending_source_id)
+            self.load_metadata(self._pending_search_url, self._pending_source_id, discovery_kind='search')
 
-    def load_metadata(self, url_override=None, source_id=None):
+    def load_metadata(self, url_override=None, source_id=None, discovery_kind=None):
         # QPushButton.clicked may supply a bool. Only strings are URL overrides.
         if not isinstance(url_override, str):
             url_override=None
+        if self.workflow_mode not in ('volume', 'chapter'):
+            error_dialog(self, 'Choose workflow', 'Choose Volumes or Chapters before loading a title.', show=True)
+            return
         url=(url_override or self.url.text()).strip()
+        discovery_kind=discovery_kind or ('direct' if url_override is None else 'search')
+        if url_override is None:
+            self._pending_cross_source_plan=None
         match=SOURCE_REGISTRY.identify(url)
         source=SOURCE_REGISTRY.get(source_id) if source_id else (match.source if match else None)
         ref=source.parse_manga_ref(url) if source else None
@@ -2440,7 +2911,9 @@ class MangaNanaDialog(QDialog):
             error_dialog(self,'Metadata error','Paste a supported MangaDex or MangaPill title-page URL.',show=True)
             return
         self._manga_request_id += 1
+        self._invalidate_cover_requests()
         request_id=self._manga_request_id
+        self._manga_discovery_kinds[request_id]=(discovery_kind, url)
         had_preview=bool(self.preview_data is not None or self.preview_signature is not None or self._preview_build_signature is not None or self._pending_auto_preview)
         self.current_manga_url=url
         self.current_source=source; self.current_source_id=source.source_id
@@ -2456,9 +2929,9 @@ class MangaNanaDialog(QDialog):
         self.selected_cover.setVisible(True); self.alt_titles_btn.setVisible(False); self.selected_title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop); self.selected_title.setStyleSheet('font-size:15px; font-weight:700;'); self.selected_title.setText('Loading manga...'); self.selected_author.setText(''); self._set_edition_badge(''); self.availability_badge.setVisible(False)
         self.volume_list.clear(); self.volume_list.setEnabled(False); self.volume_count_label.clear(); self.meta_summary.setText(f'Loading {source.display_name} metadata...')
         if not self._pending_search_cover_url or url != self._pending_search_url:
-            self.selected_cover.clear()
+            self.selected_cover.set_loading()
         populate_download_languages(self.language, available=None, preferred=prefs['language'])
-        self._current_plan=None; self._download_language_valid=False; self._volume_plan_loading=False; self._selected_volumes.clear(); self._standalone_selected=False; self._using_entire_series=False
+        self._current_plan=None; self._chapter_plan_items=(); self._selected_chapter_ids.clear(); self._download_language_valid=False; self._volume_plan_loading=False; self._selected_volumes.clear(); self._standalone_selected=False; self._using_entire_series=False
         self._range_syncing=True
         try:
             self.start.clear(); self.end.clear()
@@ -2486,21 +2959,28 @@ class MangaNanaDialog(QDialog):
     def _on_manga_worker_failed(self, data):
         if data.get('request_id') != self._manga_request_id:
             return
+        self._manga_discovery_kinds.pop(data.get('request_id'), None)
         self.loaded_metadata=None; self.alt_titles_btn.setEnabled(False); self.volume_list.setEnabled(False); self.preview_btn.setEnabled(False)
+        self._record_diagnostic(RuntimeError, RuntimeError(data.get('error') or 'Unknown source error.'), None, 'metadata load')
         self.load_btn.setEnabled(True); self.load_btn.setText('Load Manga')
-        self.selected_cover.clear(); self.selected_cover.setVisible(False); self.alt_titles_btn.setVisible(False); self.selected_title.setAlignment(Qt.AlignmentFlag.AlignCenter); self.selected_title.setStyleSheet('font-size:12px; font-weight:600; color:#777;'); self.selected_title.setText('No manga selected'); self.meta_summary.clear()
+        self.selected_cover.set_failed(); self.selected_cover.setVisible(False); self.alt_titles_btn.setVisible(False); self.selected_title.setAlignment(Qt.AlignmentFlag.AlignCenter); self.selected_title.setStyleSheet('font-size:12px; font-weight:600; color:#777;'); self.selected_title.setText('No manga selected'); self.meta_summary.clear()
         error_dialog(self,'Metadata error',data.get('error') or 'Unknown source error.',show=True)
 
     def _apply_loaded_manga(self, request_id, data):
         if request_id != self._manga_request_id:
             return
         md=data.get('metadata') or {}; self.loaded_metadata=md; self.current_manga_url=data.get('url') or self.current_manga_url
+        discovery_kind, discovery_value=self._manga_discovery_kinds.pop(request_id, (None, ''))
+        if discovery_kind in ('search', 'direct') and discovery_value:
+            self._last_discovery_kind=discovery_kind; self._last_discovery_value=discovery_value
         self.current_source=SOURCE_REGISTRY.get(data.get('source_id')) or self.current_source
         self.current_source_id=self.current_source.source_id
         self._loaded_covers={}
         self._main_cover_url=md.get('main_cover_url') or (self._pending_search_cover_url if self.current_manga_url == self._pending_search_url else '')
         self.title.setText(md.get('title','')); self.author.setText(md.get('author','')); self.series.setText(md.get('title',''))
         self.selected_cover.setVisible(True); self.alt_titles_btn.setVisible(True); self.selected_title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop); self.selected_title.setStyleSheet('font-size:15px; font-weight:700;'); self.selected_title.setText(md.get('title') or 'Untitled'); self.selected_author.setText(md.get('author') or '')
+        if not self._main_cover_url:
+            self.selected_cover.set_failed()
         raw=' '.join(x.get('title','') for x in md.get('titles',[])).casefold()
         badge='COLOR' if any(x in raw for x in ('digital colored','digital coloured','digital color','digital colour','full color','full colour','color edition','colour edition','colored comics','coloured comics','fan-colored','fan colored','fan-coloured','fan coloured')) else 'B&W'
         self._set_edition_badge(badge); self.alt_titles_btn.setEnabled(bool(md.get('titles')))
@@ -2508,7 +2988,7 @@ class MangaNanaDialog(QDialog):
         self.availability_badge.setVisible(not bool(available))
         populate_download_languages(self.language, available=available, preferred=prefs['language'])
         auto_fallback = bool(self.language.currentData() and self.language.currentData() != prefs['language'])
-        self._selected_volume=None; self._selected_volumes.clear(); self._standalone_selected=False; self._using_entire_series=False; self._current_plan=None; self._download_language_valid=False; self.volume_list.setEnabled(False); self.preview_btn.setEnabled(False)
+        self._selected_volume=None; self._selected_volumes.clear(); self._selected_chapter_ids.clear(); self._standalone_selected=False; self._using_entire_series=False; self._current_plan=None; self._chapter_plan_items=(); self._download_language_valid=False; self.volume_list.setEnabled(False); self.preview_btn.setEnabled(False)
         self._rebuild_volume_list()
         self.load_btn.setEnabled(True); self.load_btn.setText('Load Manga')
         self.add_log(f"[{self.current_source.display_name}] Loaded metadata: {md.get('title','')} | {md.get('author','')}")
@@ -2535,7 +3015,7 @@ class MangaNanaDialog(QDialog):
             self._pending_auto_preview=True
         if not self.loaded_metadata:
             return
-        self._selected_volumes.clear(); self._standalone_selected=False; self._using_entire_series=False; self._current_plan=None; self._download_language_valid=False; self.volume_list.setEnabled(False); self.preview_btn.setEnabled(False)
+        self._selected_volumes.clear(); self._selected_chapter_ids.clear(); self._standalone_selected=False; self._using_entire_series=False; self._current_plan=None; self._chapter_plan_items=(); self._download_language_valid=False; self.volume_list.setEnabled(False); self.preview_btn.setEnabled(False)
         self._rebuild_volume_list()
         if self.language.currentData():
             self._load_volume_plan()
@@ -2549,14 +3029,15 @@ class MangaNanaDialog(QDialog):
         if not lang or not mid:
             return
         self._volume_plan_request_id += 1; request_id=self._volume_plan_request_id
-        key=(self.current_source_id,mid,lang)
+        self._diagnostic_operation='chapter inventory load' if self.workflow_mode == 'chapter' else 'volume inventory load'
+        key=(self.workflow_mode,self.current_source_id,mid,lang)
         cached=self._plan_cache.get(key)
         self._volume_plan_loading=True; self.meta_summary.setText(f'Loading {self.language.currentText()} volume information...')
         if cached is not None:
             cached_data=dict(cached); cached_data['request_id']=request_id
             QTimer.singleShot(0,lambda d=cached_data:self._apply_volume_plan_data(d))
             return
-        worker=VolumePlanWorker(request_id,self.current_source,self.current_manga_url,lang,self)
+        worker=(VolumePlanWorker if self.workflow_mode == 'volume' else ChapterPlanWorker)(request_id,self.current_source,self.current_manga_url,lang,self)
         self._plan_workers.append(worker)
         worker.ready.connect(self._on_volume_plan_ready); worker.failed.connect(self._on_volume_plan_failed)
         worker.finished.connect(lambda w=worker:self._cleanup_worker(w,self._plan_workers)); worker.finished.connect(worker.deleteLater)
@@ -2566,9 +3047,10 @@ class MangaNanaDialog(QDialog):
         source=SOURCE_REGISTRY.get(data.get('source_id')) or self.current_source
         mid=source.parse_manga_ref(data.get('url') or '')
         if mid:
-            self._plan_cache[(source.source_id,mid,data.get('language'))]={
+            self._plan_cache[(self.workflow_mode,source.source_id,mid,data.get('language'))]={
                 'url':data.get('url'),'language':data.get('language'),'plan':data.get('plan') or {},
-                'source_id':source.source_id,'covers':data.get('covers') or {},'cover_error':data.get('cover_error') or ''
+                'source_id':source.source_id,'covers':data.get('covers') or {},'cover_error':data.get('cover_error') or '',
+                'chapters':data.get('chapters') or [],
             }
         self._apply_volume_plan_data(data)
 
@@ -2579,7 +3061,11 @@ class MangaNanaDialog(QDialog):
         self._loaded_covers=data.get('covers') or {}
         if data.get('cover_error'):
             self.add_log('Volume-cover metadata unavailable: '+str(data.get('cover_error')))
-        self._apply_volume_plan(request_id,language,data.get('plan') or {})
+        if self.workflow_mode == 'chapter':
+            chapters=data.get('chapters') or []
+            self._apply_chapter_plan(request_id,language,chapters)
+        else:
+            self._apply_volume_plan(request_id,language,data.get('plan') or {})
 
     def _apply_volume_plan(self, request_id, language, plan):
         if request_id != self._volume_plan_request_id or language != self.language.currentData():
@@ -2624,10 +3110,42 @@ class MangaNanaDialog(QDialog):
             self.add_log(f'[{self.current_source.display_name}] No downloadable chapters found in {lang_name}.')
         QTimer.singleShot(0,self._load_visible_volume_thumbs)
 
+    def _apply_chapter_plan(self, request_id, language, chapters):
+        if request_id != self._volume_plan_request_id or language != self.language.currentData():
+            return
+        self._volume_plan_loading=False
+        # Use a prior inventory plan only when it was built for this exact
+        # selected language and primary provider; otherwise rediscovery remains
+        # the authoritative single-provider chapter list.
+        planned = self._pending_cross_source_plan
+        if (planned and planned.can_execute and planned.language == language and
+                planned.primary_source_id == self.current_source_id):
+            items=[]
+            for item in planned.items:
+                row=dict(item.reference); row['_source_id']=item.source_id; row['_source_name']=item.source_name
+                row['_fallback_reason']=item.reason; items.append(row)
+            self._chapter_plan_items=tuple(sorted(items, key=chapter_sort_key))
+            if planned.fallback_items:
+                self.add_log(planned.notice)
+        else:
+            self._chapter_plan_items=tuple(sorted((dict(row) for row in chapters or ()), key=chapter_sort_key))
+        self._current_plan={'volumes': [], 'bonus_chapters': len(self._chapter_plan_items)}
+        self._download_language_valid=bool(self._chapter_plan_items)
+        self._rebuild_volume_list(); self.volume_list.setEnabled(self._download_language_valid)
+        self._update_preview_button_for_volume_selection()
+        count=len(self._chapter_plan_items)
+        if count:
+            self.meta_summary.setText(f'{count} chapter' + ('' if count == 1 else 's') + f' available in {self.language.currentText()}.')
+            self.add_log(f'Chapter browser ready: {count} chapters in {self.language.currentText()}.')
+        else:
+            self.meta_summary.setText('No downloadable chapters were found for Chapter mode.')
+            self._show_volume_empty_message('No downloadable chapters were found for Chapter mode.')
+
     def _on_volume_plan_failed(self, data):
         if data.get('request_id') != self._volume_plan_request_id:
             return
         self._volume_plan_loading=False; self._download_language_valid=False; self.volume_list.setEnabled(False); self.preview_btn.setEnabled(False)
+        self._record_diagnostic(RuntimeError, RuntimeError(data.get('error') or 'Unknown error'), None, self._diagnostic_operation)
         self.meta_summary.setText('Volume information could not be loaded. Try the language again.')
         self._show_volume_empty_message('Volume information could not be loaded. Try the language again.')
         self.add_log('Volume browser unavailable: '+str(data.get('error') or 'Unknown error'))
@@ -2649,8 +3167,39 @@ class MangaNanaDialog(QDialog):
         self._volume_check_syncing=True
         try:
             self.volume_list.clear(); self.selected_cover.clear()
+            if self.workflow_mode == 'chapter':
+                rows=tuple(self._chapter_plan_items or ())
+                valid=chapter_selection_ids(rows)
+                self._selected_chapter_ids.intersection_update(valid)
+                self.volume_count_label.setText(f'{len(rows)} chapter' + ('' if len(rows)==1 else 's') if rows else '')
+                for chapter in rows:
+                    chapter_id=str(chapter.get('id') or '')
+                    item=QListWidgetItem()
+                    item.setData(Qt.ItemDataRole.UserRole, {'kind':'chapter','chapter':chapter,'chapter_id':chapter_id,
+                                                           'cover_url':self._main_cover_url or ''})
+                    item.setSizeHint(QSize(0,72)); self.volume_list.addItem(item)
+                    title=str(chapter.get('title') or '').strip()
+                    source_name=str(chapter.get('_source_name') or self.current_source.display_name)
+                    label=f'Chapter {chapter_label(chapter, self.pad.isChecked())}' + (f'  ·  {title}' if title else '') + f'  ·  {source_name}'
+                    row=VolumeRowWidget(label, self.volume_list, cover_loading=bool(self._main_cover_url))
+                    row.set_checked(chapter_id in self._selected_chapter_ids)
+                    row.toggled.connect(lambda checked, it=item: self._volume_row_toggled(it, checked))
+                    self.volume_list.setItemWidget(item,row)
+                self.clear_volume_btn.setEnabled(bool(rows) and self._download_language_valid)
+                self._update_volume_selection_hint(); self._update_preview_button_for_volume_selection()
+                self._selected_cover_url=self._main_cover_url or ''
+                if self._selected_cover_url:
+                    self.selected_cover.set_loading()
+                else:
+                    self.selected_cover.set_failed()
+                QTimer.singleShot(0,self._load_visible_volume_thumbs)
+                return
             covers=self._loaded_covers or {}; plan=self._current_plan or {}
             self._selected_cover_url=self._main_cover_url or covers.get(None) or ''
+            if self._selected_cover_url:
+                self.selected_cover.set_loading()
+            else:
+                self.selected_cover.set_failed()
             vols=plan.get('volumes') or []
             numeric=sorted(set(float(k) for k in vols)) if self._current_plan is not None else sorted(set(k for k in covers if k is not None))
             valid=set(float(v) for v in numeric)
@@ -2671,7 +3220,7 @@ class MangaNanaDialog(QDialog):
                 item=QListWidgetItem()
                 item.setData(Qt.ItemDataRole.UserRole,{'kind':'volume','volume':float(v),'cover_url':c})
                 item.setSizeHint(QSize(0,72)); self.volume_list.addItem(item)
-                row=VolumeRowWidget(f'Volume {v:g}', self.volume_list)
+                row=VolumeRowWidget(f'Volume {v:g}', self.volume_list, cover_loading=bool(c))
                 row.set_checked(float(v) in self._selected_volumes)
                 row.toggled.connect(lambda checked, it=item: self._volume_row_toggled(it, checked))
                 self.volume_list.setItemWidget(item,row)
@@ -2682,7 +3231,7 @@ class MangaNanaDialog(QDialog):
                 item.setData(Qt.ItemDataRole.UserRole,{'kind':'standalone','volume':None,'cover_url':self._main_cover_url or self._selected_cover_url or '','chapter_count':standalone_count})
                 item.setSizeHint(QSize(0,72)); self.volume_list.addItem(item)
                 label=f'Standalone Chapters  ·  {standalone_count} chapter' + ('' if standalone_count==1 else 's')
-                row=VolumeRowWidget(label, self.volume_list)
+                row=VolumeRowWidget(label, self.volume_list, cover_loading=bool(self._main_cover_url or self._selected_cover_url))
                 row.set_checked(bool(self._standalone_selected))
                 row.toggled.connect(lambda checked, it=item: self._volume_row_toggled(it, checked))
                 self.volume_list.setItemWidget(item,row)
@@ -2697,33 +3246,43 @@ class MangaNanaDialog(QDialog):
         QTimer.singleShot(0,self._load_visible_volume_thumbs)
 
     def _load_visible_volume_thumbs(self):
-        if self.volume_thumb_worker and self.volume_thumb_worker.isRunning():
+        if self._closing or (self.volume_thumb_worker and self.volume_thumb_worker.isRunning()):
             return
-        batch=[]
+        batch=[]; queued_urls=set()
         visible=list(self._visible_row_range(self.volume_list,66,4))
         if self._selected_cover_url:
             selected_raw=self._image_cache.get(self._selected_cover_url)
-            if selected_raw:
+            if self._selected_cover_url in self._failed_image_urls:
+                self.selected_cover.set_failed()
+            elif selected_raw:
                 big=self._pix_from_bytes(selected_raw,130,180)
                 if big is not None: self.selected_cover.setPixmap(big)
+                else: self.selected_cover.set_failed()
             else:
+                self.selected_cover.set_loading()
                 batch.append((self._selected_cover_url,[self._selected_cover_url+'.256.jpg',self._selected_cover_url]))
+                queued_urls.add(self._selected_cover_url)
         for i in visible:
             item=self.volume_list.item(i); info=item.data(Qt.ItemDataRole.UserRole) or {}
             if not isinstance(info,dict): continue
             url=info.get('cover_url') or ''
             if not url: continue
+            if url in self._failed_image_urls:
+                row=self.volume_list.itemWidget(item)
+                if isinstance(row,VolumeRowWidget): row.set_cover(None)
+                if url == self._selected_cover_url: self.selected_cover.set_failed()
+                continue
             raw=self._image_cache.get(url)
             if raw:
                 pix=self._pix_from_bytes(raw,42,58)
                 row=self.volume_list.itemWidget(item)
-                if pix is not None and isinstance(row, VolumeRowWidget): row.set_cover(pix)
+                if isinstance(row, VolumeRowWidget): row.set_cover(pix)
                 if url==self._selected_cover_url:
                     big=self._pix_from_bytes(raw,130,180)
                     if big is not None: self.selected_cover.setPixmap(big)
-            elif not info.get('thumb_requested'):
+            elif not info.get('thumb_requested') and url not in queued_urls and len(batch) < COVER_BATCH_LIMIT:
                 info['thumb_requested']=True; item.setData(Qt.ItemDataRole.UserRole,info)
-                batch.append((url,[url+'.256.jpg',url]))
+                batch.append((url,[url+'.256.jpg',url])); queued_urls.add(url)
         # De-duplicate a cover that was added for both selected-cover and visible-row purposes.
         unique=[]; seen=set()
         for entry in batch:
@@ -2731,12 +3290,21 @@ class MangaNanaDialog(QDialog):
                 seen.add(entry[0]); unique.append(entry)
         if not unique:
             return
-        self.volume_thumb_worker=ImageBatchWorker('volume',unique,self,source=self.current_source)
-        self.volume_thumb_worker.image_ready.connect(self._on_volume_thumb_ready)
-        self.volume_thumb_worker.finished.connect(self._on_volume_thumb_batch_done)
-        self.volume_thumb_worker.start()
+        self._volume_cover_batch_token += 1; token=self._volume_cover_batch_token; generation=self._cover_generation
+        # This worker likewise remains independent until its cooperative stop.
+        worker=ImageBatchWorker(('volume',token,generation),unique,source=self.current_source); self.volume_thumb_worker=worker
+        # Keep image decoding and all QWidget mutation on the dialog's GUI thread.
+        worker.image_ready.connect(self._on_volume_thumb_ready)
+        worker.image_failed.connect(self._on_volume_thumb_failed)
+        worker.batch_done.connect(self._on_volume_thumb_batch_done)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
 
     def _on_volume_thumb_ready(self, data):
+        batch_id=data.get('batch_id') or ()
+        _kind, token, generation=(batch_id + (None,None,None))[:3] if isinstance(batch_id,tuple) else (None,None,None)
+        if self._closing or generation != self._cover_generation or token != self._volume_cover_batch_token:
+            return
         url=data.get('key'); raw=data.get('raw')
         if not url or not raw: return
         self._image_cache[url]=raw
@@ -2745,16 +3313,34 @@ class MangaNanaDialog(QDialog):
             if isinstance(info,dict) and info.get('cover_url')==url:
                 pix=self._pix_from_bytes(raw,42,58)
                 row=self.volume_list.itemWidget(item)
-                if pix is not None and isinstance(row, VolumeRowWidget): row.set_cover(pix)
+                if isinstance(row, VolumeRowWidget): row.set_cover(pix)
         if url==self._selected_cover_url:
             big=self._pix_from_bytes(raw,130,180)
             if big is not None: self.selected_cover.setPixmap(big)
+            else: self.selected_cover.set_failed()
 
-    def _on_volume_thumb_batch_done(self):
-        if self.volume_thumb_worker:
-            self.volume_thumb_worker.deleteLater()
+    def _on_volume_thumb_failed(self, data):
+        batch_id=data.get('batch_id') or ()
+        _kind, token, generation=(batch_id + (None,None,None))[:3] if isinstance(batch_id,tuple) else (None,None,None)
+        if self._closing or generation != self._cover_generation or token != self._volume_cover_batch_token:
+            return
+        url=data.get('key')
+        if not url:
+            return
+        self._failed_image_urls.add(url)
+        for i in range(self.volume_list.count()):
+            item=self.volume_list.item(i); info=item.data(Qt.ItemDataRole.UserRole) or {}
+            if isinstance(info,dict) and info.get('cover_url') == url:
+                row=self.volume_list.itemWidget(item)
+                if isinstance(row,VolumeRowWidget):
+                    row.set_cover(None)
+        if url == self._selected_cover_url:
+            self.selected_cover.set_failed()
+
+    def _on_volume_thumb_batch_done(self, data):
         self.volume_thumb_worker=None
-        QTimer.singleShot(0,self._load_visible_volume_thumbs)
+        if not self._closing:
+            QTimer.singleShot(0,self._load_visible_volume_thumbs)
 
     def _layout_mode_changed(self, *args):
         enabled = self.page_layout.currentData() == 'paired_landscape'
@@ -2776,6 +3362,7 @@ class MangaNanaDialog(QDialog):
     def _invalidate_inflight_preview(self):
         if self._preview_build_signature is not None:
             self._preview_request_id += 1
+            self._review_cancel_requested=True
             self._preview_build_signature = None
             for worker in list(self._preview_workers):
                 if worker.isRunning():
@@ -2787,8 +3374,9 @@ class MangaNanaDialog(QDialog):
 
     def current_signature(self):
         return (
-            self.current_source_id, self.current_manga_url, self.title.text().strip(), self.author.text().strip(), self.series.text().strip(),
+            self.workflow_mode, self.current_source_id, self.current_manga_url, self.title.text().strip(), self.author.text().strip(), self.series.text().strip(),
             self.language.currentData(), self.start.text().strip(), self.end.text().strip(), tuple(sorted(self._selected_volumes)), bool(self._standalone_selected), bool(self._using_entire_series),
+            tuple(sorted(self._selected_chapter_ids)),
             self.covers.isChecked(), self.pad.isChecked(), self.page_layout.currentData(), self.reading_direction.currentData()
         )
 
@@ -2970,6 +3558,9 @@ class MangaNanaDialog(QDialog):
         row=self.volume_list.itemWidget(item) if hasattr(self,'volume_list') else None
         if isinstance(row, VolumeRowWidget):
             info=item.data(Qt.ItemDataRole.UserRole) or {}
+            if isinstance(info,dict) and info.get('kind') == 'chapter':
+                row.set_checked(str(info.get('chapter_id') or '') in self._selected_chapter_ids)
+                return
             if isinstance(info,dict) and info.get('kind') == 'standalone':
                 row.set_checked(bool(self._standalone_selected))
                 return
@@ -3040,6 +3631,8 @@ class MangaNanaDialog(QDialog):
                 self.workflow_hint.setText(f'{count} {noun} selected. Review to continue.')
 
     def _has_volume_selection(self):
+        if self.workflow_mode == 'chapter':
+            return bool(self._selected_chapter_ids)
         return bool(self._using_entire_series or self._selected_volumes or self._standalone_selected)
 
     def _update_preview_button_for_volume_selection(self):
@@ -3071,13 +3664,17 @@ class MangaNanaDialog(QDialog):
         info=item.data(Qt.ItemDataRole.UserRole) or {}
         if not isinstance(info,dict):
             return
-        previous=set(self._selected_volumes)
+        previous=set(self._selected_volumes); previous_chapters=set(self._selected_chapter_ids)
         previous_standalone=bool(self._standalone_selected)
         self._using_entire_series=False
         self._manual_range_invalid=False
         self._manual_range_error=''
         self._last_invalid_range_log_key=None
-        if info.get('kind') == 'standalone':
+        if info.get('kind') == 'chapter':
+            chapter_id=str(info.get('chapter_id') or '')
+            if checked: self._selected_chapter_ids.add(chapter_id)
+            else: self._selected_chapter_ids.discard(chapter_id)
+        elif info.get('kind') == 'standalone':
             self._standalone_selected=bool(checked)
         elif info.get('volume') is not None:
             value=float(info.get('volume'))
@@ -3096,7 +3693,7 @@ class MangaNanaDialog(QDialog):
                 self.start.clear(); self.end.clear()
             finally:
                 self._range_syncing=False
-        if previous != self._selected_volumes or previous_standalone != self._standalone_selected:
+        if previous != self._selected_volumes or previous_chapters != self._selected_chapter_ids or previous_standalone != self._standalone_selected:
             self._selected_volume=None
             self._update_volume_selection_hint()
             self._update_preview_button_for_volume_selection()
@@ -3104,12 +3701,24 @@ class MangaNanaDialog(QDialog):
             labels=[f'{v:g}' for v in sorted(self._selected_volumes)]
             if self._standalone_selected:
                 labels.append('Standalone Chapters')
-            self.add_log('Selected: '+', '.join(labels) if labels else 'No volumes selected.')
+            if self.workflow_mode == 'chapter':
+                self.add_log(f'{len(self._selected_chapter_ids)} chapter' + ('' if len(self._selected_chapter_ids) == 1 else 's') + ' selected.' if self._selected_chapter_ids else 'No chapters selected.')
+            else:
+                self.add_log('Selected: '+', '.join(labels) if labels else 'No volumes selected.')
 
     def _volume_item_changed(self, item):
         return
 
     def _update_volume_selection_hint(self):
+        if self.workflow_mode == 'chapter':
+            count=len(self._selected_chapter_ids)
+            total=len(self._chapter_plan_items or ())
+            self.range_hint.setText(f'{count} chapter' + ('' if count==1 else 's') + f' selected of {total}.' if count else 'Select one or more chapters to continue.')
+            self.range_hint.setStyleSheet(f'color:{ORANGE}; font-size:11px; font-weight:600;' if count else 'color:#8F9499; font-size:11px;')
+            if hasattr(self, 'clear_volume_btn'):
+                self.clear_volume_btn.setEnabled(bool(total) and bool(self._download_language_valid))
+                self.clear_volume_btn.setText('Deselect All Chapters' if count else 'Select All Chapters')
+            return
         s=self.start.text().strip() if hasattr(self,'start') else ''
         e=self.end.text().strip() if hasattr(self,'end') else ''
         selected_count=len(self._selected_volumes) + (1 if self._standalone_selected else 0)
@@ -3225,6 +3834,14 @@ class MangaNanaDialog(QDialog):
     def _use_entire_series(self):
         # The footer button is state-aware: once anything is selected it becomes
         # a single, obvious way to clear the current volume selection.
+        if self.workflow_mode == 'chapter':
+            if self._selected_chapter_ids:
+                self._selected_chapter_ids.clear()
+                self._rebuild_volume_list(); self.invalidate_preview(); self.add_log('All chapters deselected.')
+            else:
+                self._selected_chapter_ids=chapter_selection_ids(self._chapter_plan_items)
+                self._rebuild_volume_list(); self.invalidate_preview(); self.add_log(f'All {len(self._selected_chapter_ids)} chapters selected.')
+            return
         if self._selected_volumes or self._standalone_selected:
             self._deselect_all_volumes()
             return
@@ -3347,10 +3964,20 @@ class MangaNanaDialog(QDialog):
         self._range_event_filter_installed=False
 
     def closeEvent(self, event):
+        self._closing=True
+        self._invalidate_inflight_preview()
+        self._invalidate_cover_requests()
+        if hasattr(self, '_cover_pulse_timer'): self._cover_pulse_timer.stop()
+        self._restore_diagnostic_hook()
         self._remove_range_focus_behavior()
         self._save_session(); super().closeEvent(event)
 
     def reject(self):
+        self._closing=True
+        self._invalidate_inflight_preview()
+        self._invalidate_cover_requests()
+        if hasattr(self, '_cover_pulse_timer'): self._cover_pulse_timer.stop()
+        self._restore_diagnostic_hook()
         self._remove_range_focus_behavior()
         self._save_session(); super().reject()
 
@@ -3370,6 +3997,12 @@ class MangaNanaDialog(QDialog):
         if not self.language.currentData(): raise ValueError('Choose an available Download Language before continuing.')
         if self._volume_plan_loading: raise ValueError('MangaNana is still checking chapters for the selected Download Language.')
         if not self._download_language_valid: raise ValueError(f'No downloadable chapters are available in {self.language.currentText()}. Choose another Download Language.')
+        if self.workflow_mode not in ('volume','chapter'):
+            raise ValueError('Choose Volumes or Chapters before continuing.')
+        if self.workflow_mode == 'chapter':
+            if not self._selected_chapter_ids:
+                raise ValueError('Select at least one chapter or use Select All Chapters.')
+            return url, title, author, series, None, None
         if self._manual_range_invalid:
             raise ValueError(self._manual_range_error or 'Volume range is not valid.')
         s, e = self.parse_range()
@@ -3465,44 +4098,53 @@ class MangaNanaDialog(QDialog):
             if not silent:
                 self.preview_table.setRowCount(0)
                 self.preview_summary.setText(f'Loading {self.current_source.display_name} chapter information and checking your Calibre library...')
-                self.progress.setValue(0)
+                self.progress.setDeterminateValue(0)
                 self.progress_text.setText('Preparing Review...')
                 self.add_log('Preparing Review...')
             self.preview_table.setVisible(True)
             self.preview_btn.setEnabled(False)
             self.download_btn.setEnabled(False)
+            self.cancel_btn.setEnabled(True)
             self._preview_request_id += 1
+            self._review_cancel_requested=False
             request_id=self._preview_request_id
             build_signature=self.current_signature()
             self._preview_build_signature=build_signature
             worker = PreviewWorker(self.current_source, url, title, author, series, self.language.currentData(), fetch_s, fetch_e,
                                    self.pad.isChecked(), existing, selected_volumes=None if self._using_entire_series else exact,
                                    include_standalone=bool(self._standalone_selected or self._using_entire_series),
-                                   bytes_per_page=self._bytes_per_page_estimate)
+                                   bytes_per_page=self._bytes_per_page_estimate,
+                                   planned_chapters=self._chapter_plan_items if self.workflow_mode == 'chapter' else None,
+                                   chapter_items=self._selected_chapter_ids if self.workflow_mode == 'chapter' else None)
             self.preview_worker = worker
             self._preview_workers.append(worker)
             worker.ready.connect(lambda d,rid=request_id,sig=build_signature: self.on_preview_ready(d,rid,sig))
             worker.failed.connect(lambda m,rid=request_id,sig=build_signature: self.on_preview_failed(m,rid,sig))
+            worker.cancelled_ok.connect(lambda rid=request_id,sig=build_signature: self.on_preview_cancelled(rid,sig))
             worker.progress.connect(lambda p,t,rid=request_id,sig=build_signature:self.on_review_progress(p,t,rid,sig))
             worker.finished.connect(lambda w=worker:self._cleanup_worker(w,self._preview_workers))
+            worker.finished.connect(lambda w=worker,rid=request_id,sig=build_signature:self._on_preview_worker_finished(w,rid,sig))
             worker.finished.connect(worker.deleteLater)
             worker.start()
         except Exception as e:
             error_dialog(self, 'MangaNana', str(e), show=True)
 
     def on_review_progress(self, percent, text, request_id, build_signature):
-        if request_id != self._preview_request_id or build_signature != self.current_signature():
+        if self._review_cancel_requested or request_id != self._preview_request_id or build_signature != self.current_signature():
             return
-        self.progress.setValue(percent)
+        self.progress.setDeterminateValue(percent)
         self.progress_text.setText(text)
 
     def on_preview_ready(self, data, request_id=None, build_signature=None):
+        if self._review_cancel_requested:
+            return
         if request_id is not None and request_id != self._preview_request_id:
             return
         if build_signature is not None and build_signature != self.current_signature():
             return
         self._preview_build_signature = None
-        self.progress.setValue(100)
+        self.progress.setDeterminateValue(100)
+        self.cancel_btn.setEnabled(False)
         self._pending_auto_preview = False
         self.preview_data = data
         self.preview_signature = build_signature if build_signature is not None else self.current_signature()
@@ -3526,11 +4168,12 @@ class MangaNanaDialog(QDialog):
             selector_layout.addStretch(1); selector_layout.addWidget(selector); selector_layout.addStretch(1)
             self.preview_table.setCellWidget(r, 0, selector_host)
             volume_label = item.get('volume_text') or ('Bonus' if item.get('volume') is None else f"Vol. {float(item['volume']):g}")
-            if volume_label and not str(volume_label).lower().startswith(('vol', 'bonus', 'standalone')):
+            if volume_label and not str(volume_label).lower().startswith(('vol', 'ch.', 'bonus', 'standalone')):
                 volume_label = 'Vol. ' + str(volume_label)
             status_text = 'In Calibre' if item.get('existing') else ('Ready' if str(item.get('status') or '').lower() in ('will download','ready') else str(item.get('status') or 'Ready'))
             page_value=item.get('pages')
-            vals = [volume_label, item['title'], format_page_count(page_value), status_text]
+            source_label=item.get('source_name') or self.current_source.display_name
+            vals = [volume_label, item['title'], source_label, format_page_count(page_value), status_text]
             for c, val in enumerate(vals, 1):
                 cell=QTableWidgetItem(str(val)); cell.setTextAlignment(int(Qt.AlignmentFlag.AlignCenter))
                 self.preview_table.setItem(r, c, cell)
@@ -3596,11 +4239,12 @@ class MangaNanaDialog(QDialog):
         existing_count = int(self.preview_data.get('existing_count', 0) or 0)
         layout_text = 'Landscape paired pages' if self.page_layout.currentData() == 'paired_landscape' else 'Portrait pages'
         language_text = self.language.currentText() or 'Unknown language'
+        chapter_mode=bool(self.preview_data.get('chapter_mode'))
         standalone_selected=any(bool(r.get('selected')) and r.get('volume') is None for r in rows)
         if existing_count:
             first_line = f"{selected_count} to download   •   {existing_count} already in Calibre   •   {pages_s} pages   •   {est_s}"
         else:
-            noun = 'item' if standalone_selected else 'volume'
+            noun = 'chapter' if chapter_mode else ('item' if standalone_selected else 'volume')
             first_line = f"{selected_count} {noun}{'s' if selected_count != 1 else ''}   •   {pages_s} pages   •   {est_s}"
         self.preview_summary.setText(first_line + f"<br>{layout_text}   •   {language_text}")
         self._update_workflow_actions()
@@ -3616,12 +4260,34 @@ class MangaNanaDialog(QDialog):
         if build_signature is not None and build_signature != self.current_signature():
             return
         self._preview_build_signature = None
+        self.cancel_btn.setEnabled(False)
         self._update_preview_button_for_volume_selection()
         self.download_btn.setEnabled(False)
         self.preview_table.setVisible(True)
         self.preview_summary.setText('Preview could not be loaded.')
         self.progress_text.setText('Preview failed')
         error_dialog(self, 'Preview failed', msg, show=True)
+
+    def on_preview_cancelled(self, request_id, build_signature):
+        if request_id != self._preview_request_id or build_signature != self.current_signature():
+            return
+        self._preview_build_signature = None
+        self._review_cancel_requested=False
+        self.preview_worker = None
+        self.progress.setDeterminateValue(0)
+        self.progress_text.setText('Review preparation cancelled.')
+        self.preview_summary.setText('Review preparation cancelled. Selected chapters are unchanged.')
+        self.cancel_btn.setEnabled(False)
+        self._update_preview_button_for_volume_selection()
+        self._update_workflow_actions()
+        self.add_log('Review preparation cancelled.')
+
+    def _on_preview_worker_finished(self, worker, request_id, build_signature):
+        if worker is self.preview_worker:
+            self.preview_worker=None
+        if (self._review_cancel_requested and request_id == self._preview_request_id and
+                build_signature == self.current_signature()):
+            self.on_preview_cancelled(request_id, build_signature)
 
     def open_pairing_preview(self):
         if self.pairing_preview_worker and self.pairing_preview_worker.isRunning():
@@ -3795,7 +4461,9 @@ class MangaNanaDialog(QDialog):
                                          include_bonus=self.preview_data.get('include_bonus', True),
                                          page_layout=self.page_layout.currentData(),
                                          reading_direction=self.reading_direction.currentData(),
-                                         main_cover_url=self._main_cover_url)
+                                         main_cover_url=self._main_cover_url,
+                                         chapter_jobs=[row.get('chapter') for row in (self.preview_data.get('rows') or [])
+                                                       if row.get('selected') and row.get('kind') == 'chapter'] if self.workflow_mode == 'chapter' else None)
             self.worker.log.connect(self.add_log); self.worker.progress.connect(self.on_progress); self.worker.stats.connect(self.on_stats)
             self.worker.failed.connect(self.on_failed); self.worker.cancelled_ok.connect(self.on_cancelled); self.worker.finished_ok.connect(self.on_downloaded)
             self.worker.start()
@@ -3831,6 +4499,13 @@ class MangaNanaDialog(QDialog):
         self.progress_text.setText('  |  '.join(parts))
 
     def cancel_download(self):
+        if self.preview_worker and self.preview_worker.isRunning():
+            self._review_cancel_requested=True
+            self.preview_worker.requestInterruption()
+            self.cancel_btn.setEnabled(False)
+            self.progress_text.setText('Cancelling review preparation after the current request...')
+            self.add_log('Review cancellation requested.')
+            return
         if self.worker:
             self.worker.cancel()
             self.cancel_btn.setEnabled(False)
@@ -3848,6 +4523,7 @@ class MangaNanaDialog(QDialog):
 
     def on_failed(self, msg):
         self.worker = None
+        self._record_diagnostic(RuntimeError, RuntimeError(msg), None, 'download')
         self._set_download_ui_locked(False)
         self._toggle_activity_log(True)
         self.add_log(f'ERROR: {msg}')

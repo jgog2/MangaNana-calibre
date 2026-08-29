@@ -17,6 +17,7 @@ class SourceInventory:
     edition: str
     language_match: bool = False
     native_volumes: int = 0
+    native_volume_metadata: int = 0
     volume_ids: tuple = ()
     chapters_by_volume: tuple = ()
     standalone_chapters: int = 0
@@ -38,7 +39,10 @@ class SourceInventory:
         elif self.chapter_count:
             parts.append(f'{self.chapter_count} chapter' + ('' if self.chapter_count == 1 else 's'))
         if not parts:
-            parts.append('No usable chapters')
+            if self.native_volume_metadata:
+                parts.append(f'{self.native_volume_metadata} native volume metadata entr' + ('y' if self.native_volume_metadata == 1 else 'ies') + ', no usable chapters')
+            else:
+                parts.append('No usable chapters')
         if self.error and self.usable:
             parts.append('partial: ' + self.error)
         return ', '.join(parts)
@@ -60,17 +64,31 @@ def inspect_source_inventory(source, result, language):
     edition = edition_identity(result)
     try:
         plan = source.get_download_plan(value, language) or {}
-        volumes = tuple(plan.get('volumes') or ())
-        by_volume = plan.get('chapters_by_volume') or {}
-        standalone = max(0, int(plan.get('bonus_chapters') or 0))
-        chapter_count = sum(max(0, int(count or 0)) for count in by_volume.values()) + standalone
+        nominal_volumes = tuple(plan.get('volumes') or ())
+        # Aggregate/provider metadata is advisory. Only a readable chapter
+        # record proves a native volume can reach Review and Download.
+        chapters = tuple(source.get_chapters(value, language) or ())
+        by_volume = {}
+        standalone = 0
+        for chapter in chapters:
+            volume = chapter.get('volume')
+            if volume is None:
+                standalone += 1
+            else:
+                try:
+                    volume = float(volume)
+                except (TypeError, ValueError):
+                    continue
+                by_volume[volume] = by_volume.get(volume, 0) + 1
+        volumes = tuple(sorted(by_volume))
+        chapter_count = len(chapters)
         errors = [str(plan.get(key)) for key in ('aggregate_error', 'feed_error') if plan.get(key)]
         error = '; '.join(errors)
         usable = chapter_count > 0
         return SourceInventory(
             source_id=source.source_id, source_name=source.display_name,
             result=dict(result), language=language, edition=edition,
-            language_match=usable, native_volumes=len(volumes), volume_ids=volumes,
+            language_match=usable, native_volumes=len(volumes), native_volume_metadata=len(nominal_volumes), volume_ids=volumes,
             chapters_by_volume=tuple(sorted(by_volume.items(), key=lambda item: float(item[0]))),
             standalone_chapters=standalone,
             chapter_count=chapter_count, usable=usable,
@@ -85,12 +103,18 @@ def inspect_source_inventory(source, result, language):
         )
 
 
-def compare_inventories(inventories, expected_edition='original', workflow='volume'):
+def compare_inventories(inventories, expected_edition='original', workflow=None):
     """Choose only when one provider is clearly superior; otherwise remain ambiguous."""
     rows = tuple(inventories or ())
     eligible = [row for row in rows if row.edition == expected_edition]
-    usable = [row for row in eligible if row.usable]
+    # A volume job is only meaningful when a provider exposes native volume
+    # structure.  Chapter-native providers remain eligible in Chapter mode.
+    usable = [row for row in eligible if row.usable and
+              (workflow != 'volume' or row.native_volumes > 0)]
     if not usable:
+        if workflow == 'volume':
+            details = '; '.join(f'{row.source_name}: {row.summary}' for row in rows)
+            return InventoryDecision(rows, error=details or 'No usable native volumes are currently available.')
         details = '; '.join(f'{row.source_name}: {row.summary}' for row in rows)
         return InventoryDecision(rows, error=details or 'No providers could be inspected.')
     if len(usable) == 1:
