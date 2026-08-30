@@ -48,49 +48,22 @@ def identity_authors(result):
     return {normalize_identity_text(value) for value in values if normalize_identity_text(value)}
 
 
-def source_badge_specs(source_names):
-    """Return deterministic metadata for compact provider chips."""
-    return tuple({'text': name, 'kind': 'source'} for name in dict.fromkeys(source_names or ()) if name)
-
-
 def relevance_score(query, result):
-    """Score exact and strong all-token matches; return None for weak matches."""
-    normalized_query = normalize_identity_text(query)
-    if not normalized_query:
-        return None
-    primary = normalize_identity_text(result.get('title'))
-    aliases = {normalize_identity_text(value) for value in _values(result, 'alternate_titles')}
-    if primary == normalized_query:
-        return 1000
-    if normalized_query in aliases:
-        return 950
-    query_tokens = tuple(normalized_query.split())
-    if len(query_tokens) < 2:
-        return None
-    candidate_titles = [primary] + sorted(aliases)
-    matches = []
-    wanted = set(query_tokens)
-    for title in candidate_titles:
-        tokens = set(title.split())
-        if wanted <= tokens:
-            matches.append(700 - max(0, len(tokens) - len(wanted)) * 10)
-    return max(matches) if matches else None
+    """Compatibility wrapper for the provider-neutral tiered ranker."""
+    try:
+        from .search_ranking import relevance_score as rank_score
+    except ImportError:
+        from search_ranking import relevance_score as rank_score
+    return rank_score(query, result)
 
 
 def filter_relevant_results(query, results):
-    """Filter weak incidental matches while retaining canonical companions."""
-    rows = [dict(row) for row in (results or ())]
-    scores = [relevance_score(query, row) for row in rows]
-    grouped = group_canonical_results(rows)
-    retained_ids = set()
-    for group in grouped:
-        indexes = [index for index, row in enumerate(rows) if row in group.results]
-        if any(scores[index] is not None for index in indexes):
-            retained_ids.update(indexes)
-    ranked = [(scores[index] if scores[index] is not None else 0, index, row)
-              for index, row in enumerate(rows) if index in retained_ids]
-    ranked.sort(key=lambda item: (-item[0], item[1]))
-    return tuple(row for _score, _index, row in ranked)
+    """Compatibility wrapper returning rows from accepted canonical groups."""
+    try:
+        from .search_ranking import filter_relevant_results as rank_filter
+    except ImportError:
+        from search_ranking import filter_relevant_results as rank_filter
+    return rank_filter(query, results)
 
 
 @dataclass(frozen=True)

@@ -155,7 +155,7 @@ class WeebCentralSource(SourceAdapter):
             cover_match=re.search(r'<source[^>]+srcset="([^"]+)"',block,re.I)
             if not cover_match: cover_match=re.search(r'<img[^>]+src="([^"]+)"',block,re.I)
             cover=unescape(cover_match.group(1)).split()[0] if cover_match else ''
-            if title: rows.append({'score':1000 if title.casefold()==query.casefold() else 250,'title':title,'full_title':title,'author':'','alternate_titles':[],'year':None,'adult':None,'id':series_id.upper(),'url':href,'cover_url':cover,'badge':'','source_id':self.source_id,'source_name':self.display_name})
+            if title: rows.append({'score':1000 if title.casefold()==query.casefold() else 250,'title':title,'full_title':title,'author':'','alternate_titles':[],'year':None,'available_languages':['en'],'adult':None,'id':series_id.upper(),'url':href,'cover_url':cover,'badge':'','source_id':self.source_id,'source_name':self.display_name})
         rows=rows[int(offset):int(offset)+int(limit)]
         return {'query':query,'offset':int(offset),'next_offset':int(offset)+len(rows),'limit':int(limit),'total':len(rows),'rows':rows,'fetched_count':len(rows),'filtered_doujinshi':0,'filtered_empty':0,'has_more':False}
 

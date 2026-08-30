@@ -165,7 +165,7 @@ class MangaDexSource(SourceAdapter):
                     if rel.get('type')=='author' and not author: author=(rel.get('attributes') or {}).get('name') or ''
                     elif rel.get('type')=='cover_art' and not cover: cover=(rel.get('attributes') or {}).get('fileName') or ''
                 alternate_titles=[row.get('title') for row in titles if str(row.get('title') or '').casefold() != display.casefold()]
-                rows.append({'score':self._score(query,display,full_title,preferred in (attrs.get('availableTranslatedLanguages') or [])), 'title':display,'full_title':full_title,'alternate_titles':alternate_titles,'author':author,'year':attrs.get('year'),'id':manga_id,'cover_url':f'https://uploads.mangadex.org/covers/{manga_id}/{cover}' if manga_id and cover else '','badge':badge})
+                rows.append({'score':self._score(query,display,full_title,preferred in (attrs.get('availableTranslatedLanguages') or [])), 'title':display,'full_title':full_title,'alternate_titles':alternate_titles,'author':author,'year':attrs.get('year'),'available_languages':[str(x) for x in (attrs.get('availableTranslatedLanguages') or []) if x],'adult':attrs.get('contentRating') in ('erotica','pornographic'),'id':manga_id,'cover_url':f'https://uploads.mangadex.org/covers/{manga_id}/{cover}' if manga_id and cover else '','badge':badge})
                 if len(rows)>=limit: break
             api_offset += processed; scanned += processed
             exhausted=bool((api_total and api_offset>=api_total) or (processed>=len(fetched) and len(fetched)<batch_size))

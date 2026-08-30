@@ -63,14 +63,23 @@ class ProviderSearch:
 class SourceCoordinator:
     """Keep ordered provider search state and normalized source attribution."""
 
-    def __init__(self, registry):
+    def __init__(self, registry, sources=None):
         self.registry = registry
+        self._participating_source_ids = None if sources is None else tuple(
+            source.source_id for source in sources
+        )
         self._states = {}
         self.reset()
 
     @property
     def sources(self):
-        return tuple(s for s in self.registry.all() if s.enabled_by_default)
+        if self._participating_source_ids is None:
+            return tuple(s for s in self.registry.all() if s.enabled_by_default)
+        return tuple(
+            source for source_id in self._participating_source_ids
+            for source in (self.registry.get(source_id),)
+            if source is not None
+        )
 
     def reset(self):
         self._states = {
@@ -174,3 +183,19 @@ def provider_search_progress_text(snapshot, elapsed_seconds=0):
         elif provider.get('status') == 'failed' and 'access blocked by site protection' in str(provider.get('error') or '').casefold():
             details.append(f'{name} — Access blocked by site protection')
     return base + ((' · ' + '; '.join(details)) if details else '')
+
+
+def settled_provider_progress(snapshot, participating_source_ids=None):
+    """Return settled and total counts for the current provider-search attempt."""
+    providers = tuple((snapshot or {}).get('providers') or ())
+    if participating_source_ids is not None:
+        participating = set(participating_source_ids)
+        providers = tuple(
+            provider for provider in providers
+            if provider.get('source_id') in participating
+        )
+    settled = sum(
+        provider.get('status') in ('complete', 'failed', 'cancelled')
+        for provider in providers
+    )
+    return settled, len(providers)

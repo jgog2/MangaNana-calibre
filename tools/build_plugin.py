@@ -17,7 +17,11 @@ PYTHON_FILES = (
     "source_adapter.py",
     "source_registry.py",
     "source_coordinator.py",
+    "source_policy.py",
+    "provider_branding.py",
     "canonical_identity.py",
+    "search_ranking.py",
+    "search_resolution.py",
     "cross_source_fallback.py",
     "chapter_workflow.py",
     "inventory_comparison.py",
@@ -30,6 +34,12 @@ PYTHON_FILES = (
     "i18n.py",
 )
 ROOT_FILES = (*PYTHON_FILES, "plugin-import-name-manganana.txt")
+IMAGE_FILES = (
+    "images/icon.png",
+    "images/favicon_mangadex_org_32x32.png",
+    "images/favicon_mangapill_com_32x32.png",
+    "images/favicon_weebcentral_com_32x32.png",
+)
 OUTPUT_NAME = "MangaNana-Calibre-dev.zip"
 
 
@@ -47,7 +57,7 @@ def files_to_package(repository_root: Path) -> list[tuple[Path, str]]:
         (repository_root / relative_path, relative_path)
         for relative_path in ROOT_FILES
     ]
-    files.append((repository_root / "images" / "icon.png", "images/icon.png"))
+    files.extend((repository_root / path, path) for path in IMAGE_FILES)
     return files
 
 

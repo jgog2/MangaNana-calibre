@@ -4,7 +4,6 @@ from canonical_identity import (
     filter_relevant_results,
     group_canonical_results,
     normalize_identity_text,
-    source_badge_specs,
 )
 
 
@@ -124,11 +123,28 @@ class CanonicalIdentityTests(unittest.TestCase):
         ])
         self.assertEqual(len(filtered), 1)
 
-    def test_source_badge_metadata_is_compact_and_deterministic(self):
-        self.assertEqual(source_badge_specs(('MangaDex', 'MangaPill', 'MangaDex')), (
-            {'text': 'MangaDex', 'kind': 'source'},
-            {'text': 'MangaPill', 'kind': 'source'},
-        ))
+    def test_single_token_query_keeps_whole_token_matches(self):
+        rows = [
+            result('mangadex', "JoJo's Bizarre Adventure Part 8 - JoJolion"),
+            result('mangapill', 'Jojoni Deremi ga Mashiteku Tsundere Gyaru'),
+        ]
+        filtered = filter_relevant_results('Jojo', rows)
+        self.assertEqual(
+            [row['title'] for row in filtered],
+            ["JoJo's Bizarre Adventure Part 8 - JoJolion"],
+        )
+
+    def test_representative_queries_retain_strong_title_matches(self):
+        cases = (
+            ('Jojo', "JoJo's Bizarre Adventure: Part 7 – Steel Ball Run"),
+            ('One Punch', 'One Punch Man'),
+            ('Chainsaw Man', 'Chainsaw Man'),
+            ('Attack on Titan', 'Attack on Titan'),
+        )
+        for query, title in cases:
+            with self.subTest(query=query):
+                filtered = filter_relevant_results(query, [result('mangadex', title)])
+                self.assertEqual([row['title'] for row in filtered], [title])
 
 
 if __name__ == '__main__':

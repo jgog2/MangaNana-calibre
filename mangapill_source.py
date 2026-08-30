@@ -205,7 +205,8 @@ class MangaPillSource(SourceAdapter):
             title = row['title']; folded = title.casefold(); needle = (query or '').casefold().strip()
             score = 1000 if folded == needle else 500 if folded.startswith(needle) else 250 if needle in folded else 0
             rows.append({'score': score, 'title': title, 'full_title': title, 'author': '',
-                         'alternate_titles': [], 'year': None, 'id': row['id'], 'url': row['url'],
+                         'alternate_titles': [], 'year': None, 'available_languages': ['en'],
+                         'id': row['id'], 'url': row['url'],
                          'cover_url': row['cover_url'], 'badge': ''})
         rows.sort(key=lambda row: (-row['score'], row['title'].casefold()))
         rows = rows[:max(0, int(limit))]

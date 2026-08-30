@@ -26,6 +26,7 @@ class SourceInventory:
     complete: bool = False
     error: str = ''
     capabilities: tuple = ()
+    chapter_records: tuple = ()
 
     @property
     def summary(self):
@@ -58,12 +59,20 @@ class InventoryDecision:
     fallback_plan: object = None
 
 
-def inspect_source_inventory(source, result, language):
-    """Inspect one adapter's normalized plan without page or image downloads."""
+def inspect_source_inventory(source, result, language, workflow=None):
+    """Inspect the authoritative adapter inventory for the selected workflow.
+
+    Chapter mode deliberately uses ``get_chapters`` directly, matching direct
+    URL loading. Volume mode also requests the native download plan before
+    confirming that its volumes contain readable chapter records.
+    """
     value = result.get('url') or result.get('id')
     edition = edition_identity(result)
     try:
-        plan = source.get_download_plan(value, language) or {}
+        if workflow == 'chapter':
+            plan = {}
+        else:
+            plan = source.get_download_plan(value, language) or {}
         nominal_volumes = tuple(plan.get('volumes') or ())
         # Aggregate/provider metadata is advisory. Only a readable chapter
         # record proves a native volume can reach Review and Download.
@@ -94,6 +103,7 @@ def inspect_source_inventory(source, result, language):
             chapter_count=chapter_count, usable=usable,
             complete=usable and not error, error=error,
             capabilities=tuple(sorted(source.capabilities)),
+            chapter_records=chapters,
         )
     except Exception as exc:
         return SourceInventory(

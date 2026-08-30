@@ -3,7 +3,7 @@ import unittest
 from source_adapter import SourceAdapter
 from source_coordinator import (
     SourceCoordinator, SourceSearchError, count_chapter_pages, format_page_count,
-    provider_search_progress_text, review_manifest_progress,
+    provider_search_progress_text, review_manifest_progress, settled_provider_progress,
 )
 from source_registry import SourceRegistry
 
@@ -114,6 +114,27 @@ class SourceCoordinatorTests(unittest.TestCase):
         text=provider_search_progress_text(coordinator.snapshot(),42)
         self.assertIn('MangaPill — Access blocked by site protection',text)
         self.assertNotIn('MangaPill — Slow response',text)
+
+    def test_settled_progress_counts_success_failure_and_cancellation(self):
+        coordinator, _dex, _pill = self.make_coordinator()
+        coordinator.mark_running('mangadex'); coordinator.mark_running('mangapill')
+        self.assertEqual((0, 2), settled_provider_progress(coordinator.snapshot()))
+        coordinator.complete('mangadex', {'rows': []})
+        self.assertEqual((1, 2), settled_provider_progress(coordinator.snapshot()))
+        coordinator.fail('mangapill', 'offline')
+        self.assertEqual((2, 2), settled_provider_progress(coordinator.snapshot()))
+        coordinator.reset(); coordinator.mark_running('mangadex'); coordinator.mark_running('mangapill')
+        coordinator.cancel_remaining()
+        self.assertEqual((2, 2), settled_provider_progress(coordinator.snapshot()))
+
+    def test_settled_progress_can_limit_itself_to_participating_providers(self):
+        coordinator, _dex, _pill = self.make_coordinator()
+        coordinator.mark_running('mangadex')
+        coordinator.complete('mangadex', {'rows': []})
+        self.assertEqual(
+            (1, 1),
+            settled_provider_progress(coordinator.snapshot(), ('mangadex',)),
+        )
 
     def test_cancelling_remaining_search_preserves_completed_rows(self):
         coordinator, _dex, _pill = self.make_coordinator()

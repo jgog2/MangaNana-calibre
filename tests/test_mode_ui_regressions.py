@@ -21,6 +21,12 @@ class ModeUiRegressionTests(unittest.TestCase):
         self.assertIn("should_reload_direct=bool(previous_mode and replay_kind == 'direct'", MAIN)
         self.assertIn("self.search_mangadex(True, generation)", MAIN)
 
+    def test_selecting_a_search_result_preserves_the_search_replay_query(self):
+        self.assertIn("self._last_discovery_kind='search'; self._last_discovery_value=query", MAIN)
+        apply_section = MAIN[MAIN.index('def _apply_loaded_manga('):MAIN.index('def _download_language_changed(')]
+        self.assertIn("if discovery_kind == 'direct' and discovery_value:", apply_section)
+        self.assertNotIn("if discovery_kind == 'search'", apply_section)
+
     def test_selected_card_owns_a_content_derived_minimum_height(self):
         self.assertIn("selected_top_l.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)", MAIN)
         self.assertNotIn("selected_top.setMinimumHeight(228)", MAIN)

@@ -146,6 +146,9 @@ def _result_reference(inventory):
 
 def _provider_chapters(inventory, registry):
     """Fetch one provider's normalized chapter records with safe provenance."""
+    cached = tuple(getattr(inventory, 'chapter_records', ()) or ())
+    if cached:
+        return [(chapter_identity(row), dict(row)) for row in cached]
     source = registry.get(inventory.source_id)
     if source is None:
         raise RuntimeError(f'Unknown source: {inventory.source_id}')
