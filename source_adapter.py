@@ -12,6 +12,9 @@ class SourceAdapter(ABC):
     domains = ()
     enabled_by_default = True
     capabilities = frozenset()
+    # A non-empty value is an adapter-owned language contract for providers
+    # whose entire readable catalogue is published in fixed languages.
+    content_languages = ()
 
     def can_handle_ref(self, value):
         """Return whether this adapter recognizes a direct manga reference."""

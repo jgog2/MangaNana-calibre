@@ -91,6 +91,12 @@ class SearchRankingTests(unittest.TestCase):
         ))
         self.assertEqual(['Chainsaw Man'], [row.group.display_title for row in ranked])
 
+    def test_normalized_popularity_only_reorders_inside_the_same_relevance_tier(self):
+        exact = result('exact', 'One Piece', popularity={'normalized': 0.0})
+        weaker = result('weak', 'One Piece Episode A', popularity={'normalized': 1.0})
+        ranked = rank_canonical_results('One Piece', (weaker, exact))
+        self.assertEqual('One Piece', ranked[0].group.display_title)
+
     def test_bayesian_rating_does_not_reward_tiny_vote_count_overwhelmingly(self):
         tiny = PopularitySignals(rating=9.8, rating_count=12)
         established = PopularitySignals(rating=9.2, rating_count=45000)

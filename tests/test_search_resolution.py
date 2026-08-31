@@ -9,7 +9,8 @@ class FakeSource(SourceAdapter):
     enabled_by_default = True
     capabilities = frozenset({'search', 'metadata', 'chapters'})
 
-    def __init__(self, source_id, languages, chapters, plan_error='', adult=False):
+    def __init__(self, source_id, languages, chapters, plan_error='', adult=False,
+                 content_languages=()):
         self.source_id = source_id
         self.display_name = {'mangadex': 'MangaDex', 'mangapill': 'MangaPill', 'weebcentral': 'WeebCentral'}[source_id]
         self.domains = (source_id + '.test',)
@@ -17,6 +18,7 @@ class FakeSource(SourceAdapter):
         self.chapters = {language: tuple(rows) for language, rows in chapters.items()}
         self.plan_error = plan_error
         self.adult = bool(adult)
+        self.content_languages = tuple(content_languages)
         self.metadata_calls = 0
         self.plan_calls = 0
         self.chapter_calls = 0
@@ -97,6 +99,17 @@ class SearchResolutionTests(unittest.TestCase):
         self.assertTrue(resolution.language_fallback)
         self.assertEqual('ja', resolution.language)
 
+    def test_japanese_fallback_precedes_other_reported_languages(self):
+        dex = FakeSource('mangadex', ('es',), {'es': chapters('dex', 1, 8)})
+        pill = FakeSource('mangapill', ('ja',), {'ja': chapters('pill', 1, 3)})
+        resolution = resolve_search_group(
+            SourceRegistry((dex, pill)), (candidate('mangadex'), candidate('mangapill')),
+            'en', 'chapter',
+        )
+        self.assertTrue(resolution.usable)
+        self.assertEqual('ja', resolution.language)
+        self.assertEqual(('mangapill',), resolution.expected_source_ids)
+
     def test_no_usable_selected_mode_inventory_is_rejected(self):
         pill = FakeSource('mangapill', ('en',), {'en': chapters('pill', 1, 10)})
         resolution = resolve_search_group(SourceRegistry((pill,)), (candidate('mangapill'),), 'en', 'volume')
@@ -142,6 +155,51 @@ class SearchResolutionTests(unittest.TestCase):
         resolution = resolve_search_group(SourceRegistry((dex,)), (row,), 'en', 'chapter')
         self.assertTrue(resolution.usable)
         self.assertEqual(0, dex.metadata_calls)
+
+    def test_exact_title_provider_without_preferred_inventory_loses_to_usable_equivalent(self):
+        dex=FakeSource('mangadex',('en',),{'en':()})
+        pill=FakeSource('mangapill',('en',),{'en':chapters('pill',1,12)})
+        dex_row=candidate('mangadex'); dex_row['title']='Exact Series'
+        pill_row=candidate('mangapill'); pill_row['title']='Exact Series'
+        for row in (dex_row,pill_row): row['available_languages']=['en']; row['adult']=False
+        resolution=resolve_search_group(SourceRegistry((dex,pill)),(dex_row,pill_row),'en','chapter')
+        self.assertEqual('mangapill',resolution.primary.source_id)
+        self.assertTrue(resolution.primary.language_match)
+
+    def test_spanish_only_exact_mangadex_loses_to_english_mangapill(self):
+        dex=FakeSource('mangadex',('es',),{'es':chapters('dex',1,118,volume=1)})
+        pill=FakeSource('mangapill',('en',),{'en':chapters('pill',1,160)})
+        dex_row=candidate('mangadex'); dex_row['available_languages']=['es']
+        pill_row=candidate('mangapill'); pill_row['available_languages']=['en']
+        resolution=resolve_search_group(SourceRegistry((dex,pill)),(dex_row,pill_row),'en','chapter')
+        self.assertEqual('mangapill',resolution.primary.source_id)
+        self.assertEqual('en',resolution.language)
+        self.assertFalse(resolution.language_fallback)
+
+    def test_spanish_only_exact_mangadex_loses_to_english_weebcentral(self):
+        dex=FakeSource('mangadex',('es',),{'es':chapters('dex',1,118,volume=1)})
+        weeb=FakeSource('weebcentral',('en',),{'en':chapters('weeb',1,160)})
+        dex_row=candidate('mangadex'); dex_row['available_languages']=['es']
+        weeb_row=candidate('weebcentral'); weeb_row['available_languages']=['en']
+        resolution=resolve_search_group(SourceRegistry((dex,weeb)),(dex_row,weeb_row),'en','chapter')
+        self.assertEqual('weebcentral',resolution.primary.source_id)
+
+    def test_mangadex_disabled_does_not_gate_enabled_english_provider(self):
+        for source_id in ('mangapill','weebcentral'):
+            with self.subTest(source_id=source_id):
+                source=FakeSource(source_id,('en',),{'en':chapters(source_id,1,25)})
+                row=candidate(source_id); row['available_languages']=['en']
+                resolution=resolve_search_group(SourceRegistry((source,)),(row,),'en','chapter')
+                self.assertTrue(resolution.usable)
+                self.assertEqual(source_id,resolution.primary.source_id)
+                self.assertNotIn('mangadex',resolution.expected_source_ids)
+
+    def test_missing_result_language_uses_explicit_adapter_contract(self):
+        source=FakeSource('mangapill',(),{'en':chapters('pill',1,10)},content_languages=('en',))
+        source.get_manga=lambda *_args,**_kwargs: (_ for _ in ()).throw(RuntimeError('metadata offline'))
+        resolution=resolve_search_group(SourceRegistry((source,)),(candidate('mangapill'),),'en','chapter')
+        self.assertTrue(resolution.usable)
+        self.assertEqual('en',resolution.language)
 
 
 if __name__ == '__main__':

@@ -4,11 +4,16 @@ from dataclasses import dataclass
 import re
 import unicodedata
 
+try:
+    from .enrichment_model import EditionClass
+except ImportError:
+    from enrichment_model import EditionClass
+
 
 _COLOR_MARKERS = (
     ('fan_color', re.compile(r'\bfan\s+colou?red\b', re.I)),
     ('official_color', re.compile(
-        r'\b(?:official(?:ly)?\s+colou?red|digital\s+colou?red|full\s+colou?r|colou?red\s+edition|official\s+color)\b',
+        r'\b(?:official(?:ly)?\s+colou?red|digital\s+colou?red|full\s+colou?r|colou?red\s+edition|official\s+color|colou?r(?:ed)?)\b',
         re.I,
     )),
 )
@@ -21,13 +26,49 @@ def normalize_identity_text(value):
     return ' '.join(text.split())
 
 
-def edition_identity(result):
-    """Return the explicit edition class advertised by a result."""
+def edition_classification(result):
+    """Classify only explicit provider/title evidence; absence stays UNKNOWN."""
+    explicit = str((result or {}).get('edition_class') or (result or {}).get('edition') or '').casefold().strip()
+    aliases = {
+        'standard': EditionClass.STANDARD, 'original': EditionClass.STANDARD,
+        'b&w': EditionClass.STANDARD, 'bw': EditionClass.STANDARD,
+        'official_color': EditionClass.OFFICIAL_COLOR, 'official color': EditionClass.OFFICIAL_COLOR,
+        'color': EditionClass.OFFICIAL_COLOR, 'colored': EditionClass.OFFICIAL_COLOR,
+        'fan_color': EditionClass.FAN_COLOR, 'fan color': EditionClass.FAN_COLOR,
+        'unknown': EditionClass.UNKNOWN,
+    }
+    if explicit in aliases:
+        return aliases[explicit]
     text = ' '.join(str(result.get(key) or '') for key in ('title', 'full_title', 'badge'))
     for name, pattern in _COLOR_MARKERS:
         if pattern.search(text):
-            return name
+            return EditionClass.FAN_COLOR if name == 'fan_color' else EditionClass.OFFICIAL_COLOR
+    badge = str((result or {}).get('badge') or '').casefold().strip()
+    if badge in ('b&w', 'bw', 'standard') or (result or {}).get('is_colored') is False:
+        return EditionClass.STANDARD
+    return EditionClass.UNKNOWN
+
+
+def edition_identity(result):
+    """Compatibility identity used to keep color siblings separate."""
+    classification = edition_classification(result or {})
+    if classification is EditionClass.OFFICIAL_COLOR:
+        return 'official_color'
+    if classification is EditionClass.FAN_COLOR:
+        return 'fan_color'
+    # Existing unmarked catalogue records historically represented the normal
+    # edition for grouping, but display code must still omit an unproven B&W tag.
     return 'original'
+
+
+def edition_display_label(result):
+    classification = edition_classification(result or {})
+    return {
+        EditionClass.STANDARD: 'B&W',
+        EditionClass.OFFICIAL_COLOR: 'COLOR',
+        EditionClass.FAN_COLOR: 'FAN COLOR',
+        EditionClass.UNKNOWN: '',
+    }[classification]
 
 
 def _values(result, key):

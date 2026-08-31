@@ -57,6 +57,7 @@ class InventoryDecision:
     reason: str = ''
     error: str = ''
     fallback_plan: object = None
+    equivalent_inventories: tuple = ()
 
 
 def inspect_source_inventory(source, result, language, workflow=None):
@@ -156,5 +157,19 @@ def compare_inventories(inventories, expected_edition='original', workflow=None)
                 return InventoryDecision(rows, selected=winner,
                                          reason=f'{winner.source_name} provides comparable coverage with native volumes.')
 
-    return InventoryDecision(rows, ambiguous=True,
-                             reason='Providers have similarly usable inventory; user choice is required.')
+    best_count = max(1, first.chapter_count)
+    # A real ambiguity is limited to providers with materially comparable
+    # usable coverage. This excludes token inventories such as 1 chapter next
+    # to near-complete catalogues without encoding any title-specific counts.
+    equivalent = tuple(
+        row for row in ordered
+        if row.chapter_count >= max(1, int(best_count * 0.80))
+    )
+    if len(equivalent) < 2:
+        return InventoryDecision(rows, selected=first,
+                                 reason=f'{first.source_name} has materially better usable coverage.')
+    return InventoryDecision(
+        rows, ambiguous=True,
+        reason='Providers have similarly usable inventory.',
+        equivalent_inventories=equivalent,
+    )

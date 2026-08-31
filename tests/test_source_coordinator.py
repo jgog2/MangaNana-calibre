@@ -145,6 +145,23 @@ class SourceCoordinatorTests(unittest.TestCase):
         self.assertEqual('cancelled',states['mangapill']['status'])
         self.assertEqual('done',coordinator._states['mangadex'].rows[0]['id'])
 
+    def test_zero_alias_retry_preserves_successful_first_pass_rows(self):
+        coordinator, _dex, _pill = self.make_coordinator()
+        coordinator.mark_running('mangapill')
+        coordinator.complete('mangapill',{'query':'One Punch Man','rows':[{'id':'3262','title':'One-Punch Man'}]})
+        retry=coordinator.complete('mangapill',{'query':'OPM','rows':[]},preserve_existing=True)
+        self.assertEqual([],retry['rows'])
+        self.assertEqual('3262',coordinator._states['mangapill'].rows[0]['id'])
+
+    def test_failed_alias_retry_preserves_successful_first_pass_state(self):
+        coordinator, _dex, _pill = self.make_coordinator()
+        coordinator.complete('mangapill',{'rows':[{'id':'3262','title':'One-Punch Man'}]})
+        coordinator.mark_running('mangapill')
+        coordinator.fail('mangapill','optional retry offline',preserve_existing=True)
+        state=coordinator._states['mangapill']
+        self.assertEqual('complete',state.status)
+        self.assertEqual('3262',state.rows[0]['id'])
+
     def test_mangadex_known_page_counts_are_summed_without_manifest_requests(self):
         coordinator, dex, _pill = self.make_coordinator()
         del coordinator

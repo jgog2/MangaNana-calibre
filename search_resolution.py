@@ -1,15 +1,15 @@
 """Mode-aware, language-aware source confidence for plausible search groups."""
 
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 
 try:
     from .canonical_identity import edition_identity
     from .cross_source_fallback import build_cross_source_plan
-    from .inventory_comparison import compare_inventories, inspect_source_inventory
+    from .inventory_comparison import SourceInventory, compare_inventories, inspect_source_inventory
 except ImportError:
     from canonical_identity import edition_identity
     from cross_source_fallback import build_cross_source_plan
-    from inventory_comparison import compare_inventories, inspect_source_inventory
+    from inventory_comparison import SourceInventory, compare_inventories, inspect_source_inventory
 
 
 @dataclass(frozen=True)
@@ -75,25 +75,33 @@ def _enrich_candidate(candidate, metadata):
     return result
 
 
-def _language_order(candidates, metadata_rows, preferred_language):
+def _reported_languages(source, candidate, metadata):
+    reported = metadata.get('available_languages')
+    if reported is None:
+        reported = candidate.get('available_languages')
+    if reported is None:
+        reported = getattr(source, 'content_languages', ()) or None
+    return None if reported is None else tuple(str(value) for value in reported or ())
+
+
+def _language_order(registry, candidates, metadata_rows, preferred_language):
     languages = []
     for candidate, metadata in zip(candidates, metadata_rows):
-        reported = metadata.get('available_languages')
-        if reported is None:
-            reported = candidate.get('available_languages')
+        source = registry.get(candidate.get('source_id'))
+        reported = _reported_languages(source, candidate, metadata)
         for language in reported or ():
             language = str(language or '').strip()
             if language and language not in languages:
                 languages.append(language)
     preferred = str(preferred_language or 'en')
-    return tuple([preferred] + [language for language in languages if language != preferred])
-
-
-def _reported_languages(candidate, metadata):
-    reported = metadata.get('available_languages')
-    if reported is None:
-        reported = candidate.get('available_languages')
-    return None if reported is None else tuple(str(value) for value in reported or ())
+    # Respect the explicit preference across every equivalent provider first.
+    # If unavailable, Japanese is the conservative original-language fallback,
+    # but only when a provider actually reported it.
+    fallback = []
+    if 'ja' in languages and preferred != 'ja':
+        fallback.append('ja')
+    fallback.extend(language for language in languages if language not in (preferred, 'ja'))
+    return tuple([preferred] + fallback)
 
 
 def _choose_primary(inventories, workflow):
@@ -106,6 +114,28 @@ def _choose_primary(inventories, workflow):
         -row.native_volumes,
         row.source_id,
     ))[0]
+
+
+def _inventory_cache_get(cache, key):
+    if hasattr(cache, 'get_inventory'):
+        hit = cache.get_inventory(key)
+        if hit is None:
+            return None
+        try:
+            return SourceInventory(**dict(hit.value))
+        except Exception:
+            return None
+    return cache.get(key)
+
+
+def _inventory_cache_put(cache, key, inventory):
+    if hasattr(cache, 'put_inventory'):
+        try:
+            cache.put_inventory(key, asdict(inventory))
+        except Exception:
+            pass
+    else:
+        cache[key] = inventory
 
 
 def resolve_search_group(registry, candidates, preferred_language, workflow,
@@ -142,7 +172,7 @@ def resolve_search_group(registry, candidates, preferred_language, workflow,
 
     expected_edition = edition_identity(enriched[0]) if enriched else 'original'
     attempts = []
-    for language in _language_order(enriched, metadata_rows, preferred_language):
+    for language in _language_order(registry, enriched, metadata_rows, preferred_language):
         inventories = []
         for candidate, metadata in zip(enriched, metadata_rows):
             if check_cancel:
@@ -150,14 +180,14 @@ def resolve_search_group(registry, candidates, preferred_language, workflow,
             source = registry.get(candidate.get('source_id'))
             if source is None:
                 continue
-            reported = _reported_languages(candidate, metadata)
+            reported = _reported_languages(source, candidate, metadata)
             if reported is not None and language not in reported:
                 continue
             cache_key = (workflow, source.source_id, _reference(source, candidate), language)
-            inventory = inventory_cache.get(cache_key)
+            inventory = _inventory_cache_get(inventory_cache, cache_key)
             if inventory is None:
                 inventory = inspect_source_inventory(source, candidate, language, workflow=workflow)
-                inventory_cache[cache_key] = inventory
+                _inventory_cache_put(inventory_cache, cache_key, inventory)
             inventories.append(inventory)
         attempts.extend(inventories)
         if not any(inventory_is_eligible(row, workflow) for row in inventories):

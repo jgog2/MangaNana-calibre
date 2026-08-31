@@ -91,7 +91,7 @@ class SourceCoordinator:
     def mark_running(self, source_id):
         self._states[source_id].status = 'running'
 
-    def complete(self, source_id, data):
+    def complete(self, source_id, data, preserve_existing=False):
         state = self._states[source_id]
         source = self.registry.get(source_id)
         rows = []
@@ -105,15 +105,26 @@ class SourceCoordinator:
             rows.append(row)
         state.status = 'complete'
         state.error = ''
-        state.rows = rows
+        if preserve_existing:
+            identities={(row.get('id'),row.get('url')) for row in state.rows}
+            state.rows.extend(
+                row for row in rows
+                if (row.get('id'),row.get('url')) not in identities
+            )
+        else:
+            state.rows = rows
         result = dict(data or {})
         result['rows'] = rows
         result['source_id'] = source.source_id
         result['source_name'] = source.display_name
         return result
 
-    def fail(self, source_id, error):
+    def fail(self, source_id, error, preserve_existing=False):
         state = self._states[source_id]
+        if preserve_existing and state.rows:
+            state.status = 'complete'
+            state.error = ''
+            return
         state.status = 'failed'
         state.error = str(error or 'Unknown provider error')
         state.rows = []

@@ -7,9 +7,11 @@ import urllib.parse
 import urllib.request
 
 try:
+    from .canonical_identity import normalize_identity_text
     from .source_adapter import SourceAdapter
     from .version_info import USER_AGENT
 except ImportError:
+    from canonical_identity import normalize_identity_text
     from source_adapter import SourceAdapter
     from version_info import USER_AGENT
 
@@ -100,6 +102,7 @@ class MangaPillSource(SourceAdapter):
     display_name = 'MangaPill'
     domains = ('mangapill.com', 'www.mangapill.com')
     enabled_by_default = True
+    content_languages = ('en',)
     capabilities = frozenset({'search', 'metadata', 'chapters', 'covers', 'pages', 'binary'})
 
     def __init__(self, fetch_text=None, fetch_binary=None):
@@ -202,7 +205,7 @@ class MangaPillSource(SourceAdapter):
         for row in found.values():
             if not row['title']:
                 continue
-            title = row['title']; folded = title.casefold(); needle = (query or '').casefold().strip()
+            title = row['title']; folded = normalize_identity_text(title); needle = normalize_identity_text(query)
             score = 1000 if folded == needle else 500 if folded.startswith(needle) else 250 if needle in folded else 0
             rows.append({'score': score, 'title': title, 'full_title': title, 'author': '',
                          'alternate_titles': [], 'year': None, 'available_languages': ['en'],

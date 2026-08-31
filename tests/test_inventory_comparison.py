@@ -133,6 +133,14 @@ class InventoryComparisonTests(unittest.TestCase):
         self.assertEqual(inventory.native_volumes, 0)
         self.assertFalse(compare_inventories((inventory,), workflow='volume').selected)
 
+    def test_grossly_inferior_provider_is_not_part_of_real_ambiguity(self):
+        strong_a=self.inspect(FakeSource('mangapill','MangaPill',plan(standalone=1207)))
+        strong_b=self.inspect(FakeSource('weebcentral','WeebCentral',plan(standalone=1191)))
+        weak=self.inspect(FakeSource('mangadex','MangaDex',plan((1,),((1,1),))))
+        decision=compare_inventories((strong_a,strong_b,weak),workflow='chapter')
+        self.assertTrue(decision.ambiguous)
+        self.assertEqual({'mangapill','weebcentral'},{row.source_id for row in decision.equivalent_inventories})
+
 
 if __name__ == '__main__':
     unittest.main()

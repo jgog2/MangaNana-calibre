@@ -5,9 +5,11 @@ from enum import IntEnum
 import math
 
 try:
-    from .canonical_identity import edition_identity, group_canonical_results, normalize_identity_text
+    from .canonical_identity import edition_classification, group_canonical_results, normalize_identity_text
+    from .enrichment_model import EditionClass
 except ImportError:
-    from canonical_identity import edition_identity, group_canonical_results, normalize_identity_text
+    from canonical_identity import edition_classification, group_canonical_results, normalize_identity_text
+    from enrichment_model import EditionClass
 
 
 class MatchTier(IntEnum):
@@ -20,6 +22,9 @@ class MatchTier(IntEnum):
 
 _COLOR_TOKENS = frozenset({'color', 'colored', 'colour', 'coloured', 'colouring', 'coloring'})
 _FAN_TOKENS = frozenset({'fan', 'fanmade'})
+_EDITION_DECORATION_TOKENS = _COLOR_TOKENS | _FAN_TOKENS | frozenset({
+    'official', 'officially', 'digital', 'full', 'edition', 'comic', 'comics',
+})
 
 
 @dataclass(frozen=True)
@@ -39,12 +44,13 @@ class PopularitySignals:
     comments: int = None
     views: int = None
     provider: str = ''
+    normalized: float = None
 
     @property
     def known(self):
         return any(value is not None for value in (
             self.rating, self.rating_count, self.follows,
-            self.saves, self.comments, self.views,
+            self.saves, self.comments, self.views, self.normalized,
         ))
 
     @property
@@ -53,6 +59,8 @@ class PopularitySignals:
         if not self.known:
             return None
         score = 0.0
+        if self.normalized is not None:
+            return max(0.0, min(1.0, float(self.normalized)))
         if self.rating is not None:
             count = max(0, int(self.rating_count or 0))
             # Bayesian shrinkage toward a neutral 7/10 with a 250-vote prior.
@@ -130,13 +138,15 @@ def _token_match(query_tokens, title_tokens):
     return MatchTier.ALL_TOKENS, extra
 
 
-def _edition_preference(intent, result):
-    edition = edition_identity(result)
+def _edition_preference(intent, result, prefer_colored=False):
+    edition = edition_classification(result)
     if intent.edition_intent == 'fan_color':
-        return 3 if edition == 'fan_color' else 0
+        return 4 if edition is EditionClass.FAN_COLOR else (2 if edition is EditionClass.OFFICIAL_COLOR else 0)
     if intent.edition_intent == 'color':
-        return 3 if edition == 'official_color' else (2 if edition == 'fan_color' else 0)
-    return 3 if edition == 'original' else (1 if edition == 'official_color' else 0)
+        return 4 if edition is EditionClass.OFFICIAL_COLOR else (3 if edition is EditionClass.FAN_COLOR else 0)
+    if prefer_colored:
+        return 4 if edition is EditionClass.OFFICIAL_COLOR else (3 if edition is EditionClass.FAN_COLOR else (1 if edition is EditionClass.STANDARD else 0))
+    return 4 if edition is EditionClass.STANDARD else (3 if edition is EditionClass.UNKNOWN else (2 if edition is EditionClass.OFFICIAL_COLOR else 1))
 
 
 def _titles(result):
@@ -157,15 +167,17 @@ def _titles(result):
     return rows
 
 
-def match_result(query, result):
+def match_result(query, result, prefer_colored=False):
     intent = query if isinstance(query, QueryIntent) else query_intent(query)
     if not intent.tokens:
         return None
     best = None
-    edition_preference = _edition_preference(intent, result)
+    edition_preference = _edition_preference(intent, result, prefer_colored)
     for kind, original, normalized in _titles(result or {}):
         title_tokens = tuple(normalized.split())
-        if normalized == intent.normalized:
+        work_tokens = tuple(token for token in title_tokens if token not in _EDITION_DECORATION_TOKENS)
+        same_work_title = bool(work_tokens and work_tokens == intent.base_tokens)
+        if normalized == intent.normalized or (not intent.edition_intent and same_work_title):
             tier = MatchTier.EXACT_PRIMARY if kind == 'primary' else MatchTier.EXACT_ALIAS
             extra = 0
         else:
@@ -185,7 +197,10 @@ def match_result(query, result):
                 continue
         precision = len(intent.tokens) / max(1, len(title_tokens))
         candidate = TitleMatch(tier, original, kind, precision, extra, edition_preference)
-        key = (int(tier), edition_preference, precision, -extra, kind == 'primary')
+        if intent.edition_intent or prefer_colored:
+            key = (int(tier), edition_preference, -extra, precision, kind == 'primary')
+        else:
+            key = (int(tier), -extra, precision, edition_preference, kind == 'primary')
         if best is None or key > best[0]:
             best = (key, candidate)
     return best[1] if best else None
@@ -193,7 +208,7 @@ def match_result(query, result):
 
 def popularity_signals(result):
     row = dict((result or {}).get('popularity') or {})
-    for key in ('rating', 'rating_count', 'follows', 'saves', 'comments', 'views', 'provider'):
+    for key in ('rating', 'rating_count', 'follows', 'saves', 'comments', 'views', 'provider', 'normalized'):
         if key not in row and key in (result or {}):
             row[key] = result.get(key)
     allowed = {key: row.get(key) for key in PopularitySignals.__dataclass_fields__}
@@ -208,28 +223,35 @@ def _group_popularity(group):
     return max(known, key=lambda signals: signals.bounded_score or 0.0)
 
 
-def rank_canonical_results(query, results):
+def rank_canonical_results(query, results, prefer_colored=False):
     """Gate weak groups, then rank plausible canonical identities by clear tiers."""
     intent = query_intent(query)
     ranked = []
     for group in group_canonical_results(results):
-        matches = [match_result(intent, result) for result in group.results]
+        matches = [match_result(intent, result, prefer_colored) for result in group.results]
         matches = [match for match in matches if match is not None]
         if not matches:
             continue
-        best = max(matches, key=lambda match: (
-            int(match.tier), match.edition_preference, match.precision,
-            -match.extra_words, match.title_kind == 'primary',
-        ))
+        if intent.edition_intent or prefer_colored:
+            best = max(matches, key=lambda match: (
+                int(match.tier), match.edition_preference, -match.extra_words,
+                match.precision, match.title_kind == 'primary',
+            ))
+        else:
+            best = max(matches, key=lambda match: (
+                int(match.tier), -match.extra_words, match.precision,
+                match.edition_preference, match.title_kind == 'primary',
+            ))
         popularity = _group_popularity(group)
         popularity_known = 1 if popularity.known else 0
         popularity_score = popularity.bounded_score or 0.0
-        sort_key = (
-            -int(best.tier), -best.edition_preference, best.extra_words,
-            -best.precision, 0 if best.title_kind == 'primary' else 1,
-            -popularity_known, -popularity_score,
-            normalize_identity_text(group.display_title),
-        )
+        structural = (best.extra_words,-best.precision,-best.edition_preference)
+        if intent.edition_intent or prefer_colored:
+            structural = (-best.edition_preference,best.extra_words,-best.precision)
+        sort_key = (-int(best.tier),*structural,
+                    0 if best.title_kind == 'primary' else 1,
+                    -popularity_known,-popularity_score,
+                    normalize_identity_text(group.display_title))
         ranked.append(RankedCanonicalResult(group, best, popularity, sort_key))
     return tuple(sorted(ranked, key=lambda row: row.sort_key))
 

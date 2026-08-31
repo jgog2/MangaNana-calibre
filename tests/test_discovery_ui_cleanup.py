@@ -90,8 +90,8 @@ class DiscoveryUiCleanupTests(unittest.TestCase):
             self.assertNotIn(monogram, MAIN + BRANDING)
 
     def test_unresolved_search_hits_do_not_claim_usable_provider_sources(self):
-        self.assertIn("unresolved = QLabel('Checking sources…')", MAIN)
-        self.assertIn('title, author, badge=badge, parent=self.search_results', MAIN)
+        self.assertIn("unresolved_text='Searching sources…'", MAIN)
+        self.assertIn('title, author, badge=badge, rating=', MAIN)
         self.assertNotIn('title, author, group.source_names, group.source_ids', MAIN)
 
     def test_discovery_copy_is_provider_neutral_and_browse_mangadex_is_removed(self):

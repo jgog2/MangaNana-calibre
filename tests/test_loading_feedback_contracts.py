@@ -55,12 +55,12 @@ class LoadingFeedbackContractTests(unittest.TestCase):
         self.assertIn('providers settled; completed results preserved', MAIN)
         self.assertIn('request_id != self._search_request_id', MAIN)
 
-    def test_source_confidence_is_bounded_inline_and_removes_dead_ends(self):
+    def test_source_confidence_is_bounded_and_only_final_usable_cards_render(self):
         self.assertIn('SEARCH_RESOLUTION_LIMIT = 8', MAIN)
-        self.assertIn("unresolved = QLabel('Checking sources…')", MAIN)
-        self.assertIn('row.set_source_state(confirmed,note)', MAIN)
-        self.assertIn('self.search_results.takeItem(index)', MAIN)
-        self.assertIn("info['resolution_state']='resolved'", MAIN)
+        self.assertIn("unresolved_text='Searching sources…'", MAIN)
+        self.assertIn('row.set_source_state(confirmed,language_note)', MAIN)
+        self.assertIn("self._render_canonical_search_results(final=True)", MAIN)
+        self.assertIn("resolution and resolution.usable", MAIN)
 
     def test_source_resolution_rejects_stale_search_mode_and_direct_load_work(self):
         self.assertIn("payload.get('request_id') != self._search_resolution_request_id", MAIN)
@@ -79,7 +79,7 @@ class LoadingFeedbackContractTests(unittest.TestCase):
         self.assertIn('self._last_discovery_kind', MAIN)
         self.assertIn('should_reload_direct=bool', MAIN)
         self.assertIn("value, discovery_kind='direct', prompt_disabled=False", MAIN)
-        self.assertIn('discovery_kind, discovery_value=self._manga_discovery_kinds.pop', MAIN)
+        self.assertIn('load_context=take_manga_load_context(self._manga_load_contexts,request_id)', MAIN)
 
     def test_cover_spinner_has_explicit_loading_and_failure_transitions(self):
         self.assertIn('class CoverLoadingLabel(QLabel):', MAIN)
