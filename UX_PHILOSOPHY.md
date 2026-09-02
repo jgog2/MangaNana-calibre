@@ -65,7 +65,7 @@ Examples:
 - Clicking a search result selects that exact result.
 - Pressing **Next** advances the workflow.
 - Pressing **Back** returns to the prior stage without unnecessarily destroying work.
-- Entering Review does not automatically download preview pages.
+- Entering Book Customization does not automatically download preview pages.
 
 Unexpected background behavior should be avoided unless it is harmless, clearly communicated, and directly related to an explicit action.
 
@@ -204,10 +204,28 @@ Examples:
 - Chapter Output controls appear only for Chapter mode.
 - Zero-pad chapter numbering should only appear where chapter-file naming needs it.
 - Manual grouping controls appear only when Manual Grouping is selected.
-- Image-processing controls belong with the live visual preview.
+- Future image-processing controls belong with the Live eReader Preview on Book Customization.
 - Controls with no effect in the current layout should be disabled or hidden.
 
 The goal is to reduce cognitive load.
+
+---
+
+## 2.9 Explanatory hover text is not part of the workflow
+
+Ordinary controls should not display custom explanatory text boxes merely because the pointer is hovering over them.
+
+This applies to buttons, fields, selectors, toggles, labels, pills, and similar workflow controls.
+
+If something needs explanation, prefer:
+
+- clearer wording
+- concise inline helper text
+- disabled-state reason text
+- contextual status
+- Activity Log detail
+
+Do not make basic comprehension depend on discovering a tooltip.
 
 ---
 
@@ -215,7 +233,7 @@ The goal is to reduce cognitive load.
 
 MangaNana should use three clear stages:
 
-## Choose Manga / Output Setup / Review
+## Choose Manga / Book Customization / Finalization
 
 The current stage is shown in **MangaNana orange**.
 
@@ -223,13 +241,13 @@ The other two stages remain white.
 
 Example:
 
-`Choose Manga / Output Setup / Review`
+`Choose Manga / Book Customization / Finalization`
 
 If the user is on Stage 1:
 
 - **Choose Manga** = orange
-- Output Setup = white
-- Review = white
+- Book Customization = white
+- Finalization = white
 
 The stage labels should initially be **non-clickable**.
 
@@ -270,8 +288,8 @@ Contains:
 - version/build identifier
 - stage header:
   - Choose Manga
-  - Output Setup
-  - Review
+  - Book Customization
+  - Finalization
 
 ## Main body
 
@@ -282,6 +300,18 @@ Each major pane should be able to scroll independently if necessary.
 The UI should remain usable when resized.
 
 Controls should never overlap or clip at the minimum supported window size.
+
+## Preferences dialog
+
+Preferences remains a conventional modal dialog with **OK** and **Cancel**.
+
+High Priestess should correct current presentation defects:
+
+- group-box headings must not be clipped by their borders
+- rename `Search_Metadata Cache` to **Search & Metadata Cache**
+- keep related helper text next to the setting it explains
+- use balanced internal spacing
+- avoid excessive orange borders that make ordinary fields resemble warnings/errors
 
 ---
 
@@ -316,7 +346,7 @@ Bottom navigation:
 - Preferences
 - Manga Sources
 - About
-- Next: Output Setup →
+- Next: Book Customization →
 
 There is no separate Close or Cancel button for closing the plugin window.
 
@@ -324,7 +354,7 @@ The normal operating-system window close control is sufficient.
 
 ---
 
-## Stage 2: Output Setup
+## Stage 2: Book Customization
 
 Bottom navigation:
 
@@ -332,11 +362,11 @@ Bottom navigation:
 - Preferences
 - Manga Sources
 - About
-- Next: Review →
+- Next: Finalization →
 
 ---
 
-## Stage 3: Review
+## Stage 3: Finalization
 
 Bottom navigation:
 
@@ -362,7 +392,9 @@ This stage contains both discovery and content selection.
 
 # 9. Stage 1 Layout
 
-## Left upper area — Discovery controls
+Stage 1 should prioritize the two things the user is here to do: find the correct provider record and select the desired content.
+
+## Left upper area — Compact discovery controls
 
 Contains:
 
@@ -373,22 +405,27 @@ Contains:
 ### Mode
 - Volumes
 - Chapters
+- neither selected by default
 
 ### Download Language
 - language selector
+- should look like a selector rather than an error/focused text field
 
 ### Prefer Colored
-- checkbox/toggle
+- compact MangaNana-styled checkbox/toggle
 
 ### Direct Link
-- provider URL input
+- compact provider URL input
 - Load button
+- avoid repeated explanatory copy; one concise row is enough
 
----
+The discovery area should be vertically compact so it does not starve Search Results.
 
 ## Left lower area — Search Results
 
 A large scrollable result list.
+
+The default window should show approximately **6–8 compact result cards vertically** where practical.
 
 The interface should deliberately allow many provider-specific records to remain visible.
 
@@ -402,9 +439,9 @@ That is acceptable.
 
 The best results should rank first.
 
----
-
 ## Right upper area — Selected Manga
+
+Use a compact but informative selected-record summary rather than a large mostly-empty panel.
 
 Shows detailed information for the exact currently selected provider record.
 
@@ -418,15 +455,17 @@ Examples:
 - language
 - inventory summary
 - status when available
+- rating when already known, shown explicitly (for example `★ 8.4`) rather than appended to the title
+- a small number of useful tags or a short synopsis when already available cheaply
 - useful alternate title metadata when already known
 
 Do not perform expensive extra requests merely to decorate this panel.
 
----
-
 ## Right lower area — Inventory
 
-Shows either:
+Before a mode is selected, use generic **Manga** wording and an instructional empty state rather than pretending the inventory is already Volumes or Chapters.
+
+After mode selection, show either:
 
 - Volumes
 - Chapters
@@ -438,9 +477,15 @@ Contains:
 - compact proportional thumbnails where available
 - title/number
 - MangaNana orange circular selection controls
-- Select All
-- Clear
-- optional secondary range shortcut if useful
+- compact **Select All**
+- compact **Clear**
+- selection count
+
+Select All / Clear belong in or near the inventory header rather than as giant full-width buttons.
+
+There is no separate Volume Range UI.
+
+The inventory should receive most of the right-side vertical space.
 
 ---
 
@@ -673,6 +718,7 @@ Typical card contents:
 - MangaNana source pill
 - MangaNana edition/type pill when known
 - language if already known
+- rating when already known, shown as secondary metadata such as `★ 8.4`, never as unexplained text appended to the title
 
 Do not trigger expensive inventory loads merely to show extra card metadata.
 
@@ -728,8 +774,8 @@ That identity should survive through:
 selection
 → inventory
 → selected chapters/volumes
-→ Output Setup
-→ Review
+→ Book Customization
+→ Finalization
 → download
 → metadata
 ```
@@ -763,6 +809,14 @@ Late asynchronous responses must not overwrite newer user intent.
 
 Volumes and Chapters are different discovery contexts.
 
+There is **no default mode**.
+
+Before the user chooses either mode:
+
+- neither **Volumes** nor **Chapters** should appear active
+- inventory language should remain generic, using **Manga** rather than pretending a chapter or volume context already exists
+- no mode-specific selection requirement should be shown
+
 Changing:
 
 - Volumes → Chapters
@@ -785,7 +839,7 @@ Show a lightweight status message such as:
 
 > Mode changed to Chapters. Search again to find chapter-compatible results.
 
-This helps users understand that Volumes and Chapters are treated differently.
+This helps users understand that Volumes and Chapters are intentionally separate discovery contexts.
 
 ---
 
@@ -793,7 +847,7 @@ This helps users understand that Volumes and Chapters are treated differently.
 
 Download Language belongs on Stage 1 because language affects the usable inventory the user is selecting.
 
-It should not be hidden on Output Setup.
+It should remain on Choose Manga and should not be duplicated on later stages.
 
 Language behavior should remain transparent and provider-aware.
 
@@ -859,9 +913,7 @@ Examples:
 
 A failed provider should not produce a blocking popup.
 
-Hover/tooltip may explain:
-
-> WeebCentral search failed. Click to retry.
+The failure state and retry action must be understandable without relying on hover text. Use the pill state, retry affordance, concise inline status, or Activity Log.
 
 Clicking the failed pill retries only that source.
 
@@ -959,57 +1011,68 @@ The UI must make the active result visually unambiguous.
 
 Button label:
 
-> Next: Output Setup →
+> Next: Book Customization →
 
 Enabled only when:
 
+- a mode has been chosen
 - an exact provider record is selected
 - its inventory loaded successfully
 - at least one chapter or volume is selected
 
-If disabled, show a clear reason.
+If disabled, show only the first meaningful unmet prerequisite and make the wording mode-aware.
 
-Example:
+Examples:
 
-> Select at least one volume to continue.
+> Choose Volumes or Chapters to begin.
+
+> Search for and select a manga.
+
+> Select at least one chapter to continue.
+
+Do not bind this message to downstream Finalization inclusion state.
 
 Do not leave disabled navigation unexplained.
 
 ---
 
-# 33. Stage 2 — Output Setup
+# 33. Stage 2 — Book Customization
 
 ## 33.1 Purpose
 
 Stage 2 answers:
 
-> **How should MangaNana organize and format the selected content?**
+> **How should the selected manga be presented for reading?**
 
-Provider discovery is finished.
+Provider discovery and inventory selection are finished.
 
 Search controls do not belong here.
 
 Provider selection does not belong here.
 
-Visual image tuning does not belong here.
+The High Priestess version keeps this stage deliberately focused: reading/layout choices on the left and an optional Live eReader Preview on the right.
+
+Advanced image-processing controls are reserved for **0.12.x — The Empress**.
 
 ---
 
 # 34. Stage 2 Layout
 
-The two sides should be conceptually divided:
+The two sides are:
 
 ## Left page
 ### Reading & Layout
 
 ## Right page
-### Book Creation & Metadata
+### Live eReader Preview
+
+The two panes should remain roughly equal in width with a narrow, visually centered gutter.
 
 ---
 
 # 35. Reading & Layout
 
-Current controls include:
+Current High Priestess controls include:
 
 ### Output Layout
 - Portrait — Individual Pages
@@ -1019,42 +1082,169 @@ Current controls include:
 - Right to Left
 - Left to Right where supported
 
-Future room may be reserved for:
+Active choices should use MangaNana orange clearly.
 
-- reader/device profiles
-- structural page rules
-- nonvisual pairing behavior
+Inactive choices should remain visually neutral rather than receiving the same orange emphasis.
 
-Do **not** put visual adjustment controls here.
+Reading Direction must look like a choice control, not an editable text field.
 
-Contrast, saturation, brightness, gamma, sharpening, dithering, scaling/cropping, and similar visual processing controls belong with the live preview on Stage 3.
+Future Empress controls will extend this left page with image/output tuning such as contrast, brightness, gamma, saturation, sharpening, dithering, scaling, crop, margins, and reader/device-oriented settings.
+
+Do not add nonfunctional placeholders for those controls during High Priestess.
 
 ---
 
-# 36. Book Creation — Volume Mode
+# 36. High Priestess Live eReader Preview
+
+The right page of Book Customization contains:
+
+> Live eReader Preview
+
+Preview is **OFF by default**.
+
+Entering Book Customization must not download preview pages.
+
+The preview is optional and must never be required to continue.
+
+High Priestess should reuse and reorganize the existing preview machinery into this stage rather than attempting the full Empress preview workstation.
+
+The High Priestess preview must support both output layouts:
+
+- **Portrait** previews bounded individual pages.
+- **Landscape** previews bounded paired-page output.
+
+Portrait preview must not be disabled merely because the historical Pairing Preview was originally designed around landscape pairing.
+
+The preview must render inside the Stage 2 preview pane. High Priestess should not open a separate preview window.
+
+The preview area belongs inside the Stage 2 page rather than as a separate workflow stage.
+
+---
+
+# 37. Preview Network Behavior
+
+Preview network activity is explicit and bounded.
+
+Pressing:
+
+> Enable Live Preview
+
+may begin a small sample-page download.
+
+No preview download occurs merely because:
+
+- the user entered Book Customization
+- the user changed Portrait/Landscape
+- the user changed Reading Direction
+- the user returned with Back
+
+Preview failure must never block the normal workflow.
+
+---
+
+# 38. Preview Reuse and Invalidation
+
+After a preview sample downloads:
+
+- keep the sample deliberately bounded
+- reuse already-downloaded sample material when practical
+- invalidate obsolete render work when the user's settings change
+- never allow late preview work to overwrite newer user intent
+
+If upstream content selection changes materially, mark the preview stale rather than silently downloading new pages.
+
+Offer an explicit refresh/reload action when a new sample is required.
+
+---
+
+# 39. High Priestess / Empress Preview Boundary
+
+High Priestess establishes the correct workflow location and supports bounded Portrait and Landscape preview.
+
+The following are **not High Priestess scope** and belong to **0.12.x — The Empress**:
+
+- the large vertically scrollable processed-page preview workstation
+- advanced image-adjustment sliders
+- named user presets
+- preset save/load/update/delete behavior
+- eReader Device Simulator
+- device-specific simulator profiles
+- sophisticated display overlays
+- advanced processing comparison modes
+
+High Priestess should leave clean extension points for these features without implementing fake controls.
+
+---
+
+# 40. Stage 2 Next
+
+Button label:
+
+> Next: Finalization →
+
+Pressing it should:
+
+1. validate the current reading/layout configuration
+2. preserve any valid optional preview state
+3. invalidate stale downstream output plans when necessary
+4. enter Finalization
+
+Preview does not need to be enabled or loaded.
+
+Navigation itself performs the transition.
+
+---
+
+# 41. Stage 3 — Finalization
+
+## 41.1 Purpose
+
+Stage 3 answers:
+
+> **How should MangaNana package and identify the books, and what exactly will it create?**
+
+The left side contains book-creation choices and bulk metadata.
+
+The right side contains Final Outputs.
+
+This is the last stage before Download & Add to Calibre.
+
+---
+
+# 42. Stage 3 Left Page — Book Creation & Metadata
+
+The left page contains only controls needed to finalize the current job.
+
+Depending on mode, this may include:
+
+- Chapter Output strategy
+- Manual Grouping entry/summary
+- naming controls such as zero padding where relevant
+- bulk metadata fields
+- current Calibre destination
+- existing implemented cover behavior
+
+Do not turn this page into a general Preferences screen.
+
+---
+
+# 43. Book Creation — Volume Mode
 
 If the user selected Volume mode on Stage 1:
 
 Do not show Chapter Output controls.
 
-The user already selected real provider volumes.
+The selected provider volumes already define the output structure.
 
-The page should explain the current plan simply:
+Explain the plan simply:
 
 > Selected volumes will be created as individual CBZ files.
 
-Then show relevant:
-
-- naming
-- metadata
-- destination
-- cover behavior
-
-Do not clutter Volume mode with Chapter-only settings.
+Preserve the existing volume metadata and volume-cover behavior.
 
 ---
 
-# 37. Book Creation — Chapter Mode
+# 44. Book Creation — Chapter Mode
 
 If Stage 1 used Chapter mode, show:
 
@@ -1066,7 +1256,7 @@ If Stage 1 used Chapter mode, show:
 
 ### Build CBZs from Volume Data
 
-Enabled only when complete trustworthy explicit chapter-to-volume evidence exists for the selected chapters.
+Enable only when complete trustworthy explicit chapter-to-volume evidence exists for the selected chapters.
 
 Never infer volume boundaries using:
 
@@ -1080,20 +1270,13 @@ If volume data is unavailable:
 
 - disable the option
 - state why
-
-Example:
-
-> Volume data unavailable for this selection.
-
-Then default to:
-
-> Save Each Chapter as Its Own CBZ
+- default to **Save Each Chapter as Its Own CBZ**
 
 ---
 
-# 38. Manual Grouping
+# 45. Manual Grouping
 
-Manual Grouping remains a focused editor/dialog rather than permanently occupying Stage 2.
+Manual Grouping remains a focused editor/dialog rather than permanently occupying the stage.
 
 Expected capabilities:
 
@@ -1105,75 +1288,55 @@ Expected capabilities:
 - preserve decimal/special chapter numbering where supported
 - cannot finalize until every selected chapter is assigned
 
-After confirmation, Stage 2 should show a concise summary:
-
-> Manual Groups  
-> 3 volumes created from 17 chapters  
-> [Edit Groups]
+After confirmation, Finalization should show a concise summary and an **Edit Groups** action.
 
 ---
 
-# 39. Naming
+# 46. Bulk Metadata
 
-Only display naming controls relevant to the current output mode.
+High Priestess exposes three editable metadata fields:
 
-Examples:
+- **Title**
+- **Series**
+- **Author**
 
-- Zero-pad chapter numbers appears for individual chapter CBZ output where appropriate.
-- Generated volume naming options appear for generated-volume workflows.
+These fields are auto-populated from MangaNana's resolved metadata and apply **in bulk to the entire current job**.
 
-Do not display irrelevant naming controls merely because they exist somewhere in MangaNana.
+The user should not have to edit every planned volume/chapter output individually.
 
----
+Do not add a language editor here. Download Language remains a Stage 1 inventory decision.
 
-# 40. Metadata
+Do not add a new per-output metadata editor during High Priestess.
 
-Output-specific metadata controls belong on Stage 2.
+Metadata edits must not alter:
 
-Possible controls:
-
-- output title / Alternate Title selection
-- series metadata behavior
-- ComicInfo writing
-- Calibre metadata behavior
-- cover source
-
-Alternate Title affects the output title.
-
-It must not change:
-
-- canonical identity
-- provider
+- provider identity
 - selected edition
 - inventory
 - search result identity
+- downloaded language
 
 ---
 
-# 41. Covers
+# 47. Covers
 
-Cover source selection belongs on Stage 2 because it is a book-output decision.
+High Priestess should preserve the already-working cover behavior and volume-cover parity.
 
-Current behavior may include:
+Do not add a new cover editor during this repair pass.
 
-- source/series cover
+Future cover work belongs to later milestones and may include:
 
-Future options may include:
-
-- custom cover
-- MangaNana-generated cover
+- custom cover selection
+- MangaNana-generated covers
+- chapter/volume labeling
 - chapter-range markings
-- MangaNana generated-volume badge/watermark
+- generated-volume badges/watermarks
 
-Do not expose fake controls for unimplemented features.
-
-Reserve logical space and architecture for them.
-
-Visual tuning of generated covers may later be integrated with Stage 3 preview.
+Do not expose fake controls for unimplemented cover features.
 
 ---
 
-# 42. Volume Cover Parity
+# 48. Volume Cover Parity
 
 Generated volumes built from trusted explicit volume data should use the same volume-cover resolution path as native Volume mode whenever equivalent provider volume-cover metadata is available.
 
@@ -1188,9 +1351,9 @@ Rules:
 
 ---
 
-# 43. Calibre Destination
+# 49. Calibre Destination
 
-The current destination should remain visible on Stage 2, but compact.
+The current destination remains visible on Finalization, but compact.
 
 Example:
 
@@ -1205,268 +1368,159 @@ The destination should not dominate the page.
 
 ---
 
-# 44. Stage 2 Next
+# 50. Stage 3 Right Page — Final Outputs
 
-Button label:
-
-> Next: Review →
-
-Pressing it is the exact Review transition.
-
-It should:
-
-1. validate the current configuration
-2. validate manual grouping where applicable
-3. build the explicit output plan
-4. prepare output metadata
-5. populate Stage 3
-
-There should no longer be a separate Review button.
-
-Navigation itself performs the transition.
-
----
-
-# 45. Stage 3 — Review
-
-## 45.1 Purpose
-
-Stage 3 answers:
-
-> **What exactly will MangaNana create?**
-
-The left side is factual output review.
-
-The right side is optional visual preview/tuning.
-
----
-
-# 46. Stage 3 Left Page — Final Outputs
-
-Review should display **planned books**, not raw selected chapters.
+Final Outputs displays **planned books**, not raw selected chapters.
 
 Each planned output may show:
 
 - inclusion control
-- cover
+- type
 - title
-- volume/chapter range
-- provider
-- author
-- series/volume
+- provider/source
 - page count when known
 - estimated size when known
 - status
-- warnings
+- warnings where useful
 
-This same representation works for:
+The existing compact table/list approach is acceptable.
+
+Do not add decorative cover thumbnails to Final Outputs merely for decoration.
+
+This representation must work for:
 
 - native provider volumes
-- automatically detected/generated volumes
+- automatically generated volumes
 - manually grouped volumes
 - individual chapter CBZs
 
 ---
 
-# 47. Review Inclusion vs Focus
+# 51. Final Output Inclusion
 
-Review rows have two separate concepts:
+Inclusion answers:
 
-## Inclusion
-Should this output actually be created?
+> **Should this planned output actually be created?**
 
-Use the existing MangaNana circular Use/selection control.
+Use the existing MangaNana circular selection language consistently.
 
-## Focus
-Which planned output is currently being inspected or previewed?
+A row's inclusion state must not be confused with unrelated upstream chapter/volume selection state.
 
-Use row highlight/focus styling.
-
-Clicking a row should not accidentally toggle its inclusion state.
+If row focus/highlight exists, clicking a row should not accidentally toggle inclusion.
 
 ---
 
-# 48. Review Summary
+# 52. Final Output Summary
 
-At the bottom of the Review list, show a concise summary when available.
+Keep the concise aggregate information above or near Final Outputs.
 
-Example:
+Important information includes:
+
+- number of planned books
+- total page count when known
+- estimated total size when known
+- output layout
+- language
+
+Examples:
 
 ```text
-3 books
-183 pages
-~147 MB
+1 volume • 139 pages • ~61.1 MB
+Landscape paired pages • English
 ```
-
-If MangaNana detects an existing Calibre volume or potential update, show useful status before execution where possible.
-
-Warnings belong here.
-
-Example:
-
-> ⚠ No volume-specific cover available
-
----
-
-# 49. Live eReader Preview
-
-The right side of Stage 3 is reserved for:
-
-> Live eReader Preview
-
-Preview is **OFF by default**.
-
-Entering Stage 3 must not download preview pages.
-
-Initial state:
 
 ```text
-Live eReader Preview
-
-Preview is optional.
-
-MangaNana can download a small sample of pages so you can
-see how the final output will look on your reader.
-
-[ Enable Live Preview ]
-
-No preview is required to continue.
+4 volumes • 391 pages • ~385 MB
 ```
+
+Page count and estimated size are useful decision information and should not be removed during simplification.
 
 ---
 
-# 50. Preview Network Behavior
+# 53. Final Download Action
 
-Preview is explicit and bounded.
-
-Pressing:
-
-> Enable Live Preview
-
-may start a small sample-page download.
-
-The user can skip preview completely and still use:
+The primary action is:
 
 > Download & Add to Calibre
 
-Preview failure must never block the normal download workflow.
+It belongs on Finalization and should use strong MangaNana-orange primary-action styling.
+
+A separate permanent message repeating that the job is ready is unnecessary when the enabled primary action already communicates readiness.
 
 ---
 
-# 51. Preview Sample Reuse
+# 54. Stage Isolation
 
-After the preview sample downloads:
+The three stage bodies must be mutually exclusive.
 
-- reuse the same sample when sliders/settings change
-- do not redownload for every visual adjustment
-- keep sample download deliberately bounded
+At any moment, the main work area contains exactly one of:
 
-If the user changes to another planned book that has no preview sample:
+- Stage 1 — Choose Manga
+- Stage 2 — Book Customization
+- Stage 3 — Finalization
 
-Do not silently download another sample.
+Returning Back must completely hide downstream stage containers.
 
-Show:
+Upstream changes may mark downstream state stale, but they must never:
 
-> Preview sample has not been loaded for this item.  
-> [Load Preview Sample]
+- show downstream panels
+- rebuild Finalization automatically
+- display downstream-ready messages
+- trigger preview downloads
+- cause a third or fourth work column to appear
 
-Network activity remains user-controlled.
-
----
-
-# 52. Existing Pairing Preview
-
-The current Pairing Preview functionality should become the initial implementation foundation for the Stage 3 Live eReader Preview.
-
-High Priestess should reorganize existing preview behavior into this location.
-
-Future visual processing controls can expand the same workspace.
+Only explicit Next navigation may enter or rebuild the next stage.
 
 ---
 
-# 53. Future Visual Processing Controls
+# 55. High Priestess Status/Progress Discipline
 
-Future controls belong beside/below the live preview because the user needs immediate visual feedback.
+Search status belongs to Choose Manga.
 
-Potential controls include:
+Preview status belongs to Book Customization.
 
-- contrast
-- brightness
-- saturation
-- gamma
-- sharpening
-- dithering
-- scaling
-- crop
-- margins
+Final output/download status belongs to Finalization.
 
-Do not place these on Stage 2.
+Do not leave completed full-width progress bars permanently visible.
 
-High Priestess should reserve logical space for them but should not create nonfunctional placeholder controls.
+At idle, status and Activity Log presentation should remain compact.
+
+Detailed logs, Copy Log, and Save Log remain available when the log is expanded.
 
 ---
 
-# 54. Preview Fidelity
+# 56. Empress Handoff
 
-The preview should use the same underlying processing pipeline as final CBZ generation whenever possible.
+**0.12.x — The Empress** expands the Book Customization workspace rather than inventing a new workflow.
 
-Avoid a separate approximate preview algorithm.
+Its intended direction includes:
 
-Conceptually:
+- advanced image processing
+- large scrollable processed-page preview
+- reusable named processing presets
+- eReader Device Simulator and profiles
+- device/display-oriented tuning
+- refined scaling/dithering behavior
+- later cover-generation/customization work where appropriate
 
-```text
-Original page
-    ↓
-MangaNana processing configuration
-    ├── Preview renderer
-    └── Final CBZ renderer
-```
-
-The user should be able to trust the preview.
-
----
-
-# 55. Preview Invalidation
-
-If the user goes Back and changes settings that invalidate the preview:
-
-- do not automatically redownload
-- mark preview as out of date
-- offer explicit refresh
-
-Example:
-
-> Preview settings changed.  
-> [Refresh Preview]
-
----
-
-# 56. Visual Processing Scope
-
-Initial visual processing settings should normally apply to the whole current job rather than silently creating per-volume hidden overrides.
-
-The UI should communicate the scope.
-
-Example:
-
-> Processing settings apply to all selected outputs.
-
-Per-book overrides may be considered later if justified.
+High Priestess should make these additions easy later without implementing them early.
 
 ---
 
 # 57. Back Navigation
 
-Back should preserve work aggressively.
+Back should preserve valid work aggressively.
 
 ## Stage 3 → Stage 2
 Preserve:
-- Review state
-- Stage 2 settings
-- processing settings
-- selected outputs
+- Finalization configuration
+- bulk Title/Series/Author edits where still valid
+- Chapter Output/manual grouping state where still valid
+- inclusion state where still valid
+- Book Customization settings
+- optional preview state where still valid
 
-If Stage 2 settings change, mark downstream Review state stale and rebuild it when the user advances again.
+If Book Customization settings change, mark downstream Finalization/output-plan state stale and rebuild it only when the user advances again.
 
 ## Stage 2 → Stage 1
 Preserve:
@@ -1475,9 +1529,11 @@ Preserve:
 - selected provider record
 - loaded inventory
 - chapter/volume selections
-- valid Stage 2 settings where still applicable
+- valid Book Customization settings where still applicable
 
 Do not treat Back as Start Over.
+
+Back navigation must never cause downstream panels to remain visible on the upstream stage.
 
 ---
 
@@ -1490,10 +1546,12 @@ Examples:
 - changing selected manga
 - changing Mode
 - changing selected chapters/volumes
-- changing Chapter Output grouping
-- changing output layout when it affects generated output
+- changing output layout
+- changing reading direction when it affects output
 
-MangaNana should rebuild downstream state when the user next advances.
+MangaNana should rebuild downstream state only when the user next advances to the affected stage.
+
+An upstream change must **not** call a downstream prepare/show routine merely because old Finalization state exists.
 
 Do not destroy unrelated valid settings unnecessarily.
 
@@ -1639,8 +1697,16 @@ Core visual principles:
 - dense but readable result/inventory rows
 - restrained use of borders
 - spacing and typography should provide structure
-- center gutter provides the primary large-scale visual division
-- selected states use MangaNana orange consistently
+- selected/active states use MangaNana orange consistently
+- inactive controls remain visually neutral
+
+The branding and stage-navigation composition should share the same true horizontal center axis.
+
+The version/build string may remain right-aligned, but it must not push the branding or stage navigation off center.
+
+The two main work panes should be roughly equal width.
+
+The narrow center gutter must sit on the window's center axis and read as a visual separator rather than a heavy splitter or scrollbar.
 
 Do not replace existing MangaNana pill language with generic rectangular badges unless deliberately redesigned later.
 
@@ -1666,18 +1732,20 @@ Visual hierarchy:
 
 # 66. Future-Proofing
 
-High Priestess should deliberately leave architectural and spatial room for future features without prematurely implementing them.
+High Priestess should deliberately leave architectural and spatial room for **0.12.x — The Empress** without prematurely implementing it.
 
-Potential future additions include:
+Empress-oriented additions include:
 
-- device/reader profiles
 - advanced live image processing
+- large scrollable preview inspection
+- custom named processing presets
+- eReader Device Simulator
+- generic and device-specific simulator profiles
+- device/reader output profiles
 - custom covers
 - MangaNana-generated covers
 - volume/chapter-range cover markings
-- eReader simulation improvements
-- more sophisticated pairing visualization
-- processing presets
+- more sophisticated processing and pairing visualization
 
 Do not add empty placeholder controls for unimplemented features.
 
@@ -1687,11 +1755,11 @@ Reserve clean extension points instead.
 
 # 67. Control Migration Rule
 
-Before replacing the existing UI, every current interactive control and user-facing behavior must be inventoried and mapped to one of:
+During the High Priestess repair, every current interactive control and user-facing behavior must be inventoried and mapped to one of:
 
 - Stage 1 — Choose Manga
-- Stage 2 — Output Setup
-- Stage 3 — Review
+- Stage 2 — Book Customization
+- Stage 3 — Finalization
 - Preferences
 - Manga Sources
 - intentional removal
@@ -1705,19 +1773,19 @@ The migration audit should include at minimum:
 - Direct Link
 - Prefer Colored
 - Download Language
-- Alternate Title
 - Volume/Chapter selection
 - Select All / Clear
 - Output Layout
 - Reading Direction
+- Live eReader Preview
 - Chapter Output
 - Manual Grouping
 - Zero Padding
-- cover behavior
+- bulk Title / Series / Author metadata
+- existing cover behavior
 - ComicInfo/metadata behavior
 - Calibre destination
-- Review Use controls
-- Pairing Preview
+- Final Outputs inclusion controls
 - Activity Log
 - Progress
 - Copy Log
@@ -1725,6 +1793,14 @@ The migration audit should include at minimum:
 - cancellation behavior
 - provider fallback
 - source configuration
+
+Intentional removals include:
+
+- the Volume Range UI
+- giant full-width Select All / Use Entire Series controls in favor of compact **Select All / Clear**
+- the ordinary-control hover-description/help-tooltip system
+
+No ordinary field, button, selector, toggle, label, or pill should require a custom explanatory hover text box. Use clear labels, concise inline helper text where genuinely necessary, disabled-state reasons, contextual status, or the Activity Log instead.
 
 ---
 
@@ -1739,21 +1815,24 @@ These are hard UX rules:
 5. **Ranking primarily affects order, not existence.**
 6. **No cross-provider visual deduplication.**
 7. **The exact provider record clicked by the user becomes authoritative.**
-8. **Mode changes create a new discovery context and clear old search state.**
-9. **Mode changes preserve query text but never auto-search.**
-10. **Prefer Colored never initiates provider search.**
-11. **External enrichment is not required for provider results to appear.**
-12. **Back preserves valid work.**
-13. **Next validates the current stage and performs the transition.**
-14. **Entering Review never initiates preview downloads.**
-15. **Live Preview is explicit, optional, and bounded.**
-16. **Provider failures should not block successful provider results.**
-17. **Preview failure never blocks normal download.**
-18. **Disabled actions explain why they are disabled.**
-19. **Late async responses never overwrite newer user intent.**
-20. **Network actions should always be understandable from the user's last deliberate action.**
-21. **Provider-specific quirks stay inside provider adapters.**
-22. **Future features receive extension points, not fake controls.**
+8. **Mode has no default; before selection the interface remains generically Manga-oriented.**
+9. **Mode changes create a new discovery context and clear old search state.**
+10. **Mode changes preserve query text but never auto-search.**
+11. **Prefer Colored never initiates provider search.**
+12. **External enrichment is not required for provider results to appear.**
+13. **Back preserves valid work.**
+14. **Next validates the current stage and performs the transition.**
+15. **Entering Book Customization never initiates preview downloads.**
+16. **Live Preview is explicit, optional, bounded, and available in both Portrait and Landscape.**
+17. **Provider failures should not block successful provider results.**
+18. **Preview failure never blocks normal download.**
+19. **Disabled actions explain why they are disabled.**
+20. **Late async responses never overwrite newer user intent.**
+21. **Network actions should always be understandable from the user's last deliberate action.**
+22. **Provider-specific quirks stay inside provider adapters.**
+23. **The three stage bodies are mutually exclusive; downstream UI never resurrects on an upstream stage.**
+24. **Ordinary controls do not use explanatory hover-description text boxes.**
+25. **Future Empress features receive extension points, not fake High Priestess controls.**
 
 ---
 
@@ -1766,6 +1845,8 @@ The intended experience is:
 ```text
 CHOOSE MANGA
 
+Choose Volumes or Chapters
+    ↓
 Search "JoJolion"
     ↓
 See MangaDex, MangaPill, WeebCentral, and edition-specific records
@@ -1780,25 +1861,29 @@ Next
 ```
 
 ```text
-OUTPUT SETUP
+BOOK CUSTOMIZATION
 
 Choose Portrait or Landscape
     ↓
-Choose how selected content becomes books
+Choose reading direction
     ↓
-Confirm naming, metadata, destination, and cover behavior
+Optionally enable bounded Live eReader Preview
+    ↓
+Preview either individual Portrait pages or paired Landscape output
     ↓
 Next
 ```
 
 ```text
-REVIEW
+FINALIZATION
 
-See the exact CBZ files MangaNana plans to create
+Choose Chapter Output/grouping behavior when relevant
     ↓
-Optionally enable Live eReader Preview
+Review or edit bulk Title / Series / Author metadata
     ↓
-Optionally inspect/tune visual output
+Confirm destination and existing output behavior
+    ↓
+See Final Outputs, page count, and estimated size
     ↓
 Download & Add to Calibre
 ```

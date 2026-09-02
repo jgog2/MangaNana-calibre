@@ -2,7 +2,7 @@ import unittest
 
 from inventory_comparison import SourceInventory, compare_inventories
 from search_barrier import ProviderDisplayBarrier
-from search_ranking import rank_canonical_results
+from search_ranking import rank_canonical_results, rank_provider_results
 
 
 class SearchDisplayBarrierTests(unittest.TestCase):
@@ -74,6 +74,23 @@ class SearchDisplayBarrierTests(unittest.TestCase):
         self.assertEqual((),barrier.ordered_successes())
         barrier.settle('mangapill','cancelled')
         self.assertEqual(({'rows':['early']},),barrier.ordered_successes())
+
+    def test_provider_local_final_order_is_identical_for_fast_and_slow_mangadex(self):
+        pages={
+            'mangadex':{'rows':[{'source_id':'mangadex','id':'dex','title':'JoJolion','provider_result_order':0}]},
+            'mangapill':{'rows':[{'source_id':'mangapill','id':'pill','title':'JoJolion','provider_result_order':0}]},
+            'weebcentral':{'rows':[{'source_id':'weebcentral','id':'weeb','title':'JoJolion','provider_result_order':0}]},
+        }
+        def finished(order):
+            barrier=ProviderDisplayBarrier(('mangadex','mangapill','weebcentral'))
+            for source_id in order:
+                barrier.settle(source_id,'success',pages[source_id])
+            rows=tuple(row for page in barrier.ordered_successes() for row in page['rows'])
+            return tuple(item.provider_key for item in rank_provider_results('JoJolion',rows))
+        self.assertEqual(
+            finished(('mangadex','mangapill','weebcentral')),
+            finished(('mangapill','weebcentral','mangadex')),
+        )
 
 
 if __name__ == '__main__':

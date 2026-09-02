@@ -55,6 +55,8 @@ class ExternalMangaCandidate:
     native_title: str = ''
     aliases: tuple = ()
     authors: tuple = ()
+    description: str = ''
+    tags: tuple = ()
     start_year: int = None
     format: str = ''
     reported_chapter_count: int = None
@@ -83,6 +85,7 @@ class ExternalMangaCandidate:
         row = dict(value or {})
         row['aliases'] = tuple(row.get('aliases') or ())
         row['authors'] = tuple(row.get('authors') or ())
+        row['tags'] = tuple(row.get('tags') or ())
         row['cross_ids'] = dict(row.get('cross_ids') or {})
         row['rating'] = RatingSignal(**dict(row.get('rating') or {}))
         row['popularity'] = PopularitySignal(**dict(row.get('popularity') or {}))

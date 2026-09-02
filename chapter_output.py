@@ -30,6 +30,7 @@ class VolumeEvidenceSource:
 class VolumeEvidenceResolution:
     available: bool
     assignments: tuple = ()
+    unassigned: tuple = ()
     provenance: tuple = ()
     reason: str = ''
 
@@ -83,6 +84,33 @@ def normalize_volume_identifier(value):
     return format(number.normalize(), 'f')
 
 
+def resolve_group_cover_url(kind, volume, selected_provider_covers, main_cover_url='', known_records=()):
+    """Choose metadata cover without crossing the selected-provider boundary.
+
+    An exact cover already attached to a compatible chapter record is valid
+    metadata provenance even when another provider supplies the pages. The
+    selected provider's exact cover map remains the next source, followed by
+    the series cover. Structural evidence alone never becomes cover authority.
+    Non-volume groups retain the established series-cover fallback.
+    """
+    if str(kind or '') != 'volume':
+        return str(main_cover_url or '')
+    normalized = normalize_volume_identifier(volume)
+    if normalized is None:
+        return str(main_cover_url or '')
+    for record in known_records or ():
+        if normalize_volume_identifier((record or {}).get('volume')) != normalized:
+            continue
+        url = str((record or {}).get('cover_url') or '').strip()
+        if url:
+            return url
+    covers = dict(selected_provider_covers or {})
+    for key, url in covers.items():
+        if normalize_volume_identifier(key) == normalized and url:
+            return str(url)
+    return str(main_cover_url or '')
+
+
 def _chapter_match(selected, evidence):
     wanted = chapter_identity(selected)
     offered = chapter_identity(evidence)
@@ -95,7 +123,7 @@ def _chapter_match(selected, evidence):
 
 def resolve_volume_evidence(selected_chapters, evidence_sources=(), *,
                             page_source_id='', page_work_id='', page_edition='original'):
-    """Resolve all-or-nothing explicit chapter-to-volume evidence.
+    """Resolve explicit chapter-to-volume evidence without inventing gaps.
 
     Totals, averages, neighbouring chapters, and title-number heuristics are
     intentionally absent. A secondary provider is considered only when the
@@ -115,17 +143,19 @@ def resolve_volume_evidence(selected_chapters, evidence_sources=(), *,
         for value in evidence_sources or ()
     )
     assignments = []
+    unassigned = []
     provenance = []
     for chapter in selected:
         chapter_id = str(chapter.get('id') or '')
         number = normalize_chapter_number(chapter.get('chapter'))
         if not chapter_id or number is None:
-            return VolumeEvidenceResolution(False, reason='A selected chapter has ambiguous identity.')
+            unassigned.append(chapter_id)
+            continue
 
         candidates = []
         own_volume = normalize_volume_identifier(chapter.get('volume'))
         if own_volume is not None:
-            candidates.append((own_volume, str(chapter.get('_source_id') or page_source_id or 'selected-provider')))
+            candidates.append((own_volume, str(chapter.get('_volume_source') or chapter.get('_source_id') or page_source_id or 'selected-provider')))
 
         for source in sources:
             same_provider = bool(source.source_id and source.source_id == str(chapter.get('_source_id') or page_source_id))
@@ -142,16 +172,25 @@ def resolve_volume_evidence(selected_chapters, evidence_sources=(), *,
                     candidates.append((volume, source.source_id or 'provider'))
 
         volumes = {volume for volume, _source_id in candidates}
-        if not volumes:
-            return VolumeEvidenceResolution(False, reason=f'Chapter {number} has no explicit volume assignment.')
-        if len(volumes) != 1:
-            return VolumeEvidenceResolution(False, reason=f'Chapter {number} has conflicting explicit volume assignments.')
+        if not volumes or len(volumes) != 1:
+            unassigned.append(chapter_id)
+            continue
         volume = next(iter(volumes))
         assignments.append((chapter_id, volume))
         provenance.extend(source_id for candidate_volume, source_id in candidates if candidate_volume == volume)
 
+    if not assignments:
+        return VolumeEvidenceResolution(
+            False, (), tuple(unassigned), tuple(dict.fromkeys(provenance)),
+            'No selected chapters have a trustworthy explicit volume assignment.',
+        )
+    if unassigned:
+        return VolumeEvidenceResolution(
+            True, tuple(assignments), tuple(unassigned), tuple(dict.fromkeys(provenance)),
+            f'{len(assignments)} mapped chapters • {len(unassigned)} unassigned.',
+        )
     return VolumeEvidenceResolution(
-        True, tuple(assignments), tuple(dict.fromkeys(provenance)),
+        True, tuple(assignments), (), tuple(dict.fromkeys(provenance)),
         'Every selected chapter has one compatible explicit volume assignment.',
     )
 
@@ -190,14 +229,19 @@ def plan_chapter_outputs(selected_chapters, mode, *, evidence=None, manual_assig
         }
 
     grouped = {}
+    standalone = []
     for chapter in selected:
         chapter_id = str(chapter.get('id') or '')
         volume = assignments.get(chapter_id)
         if volume is None:
-            raise ValueError('The output plan would discard an unassigned chapter.')
+            standalone.append(chapter)
+            continue
         grouped.setdefault(volume, []).append(chapter)
-    return tuple(
+    volume_groups = tuple(
         ChapterOutputGroup('volume', volume, tuple(sorted(rows, key=chapter_sort_key)), mode)
         for volume, rows in sorted(grouped.items(), key=lambda item: Decimal(item[0]))
     )
-
+    return volume_groups + tuple(
+        ChapterOutputGroup('chapter', str(row.get('chapter') or ''), (row,), mode)
+        for row in standalone
+    )

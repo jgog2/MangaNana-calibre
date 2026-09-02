@@ -12,7 +12,8 @@ class EnrichmentSourceTests(unittest.TestCase):
             return {'data': {'Page': {'media': [{
                 'id': 12, 'idMal': 21, 'title': {
                     'english': 'Attack on Titan', 'romaji': 'Shingeki no Kyojin', 'native': '進撃の巨人',
-                }, 'synonyms': ['AoT'], 'format': 'MANGA', 'chapters': 139, 'volumes': 34,
+                }, 'synonyms': ['AoT'], 'description': 'Humanity fights titans.',
+                'genres': ['Action', 'Drama'], 'format': 'MANGA', 'chapters': 139, 'volumes': 34,
                 'startDate': {'year': 2009}, 'averageScore': 87, 'popularity': 700000,
                 'favourites': 60000, 'isAdult': False,
                 'staff': {'edges': [{'role': 'Story & Art', 'node': {'name': {'full': 'Hajime Isayama'}}}]},
@@ -27,6 +28,8 @@ class EnrichmentSourceTests(unittest.TestCase):
         self.assertEqual('21', row.cross_ids['mal_id'])
         self.assertEqual(139, row.volume_context.reported_total_chapters)
         self.assertEqual((), row.volume_context.explicit_volume_boundaries)
+        self.assertEqual('Humanity fights titans.', row.description)
+        self.assertEqual(('Action', 'Drama'), row.tags)
         self.assertEqual('29', headers['X-RateLimit-Remaining'])
 
     def test_kitsu_normalizes_documented_live_contract_fields(self):
@@ -35,7 +38,8 @@ class EnrichmentSourceTests(unittest.TestCase):
                 'id': '99', 'attributes': {
                     'canonicalTitle': 'One-Punch Man',
                     'titles': {'en': 'One-Punch Man', 'en_jp': 'One Punch Man', 'ja_jp': 'ワンパンマン'},
-                    'abbreviatedTitles': ['OPM'], 'startDate': '2012-06-14', 'subtype': 'manga',
+                    'abbreviatedTitles': ['OPM'], 'synopsis': 'A hero for fun.',
+                    'startDate': '2012-06-14', 'subtype': 'manga',
                     'chapterCount': 200, 'volumeCount': 31, 'averageRating': '86.4',
                     'ratingFrequencies': {'18': '100', '20': '300'}, 'userCount': 100000,
                     'favoritesCount': 5000, 'popularityRank': 10, 'nsfw': False,
@@ -48,6 +52,7 @@ class EnrichmentSourceTests(unittest.TestCase):
         self.assertEqual(100000, row.popularity.readers)
         self.assertEqual(31, row.reported_volume_count)
         self.assertEqual((), row.volume_context.explicit_volume_boundaries)
+        self.assertEqual('A hero for fun.', row.description)
 
     def test_429_is_not_retried_aggressively(self):
         calls = []

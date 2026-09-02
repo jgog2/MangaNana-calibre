@@ -52,16 +52,18 @@ class SourceManagerUiTests(unittest.TestCase):
         self.assertIn('self._offer_enable_direct_source(source)', load)
         self.assertIn('worker=MangaLoadWorker(', load)
 
-    def test_direct_replay_bypasses_prompt_while_query_replay_refilters(self):
+    def test_mode_change_does_not_replay_direct_or_query_discovery(self):
         mode = MAIN[MAIN.index('def _set_workflow_mode('):MAIN.index('def _choose_layout(')]
-        self.assertIn("discovery_kind='direct', prompt_disabled=False", mode)
-        self.assertIn('self.search_mangadex(True, generation)', mode)
+        self.assertNotIn('load_metadata(',mode)
+        self.assertNotIn('search_mangadex(',mode)
         self.assertIn('participating = enabled_sources(SOURCE_REGISTRY, prefs)', MAIN)
 
-    def test_manager_changes_only_future_search_policy(self):
+    def test_manager_changes_filter_disabled_results_locally_without_networking(self):
         section = MAIN[MAIN.index('def open_manga_sources('):MAIN.index('def choose_alternate_title(')]
         self.assertIn('MangaSourcesDialog(SOURCE_REGISTRY, prefs, self)', section)
-        for forbidden in ('requestInterruption', 'cancel_remaining', 'loaded_metadata=None', 'search_results.clear'):
+        self.assertIn('_render_provider_search_results()',section)
+        self.assertIn('Sources changed. Search again',section)
+        for forbidden in ('requestInterruption', 'cancel_remaining', 'search_mangadex('):
             self.assertNotIn(forbidden, section)
 
 

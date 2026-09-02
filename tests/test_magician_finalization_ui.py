@@ -13,11 +13,13 @@ class MagicianFinalizationUiTests(unittest.TestCase):
         lock = MAIN[MAIN.index('def _set_download_ui_locked('):MAIN.index('def _check_download_disk_space(')]
         self.assertIn('self.search_box, self.prefer_colored, self.search_btn', lock)
 
-    def test_prefer_colored_is_persistent_and_state_sensitive(self):
+    def test_prefer_colored_is_persistent_and_local_only(self):
         self.assertIn("prefs.defaults['prefer_colored'] = False", CONFIG)
         self.assertIn("self.prefer_colored = QCheckBox('Prefer Colored')", MAIN)
         self.assertIn("prefs['prefer_colored'] = bool(checked)", MAIN)
-        self.assertIn("prefs['prefer_colored'], prefs['search_enrichment']", MAIN)
+        prefer=MAIN[MAIN.index('def _prefer_colored_changed('):MAIN.index('def _search_score(')]
+        self.assertIn('_render_provider_search_results()',prefer)
+        self.assertNotIn('search_mangadex(',prefer)
 
     def test_enrichment_preferences_are_separate_from_manga_sources(self):
         preferences = MAIN[MAIN.index('class PreferencesDialog('):MAIN.index('class CoverLoadingLabel(')]
@@ -38,7 +40,7 @@ class MagicianFinalizationUiTests(unittest.TestCase):
     def test_stale_cache_refresh_does_not_restore_provider_offsets(self):
         search = MAIN[MAIN.index('def search_mangadex('):MAIN.index('def _on_search_ready(')]
         zero = search.index("self._search_offsets={source.source_id:0")
-        fresh = search.index('if hit is not None and hit.fresh:')
+        fresh = search.index("if hit is not None and hit.fresh and snapshot.get('final'):")
         restore = search.index("self._search_offsets.update")
         self.assertLess(zero, fresh)
         self.assertGreater(restore, fresh)
@@ -56,13 +58,13 @@ class MagicianFinalizationUiTests(unittest.TestCase):
         self.assertIn('neither a new book ID nor a duplicate classification', section)
         self.assertIn('Unclassified Calibre import responses:', MAIN)
 
-    def test_resolved_provider_pill_is_authoritative_and_ambiguity_is_opt_in(self):
+    def test_clicked_provider_local_record_is_authoritative(self):
         self.assertIn("prefs.defaults['ask_equivalent_sources'] = False", CONFIG)
         sources = MAIN[MAIN.index('class MangaSourcesDialog('):MAIN.index('class SearchResultRowWidget(')]
         self.assertIn('Ask when multiple equivalent sources are available', sources)
         click = MAIN[MAIN.index('def use_search_result('):MAIN.index('def _start_inventory_comparison(')]
-        self.assertIn("info.get('resolution_state') == 'choice_required'", click)
-        self.assertNotIn('if resolution.decision and resolution.decision.ambiguous:', click)
+        self.assertIn("info.get('resolution_state') in ('provider_local','cached_final')", click)
+        self.assertIn('self._begin_search_result(info)',click)
 
     def test_chapter_output_controls_and_grouped_download_contracts_exist(self):
         for text in ('Build CBZs from Volume Data','Manually Group Chapters into Volumes','Save Each Chapter as Its Own CBZ'):
@@ -77,10 +79,12 @@ class MagicianFinalizationUiTests(unittest.TestCase):
         loaded=MAIN[MAIN.index('def _apply_loaded_manga('):MAIN.index('def _download_language_changed(')]
         self.assertIn("pending.get('external_authors')",loaded)
         imported=MAIN[MAIN.index('def on_downloaded('):]
-        self.assertIn('Metadata(title, [self.author.text().strip()])',imported)
+        self.assertIn('_title,applied_author,applied_series=self._applied_metadata_values()',imported)
+        self.assertIn('Metadata(title, [applied_author])',imported)
+        self.assertIn('mi.series = applied_series',imported)
 
-    def test_zero_result_snapshot_is_only_written_after_final_resolution(self):
-        finished=MAIN[MAIN.index('def _search_resolution_finished('):MAIN.index('def _show_more_search_results(')]
+    def test_zero_result_snapshot_is_removed_after_provider_barrier(self):
+        finished=MAIN[MAIN.index('def _finish_coordinated_search('):MAIN.index('def _find_search_item(')]
         self.assertIn('self._search_resolution_complete=True',finished)
         self.assertIn("delete('query_snapshot'",finished)
         self.assertIn('self._store_query_snapshot()',finished)
@@ -97,8 +101,8 @@ class MagicianFinalizationUiTests(unittest.TestCase):
 
     def test_stale_cache_is_not_displayed_but_fresh_final_cache_is(self):
         search=MAIN[MAIN.index('def search_mangadex('):MAIN.index('def _on_search_ready(')]
-        self.assertIn('if hit is not None and hit.fresh:',search)
-        self.assertIn('self._render_fresh_cached_snapshot(snapshot)',search)
+        self.assertIn("if hit is not None and hit.fresh and snapshot.get('final'):",search)
+        self.assertIn('self._render_provider_search_results()',search)
         self.assertNotIn('Showing cached results while sources refresh',search)
 
 

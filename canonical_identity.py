@@ -26,6 +26,64 @@ def normalize_identity_text(value):
     return ' '.join(text.split())
 
 
+_ALTERNATE_SCRIPT_PARENTHETICAL = re.compile(r'\s*[（(]([^（）()]*)[）)]\s*$')
+_CREATOR_GROUP_WORDS = frozenset({
+    'studio', 'studios', 'team', 'group', 'productions', 'production',
+    'committee', 'project', 'collective', 'company', 'inc', 'ltd',
+})
+
+
+def normalize_creator_name(value):
+    """Normalize a creator for comparison without changing its display form."""
+    text = str(value or '').strip()
+    match = _ALTERNATE_SCRIPT_PARENTHETICAL.search(text)
+    if match and any(ord(character) > 127 for character in match.group(1)):
+        text = text[:match.start()]
+    words = normalize_identity_text(text).split()
+    # Bounded Hepburn long-vowel equivalence used by the trusted manga
+    # creator sources (Eiichirou/Eiichiro, Kentarou/Kentaro).
+    return ' '.join(re.sub(r'rou$', 'ro', word) for word in words)
+
+
+def creator_comparison_identity(value):
+    """Return a conservative, comparison-only personal/group identity."""
+    normalized = normalize_creator_name(value)
+    words = tuple(normalized.split())
+    if not words:
+        return ()
+    personal = (
+        2 <= len(words) <= 4 and
+        not (_CREATOR_GROUP_WORDS & set(words)) and
+        all(re.fullmatch(r"[^\W\d_]+(?:['’-][^\W\d_]+)*", word, re.UNICODE)
+            for word in words)
+    )
+    return ('person', *sorted(words)) if personal else ('literal', normalized)
+
+
+def creators_equivalent(first, second):
+    left = creator_comparison_identity(first)
+    return bool(left and left == creator_comparison_identity(second))
+
+
+def creator_query_variants(value, limit=3):
+    """Return at most three stable query spellings for one trusted creator."""
+    original = ' '.join(str(value or '').split())
+    normalized = normalize_creator_name(value)
+    words = normalized.split()
+    values = [original, normalized]
+    if (2 <= len(words) <= 4 and
+            creator_comparison_identity(normalized)[:1] == ('person',)):
+        values.append(' '.join(reversed(words)))
+    output = []
+    seen = set()
+    for item in values:
+        key = normalize_identity_text(item)
+        if item and key and key not in seen:
+            seen.add(key)
+            output.append(item)
+    return tuple(output[:max(0, int(limit))])
+
+
 def edition_classification(result):
     """Classify only explicit provider/title evidence; absence stays UNKNOWN."""
     explicit = str((result or {}).get('edition_class') or (result or {}).get('edition') or '').casefold().strip()
@@ -71,6 +129,22 @@ def edition_display_label(result):
     }[classification]
 
 
+def merge_calibre_tags(existing=(), work_tags=(), plugin_tag='MangaNana'):
+    """Keep user tags while adding the stable plugin and trusted work tags."""
+    plugin_key = normalize_identity_text(plugin_tag)
+    values = [value for value in (existing or ()) if normalize_identity_text(value) != plugin_key]
+    values += [plugin_tag] + list(work_tags or ())
+    merged = []
+    seen = set()
+    for value in values:
+        text = ' '.join(str(value or '').split())
+        key = normalize_identity_text(text)
+        if text and key and key not in seen:
+            seen.add(key)
+            merged.append(text)
+    return tuple(merged)
+
+
 def _values(result, key):
     value = result.get(key)
     if isinstance(value, (list, tuple, set)):
@@ -87,6 +161,26 @@ def identity_titles(result):
 def identity_authors(result):
     values = _values(result, 'authors') or _values(result, 'author')
     return {normalize_identity_text(value) for value in values if normalize_identity_text(value)}
+
+
+def _trusted_canonical_work_id(result):
+    row=result or {}
+    work_id=str(row.get('canonical_work_id') or '').strip()
+    confidence=str(row.get('_canonical_identity_confidence') or
+                   row.get('identity_confidence') or '').casefold().strip()
+    return work_id if work_id and confidence == 'high' else ''
+
+
+def _canonical_modes_compatible(first, second):
+    """Reject only explicit language or acquisition-mode contradictions."""
+    for keys in (('language','preferred_language'),('workflow','acquisition_mode','mode')):
+        left=next((str(first.get(key) or '').casefold().strip() for key in keys
+                   if str(first.get(key) or '').strip()),'')
+        right=next((str(second.get(key) or '').casefold().strip() for key in keys
+                    if str(second.get(key) or '').strip()),'')
+        if left and right and left != right:
+            return False
+    return True
 
 
 def relevance_score(query, result):
@@ -123,6 +217,12 @@ def _can_join(group_results, candidate):
         return False, ''
     if any(edition_identity(row) != edition_identity(candidate) for row in group_results):
         return False, ''
+    candidate_work_id=_trusted_canonical_work_id(candidate)
+    group_work_ids={_trusted_canonical_work_id(row) for row in group_results}
+    group_work_ids.discard('')
+    if (candidate_work_id and group_work_ids == {candidate_work_id} and
+            all(_canonical_modes_compatible(row,candidate) for row in group_results)):
+        return True, 'same trusted canonical work ID with compatible edition and acquisition mode'
     candidate_titles = identity_titles(candidate)
     group_titles = set().union(*(identity_titles(row) for row in group_results))
     overlap = candidate_titles & group_titles

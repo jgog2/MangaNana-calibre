@@ -69,6 +69,75 @@ class CrossSourceFallbackTests(unittest.TestCase):
         self.assertEqual(plan.notice, '1 missing chapter will be filled from MangaPill.')
         self.assertEqual(plan.gaps[0].status, 'filled')
 
+    def test_primary_volume_metadata_survives_and_fallback_only_chapter_stays_unassigned(self):
+        self.dex.chapters = [
+            chapter('1', title='Romance Dawn', volume=1, source_id='dex'),
+            chapter('3', title='Enter Zoro', volume=1, source_id='dex'),
+        ]
+        self.pill.chapters = [
+            chapter('1', title='Romance Dawn', source_id='pill'),
+            chapter('2', title='They Call Him Straw Hat Luffy', source_id='pill'),
+            chapter('3', title='Enter Zoro', source_id='pill'),
+        ]
+        plan=self.plan()
+        by_number={item.canonical_identity.number:item for item in plan.items}
+        self.assertEqual('mangadex',by_number['1'].source_id)
+        self.assertEqual(1,by_number['1'].reference['volume'])
+        self.assertEqual('mangapill',by_number['2'].source_id)
+        self.assertIsNone(by_number['2'].reference['volume'])
+        self.assertIsNone(by_number['2'].canonical_identity.volume)
+
+    def test_compatible_provider_fills_missing_primary_metadata_without_changing_page_source(self):
+        self.dex.chapters=[chapter('1',source_id='dex')]
+        self.pill.chapters=[chapter('1',title='Romance Dawn',volume=1,source_id='pill')]
+        plan=self.plan()
+        item=plan.items[0]
+        self.assertEqual('mangadex',item.source_id)
+        self.assertEqual('Romance Dawn',item.reference['title'])
+        self.assertEqual(1,item.reference['volume'])
+
+    def test_duplicate_primary_keys_are_locally_ineligible_for_metadata_projection(self):
+        self.pill.chapters=[
+            chapter('1',source_id='pill-a'),chapter('1',source_id='pill-b'),
+            chapter('2',source_id='pill'),chapter('3',source_id='pill'),
+        ]
+        self.dex.chapters=[
+            chapter('1',title='Sword Wind',volume=5,source_id='dex'),
+            chapter('2',title='The Brand',volume=5,source_id='dex'),
+            chapter('3',title='Guardians of Desire',volume=5,source_id='dex'),
+        ]
+        pill=self.inventory(self.pill); dex=self.inventory(self.dex)
+        plan=self.plan(primary=pill,inventories=(pill,dex))
+        ones=[item.reference for item in plan.items if item.canonical_identity.number == '1']
+        self.assertEqual(2,len(ones))
+        self.assertTrue(all(not row['title'] and row['volume'] is None for row in ones))
+        unique={item.canonical_identity.number:item.reference for item in plan.items
+                if item.canonical_identity.number in ('2','3')}
+        self.assertEqual(('The Brand',5),(unique['2']['title'],unique['2']['volume']))
+        self.assertEqual(('Guardians of Desire',5),(unique['3']['title'],unique['3']['volume']))
+
+    def test_matching_compatible_metadata_preserves_cover_without_changing_page_provider(self):
+        self.weeb.chapters=[chapter('Chapter 11',source_id='weeb')]
+        metadata=chapter('11.0',title='Confluence',volume=2,source_id='dex')
+        metadata['cover_url']='metadata://volume-2'
+        self.dex.chapters=[metadata]
+        weeb=self.inventory(self.weeb); dex=self.inventory(self.dex)
+        plan=self.plan(primary=weeb,inventories=(weeb,dex))
+        item=plan.items[0]
+        self.assertEqual('weebcentral',item.source_id)
+        self.assertEqual('Confluence',item.reference['title'])
+        self.assertEqual(2,item.reference['volume'])
+        self.assertEqual('metadata://volume-2',item.reference['cover_url'])
+
+    def test_unmatched_extra_never_inherits_numbered_metadata(self):
+        self.weeb.chapters=[chapter('Omake',source_id='weeb')]
+        self.dex.chapters=[chapter('11',title='Confluence',volume=2,source_id='dex')]
+        weeb=self.inventory(self.weeb); dex=self.inventory(self.dex)
+        plan=self.plan(primary=weeb,inventories=(weeb,dex))
+        extra=next(item for item in plan.items if item.source_id == 'weebcentral')
+        self.assertEqual('',extra.reference['title'])
+        self.assertIsNone(extra.reference['volume'])
+
     def test_weebcentral_can_supply_a_safe_chapter_mode_fallback(self):
         self.dex.chapters=[chapter('1',source_id='dex'),chapter('3',source_id='dex')]
         self.weeb.chapters=[chapter('1',source_id='weeb'),chapter('2',source_id='weeb'),chapter('3',source_id='weeb')]

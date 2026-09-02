@@ -84,7 +84,7 @@ class AniListAdapter(EnrichmentAdapter):
       Page(page: 1, perPage: $perPage) {
         media(search: $search, type: MANGA, sort: SEARCH_MATCH) {
           id idMal type format status chapters volumes countryOfOrigin isAdult
-          title { english romaji native } synonyms startDate { year }
+          title { english romaji native } synonyms description(asHtml: false) genres startDate { year }
           averageScore meanScore popularity favourites
           staff(perPage: 6, sort: RELEVANCE) { edges { role node { name { full } } } }
         }
@@ -143,7 +143,8 @@ class AniListAdapter(EnrichmentAdapter):
             primary_title=title.get('english') or title.get('romaji') or title.get('native') or '',
             english_title=title.get('english') or '', romanized_title=title.get('romaji') or '',
             native_title=title.get('native') or '', aliases=tuple(row.get('synonyms') or ()),
-            authors=tuple(dict.fromkeys(authors)), start_year=_count((row.get('startDate') or {}).get('year')),
+            authors=tuple(dict.fromkeys(authors)), description=str(row.get('description') or ''),
+            tags=tuple(row.get('genres') or ()), start_year=_count((row.get('startDate') or {}).get('year')),
             format=str(row.get('format') or ''), reported_chapter_count=chapters,
             reported_volume_count=volumes,
             cross_ids={'anilist_id': str(row['id']), **({'mal_id': str(row['idMal'])} if row.get('idMal') else {})},
@@ -207,6 +208,7 @@ class KitsuAdapter(EnrichmentAdapter):
             primary_title=attrs.get('canonicalTitle') or titles.get('en') or titles.get('en_jp') or '',
             english_title=titles.get('en') or '', romanized_title=titles.get('en_jp') or '',
             native_title=titles.get('ja_jp') or '', aliases=tuple(dict.fromkeys(alternates)),
+            description=str(attrs.get('synopsis') or ''),
             start_year=_year(attrs.get('startDate')), format=str(attrs.get('subtype') or ''),
             reported_chapter_count=chapters, reported_volume_count=volumes,
             cross_ids={'kitsu_id': str(row.get('id') or '')},

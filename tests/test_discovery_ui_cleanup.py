@@ -7,7 +7,10 @@ from PIL import Image
 
 from provider_branding import (
     DEFAULT_PROVIDER_BRAND,
+    edition_badge_spec,
+    format_rating_label,
     provider_badge_spec,
+    safe_provider_public_url,
     source_badge_specs,
 )
 from tools.build_plugin import files_to_package
@@ -53,7 +56,7 @@ class DiscoveryUiCleanupTests(unittest.TestCase):
     def test_provider_branding_is_presentation_only(self):
         for forbidden in (
             'canonical_identity', 'relevance', 'ranking', 'inventory',
-            'urllib', 'requests', 'http://', 'https://',
+            'requests', 'urlopen', 'http://', 'https://',
         ):
             self.assertNotIn(forbidden, BRANDING)
         self.assertNotIn('provider_branding', CANONICAL)
@@ -80,14 +83,40 @@ class DiscoveryUiCleanupTests(unittest.TestCase):
         self.assertNotIn('urlopen', BRANDING)
 
     def test_badges_keep_dark_outlined_manganana_style_and_full_text_width(self):
-        self.assertIn('class ProviderBadgeWidget(QFrame):', MAIN)
+        self.assertIn('class ProviderBadgeWidget(QPushButton):', MAIN)
         self.assertIn('background:#211E1D', MAIN)
         self.assertIn('border:1px solid {accent}', MAIN)
         self.assertIn('QGraphicsDropShadowEffect(self)', MAIN)
-        self.assertIn('text.setMinimumWidth(text.sizeHint().width())', MAIN)
         self.assertIn('QSizePolicy.Policy.Minimum', MAIN)
         for monogram in ("'MD'", "'MP'", "'WC'"):
             self.assertNotIn(monogram, MAIN + BRANDING)
+
+    def test_shared_edition_and_rating_presentation_are_explicit(self):
+        self.assertEqual('COLOR', edition_badge_spec('color')['text'])
+        self.assertEqual('edition', edition_badge_spec('B&W')['kind'])
+        self.assertEqual('★ 8.5', format_rating_label('8.5/10'))
+        self.assertEqual('', format_rating_label('unrated'))
+
+    def test_exact_provider_title_urls_are_validated_without_guessing(self):
+        valid = {
+            'mangadex': 'https://mangadex.org/title/12345678-1234-1234-1234-123456789abc/example',
+            'mangapill': 'https://mangapill.com/manga/5674/one-piece-episode-a',
+            'weebcentral': 'https://weebcentral.com/series/01J76XY7KWP8KX5RFGVZY5TR95/example',
+        }
+        for source_id, url in valid.items():
+            with self.subTest(source_id=source_id):
+                self.assertEqual(url, safe_provider_public_url(source_id, url))
+        self.assertEqual('', safe_provider_public_url('mangadex', 'https://mangadex.org/'))
+        self.assertEqual('', safe_provider_public_url('mangapill', 'https://example.com/manga/5674'))
+        self.assertEqual('', safe_provider_public_url('weebcentral', ''))
+
+    def test_provider_pill_navigation_is_browser_only_and_optional(self):
+        badge = MAIN[MAIN.index('class ProviderBadgeWidget('):MAIN.index('class SourceStatusButton(')]
+        opener = badge[badge.index('def _open_public_url('):]
+        self.assertIn('QDesktopServices.openUrl(QUrl(self.public_url))', opener)
+        for forbidden in ('search_mangadex(', 'load_metadata(', '_load_volume_plan(', 'SOURCE_REGISTRY'):
+            self.assertNotIn(forbidden, opener)
+        self.assertIn('WA_TransparentForMouseEvents', badge)
 
     def test_unresolved_search_hits_do_not_claim_usable_provider_sources(self):
         self.assertIn("unresolved_text='Searching sources…'", MAIN)
@@ -96,13 +125,14 @@ class DiscoveryUiCleanupTests(unittest.TestCase):
 
     def test_discovery_copy_is_provider_neutral_and_browse_mangadex_is_removed(self):
         self.assertIn("setPlaceholderText('Search manga sources...')", MAIN)
-        self.assertIn("QLabel('Already have a manga link?')", MAIN)
-        self.assertIn("QLabel('Paste a supported manga link.')", MAIN)
+        self.assertIn("direct_label=QLabel('Direct Link')", MAIN)
         self.assertIn("setPlaceholderText('Paste a supported manga link...')", MAIN)
         self.assertIn("QCheckBox('Use source volume cover in Calibre metadata')", MAIN)
         self.assertNotIn('Search MangaDex and MangaPill...', MAIN)
         self.assertNotIn('Have a title link?', MAIN)
         self.assertNotIn('Paste a MangaDex or MangaPill title URL directly.', MAIN)
+        self.assertNotIn("QLabel('Already have a manga link?')", MAIN)
+        self.assertNotIn("QLabel('Paste a supported manga link.')", MAIN)
         self.assertNotIn('Browse MangaDex', MAIN)
         self.assertNotIn('Load MangaDex metadata first.', MAIN)
 

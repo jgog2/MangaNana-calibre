@@ -9,8 +9,10 @@ import threading
 import time
 
 
-SCHEMA_VERSION = 1
-SEARCH_ALGORITHM_VERSION = 'magician-live-provider-contract-v4'
+SCHEMA_VERSION = 4
+SEARCH_ALGORITHM_VERSION = 'high-priestess-provider-candidates-v4'
+QUERY_SNAPSHOT_CONTRACT = 'provider-candidates-v3'
+PROVIDER_MAPPING_CONTRACT = 'provider-mapping-v2-canonical-creators'
 INVENTORY_ALGORITHM_VERSION = 'provider-chapter-contract-v2'
 INVENTORY_TTL = 3 * 60 * 60
 QUERY_TTL = 24 * 60 * 60
@@ -21,7 +23,7 @@ IDENTITY_TTL = 30 * 24 * 60 * 60
 HARD_LIMIT_BYTES = 50 * 1024 * 1024
 EVICTION_TARGET_BYTES = 40 * 1024 * 1024
 _SNAPSHOT_FORBIDDEN_KEYS = frozenset({
-    'cover', 'cover_url', 'thumbnail', 'thumbnail_url', 'image', 'image_url',
+    'cover', 'thumbnail', 'image',
     'page_bytes', 'image_bytes', 'raw_payload', 'raw_response',
     'thumb_requested',
 })
@@ -44,8 +46,9 @@ def query_cache_key(query, workflow, preferred_language, include_adult,
         'preferred_language': str(preferred_language or ''),
         'include_adult': bool(include_adult),
         'enabled_source_ids': sorted(str(value) for value in enabled_source_ids or ()),
-        'prefer_colored': bool(prefer_colored),
-        'enrichment_enabled': bool(enrichment_enabled),
+        # Ranking and optional enrichment are current-session opinions over
+        # provider facts. They deliberately do not fragment/refetch the query
+        # candidate cache.
         'algorithm_version': str(algorithm_version),
     }
     encoded = json.dumps(state, sort_keys=True, separators=(',', ':'))
@@ -78,16 +81,32 @@ def compact_search_snapshot(value):
     return value
 
 
+def final_search_records(snapshot):
+    """Hydrate stable ranked presentations from a final query snapshot."""
+    row = dict(snapshot or {})
+    if row.get('contract') != QUERY_SNAPSHOT_CONTRACT or not row.get('final'):
+        return ()
+    records = []
+    for card in row.get('final_cards') or ():
+        record = dict(dict(card or {}).get('provider_record') or dict(card or {}).get('primary') or {})
+        if record.get('source_id') and (record.get('id') or record.get('url')):
+            records.append(record)
+    return tuple(records)
+
+
 class SearchMetadataCache:
     """Thread-safe compact-value cache; opens no connection until first use."""
 
-    TABLES = ('inventory', 'query_snapshot', 'external_metrics', 'provider_mapping', 'external_identity')
+    TABLES = ('inventory', 'query_snapshot', 'external_metrics', 'provider_mapping', 'external_identity',
+              'reference_structure', 'reference_catalog')
     TTLS = {
         'inventory': INVENTORY_TTL,
         'query_snapshot': QUERY_TTL,
         'external_metrics': METRICS_TTL,
         'provider_mapping': MAPPING_TTL,
         'external_identity': IDENTITY_TTL,
+        'reference_structure': IDENTITY_TTL,
+        'reference_catalog': IDENTITY_TTL,
     }
 
     def __init__(self, path, clock=None, hard_limit=HARD_LIMIT_BYTES, eviction_target=EVICTION_TARGET_BYTES):
@@ -132,7 +151,8 @@ class SearchMetadataCache:
         db = self._connection
         db.execute('CREATE TABLE IF NOT EXISTS cache_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
         current = db.execute("SELECT value FROM cache_meta WHERE key='schema_version'").fetchone()
-        if current and current[0] != str(SCHEMA_VERSION):
+        # v4 only adds isolated reference tables; preserve valid v3 search data.
+        if current and current[0] not in ('3', str(SCHEMA_VERSION)):
             for table in self.TABLES:
                 db.execute(f'DROP TABLE IF EXISTS {table}')
         for table in self.TABLES:
@@ -270,13 +290,17 @@ class SearchMetadataCache:
         if int((snapshot or {}).get('final_result_count') or 0) <= 0:
             self.delete('query_snapshot', key)
             return False
+        snapshot['contract'] = QUERY_SNAPSHOT_CONTRACT
+        snapshot['final'] = bool(snapshot.get('final', True))
         self.put('query_snapshot', key, snapshot, created_at)
         return True
 
     def get_query_snapshot(self, key):
         hit = self.get('query_snapshot', key, allow_stale=False)
-        if hit is not None and int((hit.value or {}).get('final_result_count') or 0) <= 0:
-            # Safely remove snapshots written by the pre-v2 implementation.
+        if hit is not None and (
+                int((hit.value or {}).get('final_result_count') or 0) <= 0 or
+                (hit.value or {}).get('contract') != QUERY_SNAPSHOT_CONTRACT):
+            # Safely remove snapshots lacking stable canonical presentations.
             self.delete('query_snapshot', key)
             return None
         return hit
@@ -301,7 +325,23 @@ class SearchMetadataCache:
         return self.get('inventory', repr((INVENTORY_ALGORITHM_VERSION,normalized)))
 
     def put_provider_mapping(self, source_id, provider_id, value):
-        self.put('provider_mapping', f'{source_id}:{provider_id}', value)
+        self.put('provider_mapping',
+                 f'{PROVIDER_MAPPING_CONTRACT}:{source_id}:{provider_id}',value)
 
     def get_provider_mapping(self, source_id, provider_id):
-        return self.get('provider_mapping', f'{source_id}:{provider_id}')
+        return self.get('provider_mapping',
+                        f'{PROVIDER_MAPPING_CONTRACT}:{source_id}:{provider_id}')
+
+    def put_reference_structure(self, key, value):
+        if value:
+            self.put('reference_structure', key, value)
+
+    def get_reference_structure(self, key):
+        return self.get('reference_structure', key)
+
+    def put_reference_catalog(self, key, value):
+        if value:
+            self.put('reference_catalog', key, value)
+
+    def get_reference_catalog(self, key):
+        return self.get('reference_catalog', key)

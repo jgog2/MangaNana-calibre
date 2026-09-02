@@ -147,6 +147,23 @@ class SearchResolutionTests(unittest.TestCase):
             resolve_search_group(registry, (candidate('mangadex'),), 'en', 'chapter', metadata_cache, inventory_cache)
         self.assertEqual(1, dex.chapter_calls)
 
+    def test_inventory_cache_is_edition_scoped(self):
+        dex = FakeSource('mangadex', ('en',), {'en': chapters('dex', 1, 3)})
+        registry=SourceRegistry((dex,)); cache={}
+        standard=candidate('mangadex'); standard['available_languages']=['en']
+        colored=dict(standard); colored['badge']='COLOR'
+        resolve_search_group(registry,(standard,),'en','chapter',{},cache)
+        resolve_search_group(registry,(colored,),'en','chapter',{},cache)
+        self.assertEqual(2,dex.chapter_calls)
+
+    def test_transient_inventory_failure_is_not_cached_as_unavailable(self):
+        dex = FakeSource('mangadex', ('en',), {'en': ()})
+        dex.get_chapters=lambda *_args,**_kwargs: (_ for _ in ()).throw(RuntimeError('temporary'))
+        row=candidate('mangadex'); row['available_languages']=['en']
+        cache={}
+        resolve_search_group(SourceRegistry((dex,)),(row,),'en','chapter',{},cache)
+        self.assertEqual({},cache)
+
     def test_reported_search_languages_avoid_an_extra_metadata_request(self):
         dex = FakeSource('mangadex', ('en',), {'en': chapters('dex', 1, 3)})
         row = candidate('mangadex')

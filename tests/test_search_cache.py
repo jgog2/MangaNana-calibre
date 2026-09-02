@@ -5,7 +5,8 @@ import unittest
 
 from search_cache import (
     IDENTITY_TTL, INVENTORY_TTL, QUERY_FRESH_SECONDS, QUERY_TTL,
-    SCHEMA_VERSION, SearchMetadataCache, query_cache_key,
+    SCHEMA_VERSION, SearchMetadataCache, compact_search_snapshot, final_search_records,
+    query_cache_key,
 )
 
 
@@ -44,13 +45,77 @@ class SearchCacheTests(unittest.TestCase):
         variants = {
             query_cache_key('Series', 'volume', 'en', False, ('mangadex',), False, True),
             query_cache_key('Series', 'chapter', 'ja', False, ('mangadex',), False, True),
-            query_cache_key('Series', 'chapter', 'en', True, ('mangadex',), False, True),
             query_cache_key('Series', 'chapter', 'en', False, ('mangadex','mangapill'), False, True),
-            query_cache_key('Series', 'chapter', 'en', False, ('mangadex',), True, True),
-            query_cache_key('Series', 'chapter', 'en', False, ('mangadex',), False, False),
+            query_cache_key('Series', 'chapter', 'en', True, ('mangadex',), False, True),
         }
         self.assertNotIn(base, variants)
-        self.assertEqual(6, len(variants))
+        self.assertEqual(4, len(variants))
+        self.assertEqual(
+            base,
+            query_cache_key('Series','chapter','en',False,('mangadex',),True,False),
+        )
+
+    def test_snapshot_contract_stores_provider_facts_as_final(self):
+        self.cache.put_query_snapshot('provider-facts',{
+            'provider_candidates':[{'source_id':'mangadex','id':'one','title':'Series'}],
+            'final_result_count':1,
+        })
+        value=self.cache.get_query_snapshot('provider-facts').value
+        self.assertEqual('provider-candidates-v3',value['contract'])
+        self.assertTrue(value['final'])
+
+    def test_final_canonical_presentations_survive_warm_and_restart_hydration(self):
+        canonical = {
+            'source_id':'mangapill','source_name':'MangaPill','id':'552','title':'Bleach',
+            'author':'Tite Kubo','_provider_native_author':'Kubo Tite',
+            'canonical_work_id':'anilist:30012|anilist:41330',
+            'canonical_title':'Bleach','canonical_author':'Tite Kubo',
+            'canonical_creator_provenance':'trusted_external',
+            'canonical_creator_aliases':['Tite Kubo','Kubo Tite'],
+            'canonical_creators':['Tite Kubo'],
+            'canonical_aliases':['BLEACH'],'work_family_id':'canonical:bleach:original',
+            '_canonical_identity_confidence':'high','_acquisition_fitness':'direct',
+            '_qualification_status':'qualified','_qualification_chapter_count':698,
+            'rank_sort_key':[0,0,0,0,1],
+        }
+        self.cache.put_query_snapshot('bleach',{
+            'provider_candidates':[dict(canonical,author='Kubo Tite',canonical_author='')],
+            'final_cards':[{'provider_record':canonical}],
+            'final_result_count':1,
+        })
+        cold=dict(canonical)
+        warm=final_search_records(self.cache.get_query_snapshot('bleach').value)[0]
+        self.cache.close()
+        restarted=SearchMetadataCache(self.path,clock=lambda:self.now[0])
+        after_restart=final_search_records(restarted.get_query_snapshot('bleach').value)[0]
+        restarted.close()
+        keys=('canonical_work_id','canonical_title','canonical_author','canonical_creators',
+              'canonical_creator_provenance','canonical_creator_aliases','canonical_aliases',
+              'work_family_id','_canonical_identity_confidence','_acquisition_fitness',
+              '_qualification_status','_qualification_chapter_count','rank_sort_key')
+        self.assertEqual(tuple(cold[key] for key in keys),tuple(warm[key] for key in keys))
+        self.assertEqual(tuple(warm[key] for key in keys),tuple(after_restart[key] for key in keys))
+
+    def test_old_query_snapshot_contract_misses_without_clearing_other_layers(self):
+        self.cache.put('provider_mapping','bleach',{'canonical_author':'Tite Kubo'})
+        self.cache.put('query_snapshot','old',{
+            'contract':'provider-candidates-v1','final':True,'final_result_count':1,
+            'final_cards':[{'provider_record':{'source_id':'mangapill','id':'552'}}],
+        })
+        self.assertIsNone(self.cache.get_query_snapshot('old'))
+        self.assertEqual('Tite Kubo',self.cache.get('provider_mapping','bleach').value['canonical_author'])
+
+    def test_old_provider_mapping_key_misses_without_deleting_cache_file(self):
+        self.cache.put('provider_mapping','mangapill:berserk',{
+            'canonical_work_id':'anilist:30002|kitsu:8|kitsu:wrong',
+        })
+        self.assertIsNone(self.cache.get_provider_mapping('mangapill','berserk'))
+        self.cache.put_provider_mapping('mangapill','berserk',{
+            'canonical_work_id':'anilist:30002|kitsu:8',
+            'canonical_creators':['Kentarou Miura','Studio Gaga'],
+        })
+        value=self.cache.get_provider_mapping('mangapill','berserk').value
+        self.assertEqual(['Kentarou Miura','Studio Gaga'],value['canonical_creators'])
 
     def test_clear_only_removes_cache_layers(self):
         for table in self.cache.TABLES:
@@ -59,7 +124,7 @@ class SearchCacheTests(unittest.TestCase):
         self.assertTrue(all(self.cache.get(table, table, allow_stale=True) is None for table in self.cache.TABLES))
         self.assertGreaterEqual(self.cache.size_bytes(), 0)
 
-    def test_binary_page_or_image_payload_cannot_be_stored(self):
+    def test_binary_payload_is_removed_but_provider_cover_urls_survive(self):
         self.cache.put_query_snapshot('raw', {
             'rows': [{'title': 'Series', 'cover_url': 'https://example.invalid/c.jpg'}],
             'page_bytes': b'not allowed', 'raw_payload': {'huge': True}, 'final_result_count': 1,
@@ -67,9 +132,29 @@ class SearchCacheTests(unittest.TestCase):
         value = self.cache.get_query_snapshot('raw').value
         self.assertNotIn('page_bytes', value)
         self.assertNotIn('raw_payload', value)
-        self.assertNotIn('cover_url', value['rows'][0])
+        self.assertEqual('https://example.invalid/c.jpg', value['rows'][0]['cover_url'])
         with self.assertRaises(TypeError):
             self.cache.put('external_identity', 'binary', {'blob': b'not allowed'})
+
+    def test_warm_snapshot_keeps_provider_edition_covers_isolated(self):
+        self.cache.put_query_snapshot('warm',{
+            'rows':[
+                {'source_id':'mangadex','id':'standard','title':'Series','cover_url':'https://covers/standard.jpg'},
+                {'source_id':'mangadex','id':'color','title':'Series (Color)','cover_url':'https://covers/color.jpg'},
+                {'source_id':'mangapill','id':'sibling','title':'Series','cover_url':'https://covers/pill.jpg'},
+            ],'final_result_count':3,
+        })
+        rows=self.cache.get_query_snapshot('warm').value['rows']
+        self.assertEqual(['https://covers/standard.jpg','https://covers/color.jpg','https://covers/pill.jpg'],
+                         [row['cover_url'] for row in rows])
+
+    def test_empty_or_failed_cover_value_cannot_replace_valid_provider_cover(self):
+        snapshot=compact_search_snapshot({'rows':[
+            {'source_id':'mangadex','id':'one','cover_url':'https://covers/one.jpg'},
+            {'source_id':'mangadex','id':'two','cover_url':''},
+        ]})
+        self.assertEqual('https://covers/one.jpg',snapshot['rows'][0]['cover_url'])
+        self.assertEqual('',snapshot['rows'][1]['cover_url'])
 
     def test_corrupted_database_fails_safe(self):
         self.cache.close()
@@ -93,7 +178,8 @@ class SearchCacheTests(unittest.TestCase):
 
     def test_eviction_priority_keeps_stable_identities_last(self):
         self.assertEqual(
-            ('inventory','query_snapshot','external_metrics','provider_mapping','external_identity'),
+            ('inventory','query_snapshot','external_metrics','provider_mapping','external_identity',
+             'reference_structure','reference_catalog'),
             self.cache.TABLES,
         )
 

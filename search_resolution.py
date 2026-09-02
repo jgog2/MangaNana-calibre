@@ -129,6 +129,9 @@ def _inventory_cache_get(cache, key):
 
 
 def _inventory_cache_put(cache, key, inventory):
+    # A transport/parser failure is not evidence of permanent unavailability.
+    if inventory.error and not inventory.usable:
+        return
     if hasattr(cache, 'put_inventory'):
         try:
             cache.put_inventory(key, asdict(inventory))
@@ -183,7 +186,10 @@ def resolve_search_group(registry, candidates, preferred_language, workflow,
             reported = _reported_languages(source, candidate, metadata)
             if reported is not None and language not in reported:
                 continue
-            cache_key = (workflow, source.source_id, _reference(source, candidate), language)
+            cache_key = (
+                workflow, source.source_id, _reference(source, candidate), language,
+                edition_identity(candidate),
+            )
             inventory = _inventory_cache_get(inventory_cache, cache_key)
             if inventory is None:
                 inventory = inspect_source_inventory(source, candidate, language, workflow=workflow)
