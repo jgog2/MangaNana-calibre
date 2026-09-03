@@ -82,6 +82,18 @@ class MangaPillSourceTests(unittest.TestCase):
         self.assertTrue(result["has_more"])
         self.assertIn("q=One+Piece", self.html.urls[0])
 
+    def test_punctuation_normalized_exact_match_survives_result_limit(self):
+        cards=''.join(
+            f'<a href="/manga/{index}/noise-{index}"><div>A Noise Title {index}</div></a>'
+            for index in range(20)
+        )
+        cards += '<a href="/manga/3262/one-punch-man"><div>One-Punch Man</div></a>'
+        source=MangaPillSource(lambda _url,**_kwargs: cards)
+        rows=source.search('One Punch Man',limit=12)['rows']
+        self.assertEqual('3262',rows[0]['id'])
+        self.assertEqual('One-Punch Man',rows[0]['title'])
+        self.assertEqual(('en',),source.content_languages)
+
     def test_metadata_and_main_cover_extraction(self):
         metadata = self.source.get_manga(MANGA_URL)
         self.assertEqual(metadata["uuid"], "5674")

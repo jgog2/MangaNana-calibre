@@ -2,16 +2,83 @@ MangaNana Development Roadmap
 
 MangaNana is a Calibre plugin for finding, downloading, preparing, and adding manga directly to a Calibre library without leaving Calibre.
 
-The current goal is a strong Calibre-plugin release. Standalone MangaNana, local-library management, direct device sync, and other standalone-only systems are post-1.0 ideas and are not part of the current completion target.
+The current goal is a strong Calibre-plugin 1.0 release. Standalone MangaNana, local-library management, direct device sync, and other standalone-only systems are post-1.0 ideas and are not part of the current completion target.
 
-The immediate priority is to preserve the working core while expanding MangaNana into a multi-source, volume-or-chapter workflow with optional image processing and eReader-oriented preview tools.
+The current architecture already supports the multi-source MangaDex / MangaPill / WeebCentral foundation, provider-local search results, Volume/Chapter workflows, fallback, output planning, and existing Portrait/Landscape generation.
 
-The primary user flow remains:
+The immediate priority is **0.11.0-dev — The High Priestess**: repair and simplify the three-stage workflow so the existing machinery is clear, stable, and predictable before advanced image/output work begins.
 
-Source
-→ Download Settings
-→ Review
+The primary user flow is:
+
+Choose Manga
+→ Book Customization
+→ Finalization
 → Download & Add to Calibre
+
+Tarot Release Milestones
+
+0.10.0-dev — The Magician — frozen/completed architecture milestone
+
+The Magician established the major multi-source machinery and provider abstraction needed for the later UI and output work.
+
+0.11.0-dev — The High Priestess — active
+
+High Priestess is the clarity/workflow milestone.
+
+Primary scope:
+
+- three mutually exclusive stages: Choose Manga / Book Customization / Finalization
+- repair stale/downstream stage resurrection and invalidation bugs
+- compact discovery controls with substantially more Search Results space
+- no default Volume/Chapter mode; before selection the UI remains generically Manga-oriented
+- remove the Volume Range UI
+- use compact Select All / Clear inventory actions
+- remove explanatory hover-description text boxes/tooltips from ordinary workflow controls
+- center the branding/stage header and the two-page gutter correctly
+- compact idle progress/status/Activity Log presentation
+- move Live eReader Preview to Book Customization
+- allow bounded Live Preview in both Portrait and Landscape
+- keep Live Preview optional and explicit
+- move book-creation/output choices to Finalization
+- add simple bulk-editable Title / Series / Author metadata
+- keep language selection on Choose Manga, not Finalization
+- preserve existing cover behavior without adding a new cover editor
+- keep Final Outputs compact and retain page-count and estimated-size summaries
+- fix Preferences group-title clipping and rename `Search_Metadata Cache` to `Search & Metadata Cache`
+- keep Preferences OK/Cancel and improve spacing/focus styling
+- change Calibre plugin author metadata to `jgog`
+- change the Calibre plugin description to `Reading manga shouldn't turn into a damn IT project.`
+
+0.12.x — The Empress — next
+
+The Empress is the output/image refinement milestone.
+
+Primary direction:
+
+- advanced image-processing controls
+- contrast, brightness, gamma, saturation, grayscale, sharpening, scaling/crop/margins where justified
+- dithering and output-quality tuning
+- large vertically scrollable processed-page preview workspace
+- shared preview/final processing pipeline
+- user-named reusable processing presets
+- eReader Device Simulator
+- generic and major-device simulator profiles
+- refined device/output profiles
+- later cover-generation/customization work where appropriate
+
+0.13.x — The Emperor
+
+Hardening, reliability, provider failure handling, large-series behavior, edge cases, performance, and platform stability.
+
+0.14.x — Judgement
+
+Feature freeze, release qualification, documentation, install/upgrade testing, beta feedback, and final regression work.
+
+1.0 — The World
+
+Stable complete Calibre-plugin release. The World should contain little or no major new feature work beyond what has already survived Judgement.
+
+Current Development Principles
 
 Current Development Principles
 
@@ -53,7 +120,7 @@ Larger work uses feature branches from dev.
 
 Public behavior should not change during internal refactors unless explicitly intended.
 
-Development builds should keep a visible build identity using the Git commit plus build timestamp.
+Development builds should use semantic versioning plus the active Tarot codename. Do not include timestamps in the visible MangaNana version/build identifier.
 
 Normal development and Calibre testing should run non-elevated. Administrator sessions are for repair only.
 
@@ -79,9 +146,9 @@ explicit Volume or Chapter search/output modes
 
 careful mixed-source fallback
 
-three-stage book-style UI
+three-stage book-style UI: Choose Manga / Book Customization / Finalization
 
-optional Live Preview
+optional Portrait/Landscape Live Preview
 
 contrast, saturation, gamma, grayscale, and resolution processing
 
@@ -141,7 +208,7 @@ Test unavailable preferred languages.
 
 Test Portrait and Landscape workflows.
 
-Test Pairing Preview.
+Test bounded Portrait and Landscape Live Preview.
 
 Test cancellation and network failure paths.
 
@@ -173,7 +240,7 @@ remain responsive during search and download operations
 
 recover cleanly from source/network errors
 
-avoid stale Preview or Review state
+avoid stale Preview or Finalization state
 
 avoid layout overlap at common DPI/UI scales
 
@@ -281,8 +348,8 @@ Conceptually:
 
 SourceAdapter
 ├── MangaDexSource
-├── MangaFireSource
-├── SourceC
+├── MangaPillSource
+├── WeebCentralSource
 ├── SourceD
 └── ...
 
@@ -447,17 +514,15 @@ Default enabled sources
 
 Target three strong default sources.
 
-Provisional candidates:
+Current default-enabled sources:
 
 MangaDex
 
-MangaFire
-
 MangaPill
 
-WeebCentral remains a strong alternate candidate.
+WeebCentral
 
-Final defaults should be selected after connector validation, inventory comparison, and stability testing.
+Future default-source changes should be made only after connector validation, inventory comparison, and stability testing.
 
 Adult sources
 
@@ -593,26 +658,28 @@ Explicit search mode
 
 Before each search, the user deliberately chooses:
 
-Search for:
+Mode:
 [ Volumes ] [ Chapters ]
 
 There is no default.
 
-This is a conscious per-search choice so results can be ranked and presented according to the desired output type.
+Before either option is selected, the workflow should remain generically Manga-oriented and must not pretend the user is already in a Volume or Chapter context.
+
+Changing modes clears the old discovery context and selections but preserves the typed query. It does not automatically search.
 
 Volume mode
 
 show available volumes
 
-select individual volumes
+select individual volumes directly
 
-select ranges
+compact Select All / Clear actions
 
-Use Entire Series / Deselect All
+create one CBZ per selected native volume
 
-create one CBZ per selected volume
+preserve existing volume metadata/cover behavior
 
-preserve existing volume metadata behavior
+Do not require a separate Volume Range UI.
 
 Example:
 
@@ -620,19 +687,23 @@ Chainsaw Man (Official Colored) (Vol. 01)
 
 Chapter mode
 
-show a scrollable chapter list rather than hundreds of volume-style tiles
+show a scrollable chapter list
 
-support chapter filtering/search
+select individual chapters directly
 
-select individual chapters
+compact Select All / Clear actions
 
-select ranges
+allow downstream Chapter Output strategies during Finalization:
 
-Select All / Deselect All
+Build CBZs from trusted Volume Data
 
-create one CBZ per selected chapter
+Manually Group Chapters into Volumes
 
-Example:
+Save Each Chapter as Its Own CBZ
+
+Do not require a separate chapter range-selector UI.
+
+Example individual output:
 
 Chainsaw Man (Official Colored) (Ch. 01)
 
@@ -660,7 +731,7 @@ volumes and chapters
 
 chapters only
 
-volumes synthesized from chapter metadata when reliable
+volumes synthesized from chapter metadata only when complete, trustworthy explicit mapping exists
 
 get_volumes() may legitimately return no useful volume structure while get_chapters() remains fully functional.
 
@@ -668,14 +739,11 @@ Chapter covers
 
 Chapters often lack distinct cover art.
 
-Potential options:
+High Priestess preserves current cover fallback behavior.
 
-Chapter covers:
-- Use source/series cover unchanged
-- Add chapter-number badge when needed
-- Always add chapter-number badge
+Future cover-label/generation controls are not required for High Priestess and may be developed in later milestones.
 
-A generated chapter-number cover must remain metadata/cover material only and must never enter the reading-page sequence or shift pairing parity.
+A generated chapter-number cover, if implemented later, must remain metadata/cover material only and must never enter the reading-page sequence or shift pairing parity.
 
 Track 6: Multi-Source Search, Identity, Ranking, and Fallback
 
@@ -689,112 +757,80 @@ Conceptually:
 
 SourceCoordinator
 ├── parallel search
-├── normalization
-├── progressive results
+├── provider-terminal display barrier
+├── provider-local result normalization
+├── permissive ranking
 ├── failure isolation
-├── deduplication
-├── inventory comparison
-├── provider ranking
-└── fallback
+├── same-provider exact-ID deduplication
+├── inventory resolution
+└── conservative fallback
 
 Search behavior
 
 Search only enabled sources.
 
-Providers should run independently.
+Providers run independently and concurrently.
 
-Do not wait for every provider before showing results.
+Initial combined rendering waits for every requested content provider to reach a terminal state:
 
-MangaDex results arrive
-→ display
+succeed
+fail
+timeout
+cancel
 
-MangaFire arrives later
-→ merge/update
+Then MangaNana ranks and renders the combined provider-local result set once.
 
-Source C fails
-→ report non-blocking status
+Provider response speed must not determine visible ranking.
 
-Canonical manga identity
+External enrichment such as AniList/Kitsu is not part of the provider display barrier and must not delay provider-result rendering.
 
-The same edition available from multiple providers should normally appear as one result when confidence is sufficient.
+Late enrichment may attach safe metadata, but it must not remove, reorder, or provider-replace already visible search results.
 
-Example:
+Provider-local result authority
 
-JoJolion
+Do not visually merge or deduplicate across providers.
 
-Available from 3 selected sources
+These are separate selectable records:
 
-Matching signals, strongest first:
+JoJolion — MangaDex
+JoJolion — MangaPill
+JoJolion — WeebCentral
 
-shared external/publication IDs
+Different editions from one or several providers also remain distinct.
 
-exact normalized titles
+Same-provider duplicate immutable IDs/URLs may be deduplicated.
 
-alternate titles
+Canonical identity remains useful internally for aliases, compatibility checks, fallback, and metadata, but uncertainty should result in less merging rather than hidden provider choices.
 
-author
+Search admission and ranking
 
-series/part information
+Provider-returned candidates should generally remain visible unless clearly invalid or deliberately filtered by policy.
 
-fuzzy title matching as supporting evidence
+Ranking primarily changes order, not existence.
 
-False merges are worse than duplicate cards.
+Prioritize:
 
-Editions remain distinct
+normalized exact/alias relationship
+→ phrase/token relevance
+→ explicit edition intent
+→ Prefer Colored where relevant
+→ deterministic provider-local/order signals
 
-Different editions must remain separately identifiable in results.
+Popularity/enrichment signals are subordinate.
 
-Examples:
+Fallback
 
-official colored edition
+Automatic provider fallback remains allowed when the selected source cannot provide usable content and a sufficiently compatible source can.
 
-normal B&W edition
+Fallback should:
 
-omnibus/special edition
+preserve work/edition/language safety
 
-materially different translation/release when identifiable
+avoid unnecessary source alternation
 
-A color edition and B&W edition must not be merged simply because the base title matches.
+remain transparent in visible source state and Activity Log
 
-Provider ranking
-
-The user chooses which sources are enabled.
-
-Once selected, MangaNana makes ranking decisions automatically.
-
-For Volume mode, prioritize approximately:
-
-requested inventory completeness
-→ requested language availability
-→ source reliability/health
-→ image/page availability
-→ source priority/tie breakers
-
-For Chapter mode, chapter completeness replaces volume completeness as the primary inventory signal.
-
-If one source has the full requested catalog and another is partial, prefer the complete provider.
-
-Mixed-source fallback
-
-Mixed-source jobs are allowed and are a benefit of the architecture, but they should be conservative.
-
-Preferred behavior:
-
-satisfy the requested job from one strong source when possible
-
-use another source when the preferred source is missing requested items
-
-avoid unnecessary alternation between providers
-
-preserve edition/language consistency
-
-show source attribution in Review
-
-Example:
-
-Vol. 01-10  Source A
-Vol. 11     Source B
-Vol. 12-20  Source A
+never treat merely sharing a franchise as sufficient equivalence
 
 Language fallback
 
@@ -806,7 +842,7 @@ distinguish advertised language metadata from usable downloadable inventory
 
 avoid auto-selecting an unusable language
 
-use another enabled source if it has the requested language
+use another compatible enabled source if it has the requested language
 
 otherwise clearly explain that the requested language is unavailable
 
@@ -820,142 +856,189 @@ detect whether a registered connector owns the URL
 
 route the title directly to that connector
 
-a supported but disabled source may be used for that request without permanently enabling it
+create/select a visible temporary provider result card in the normal results model
 
-optionally offer Enable this source
+load the exact provider inventory
 
-If unsupported:
+A supported but disabled source may be used for that direct request without permanently enabling it.
 
-This website is not currently supported by this version of MangaNana. If you would like it considered as a future source, open a Source Request on GitHub.
-
-Provide a direct source-request action when practical.
+If unsupported, explain that the website is not currently supported and point users toward the source-request path where practical.
 
 Track 7: Three-Stage Book-Style Interface
 
 Goal
 
-Keep MangaNana understandable as provider count and processing features grow.
+Keep MangaNana understandable as provider count and output capabilities grow.
 
-The application becomes a three-stage, book-inspired workflow:
+The High Priestess application uses three mutually exclusive, book-inspired stages:
 
-1. Source
-2. Download Settings
-3. Review
+1. Choose Manga
+2. Book Customization
+3. Finalization
 
-The book metaphor is visual/navigation structure, not a requirement for realistic page-turn interaction.
+The book metaphor is visual structure only.
 
-Back/Next controls must remain conventional and obvious.
+Back/Next controls remain conventional.
 
-A short optional transition animation may be used, but interaction must not depend on dragging a page corner or a realistic page curl.
+Do not use page curls, drag gestures, or realistic page-turn interaction.
 
-Page 1: Source
+The two primary panes should remain roughly equal width with a narrow centered gutter.
 
-Left page
+The MangaNana logo/title and stage navigation share the same horizontal center axis. The independently right-aligned version string must not displace that center.
 
-Provider/search setup:
+Stage 1: Choose Manga
 
-enabled source cards with local logos
+Left page:
 
-source status only for sources that have been checked
+compact discovery controls
 
-Source Search / Add Source
+Mode: Volumes / Chapters with no default
 
-Configure Sources
+Download Language
 
-explicit Volumes or Chapters mode toggle
+Prefer Colored
 
-Right page
+Direct Link
 
-Manga and inventory selection:
+large scrollable Search Results area capable of showing roughly 6-8 compact result cards at normal window size
 
-title search
+Right page:
 
-direct URL entry
+Selected Manga summary
 
-merged manga results
+proportional cover
 
-Available from N selected sources
+clear structured metadata such as author, source/edition pills, explicit rating where cheaply available
 
-edition labels such as COLOR/B&W
+chapter/volume inventory
 
-volume grid in Volume mode
+compact Select All / Clear
 
-chapter list/filter in Chapter mode
+selection count
 
-Page 1 answers:
+No Volume Range UI.
 
-Where am I getting it from?
-What am I getting?
+Before a mode is selected, mode-specific areas use generic Manga wording instead of claiming Volumes or Chapters.
 
-Page 2: Download Settings
+Stage 1 answers:
 
-Contains output choices, not manga inventory selection.
+Which exact manga/provider record do I want?
 
-Potential controls:
+Which chapters or volumes do I want?
 
-Portrait / Landscape
+Stage 2: Book Customization
+
+Left page: Reading & Layout
+
+Portrait — Individual Pages
+
+Landscape — Paired Pages
 
 RTL / LTR reading direction
 
-language where relevant
+Right page: Live eReader Preview
 
-zero padding
+Preview is optional and OFF by default.
 
-cover behavior
+Entering Book Customization does not fetch preview pages.
 
-output quality/resolution
+Enable Live Preview is the explicit network action.
 
-processing preset
+High Priestess preview supports both:
 
-device/output profile
+bounded individual-page Portrait preview
 
-Page 2 answers:
+bounded paired-page Landscape preview
 
-How should MangaNana build it?
+High Priestess does not implement the Empress processing workstation, named presets, or eReader Device Simulator.
 
-Page 3: Review + Optional Live Preview
+Stage 2 answers:
 
-Left page: Review
+How should this manga be presented for reading?
 
-Show exactly what MangaNana is about to create:
+Stage 3: Finalization
 
-title/edition
+Left page: Book Creation & Metadata
 
-selected volumes or chapters
+Chapter Output strategy when Chapter mode requires it
 
-source attribution
+Manual Grouping entry/summary where relevant
 
-language
+relevant naming controls such as zero padding
 
-output layout
+bulk-editable Title
 
-file count
+bulk-editable Series
+
+bulk-editable Author
+
+Calibre destination
+
+existing cover behavior
+
+Do not add language editing here.
+
+Do not add a new per-output metadata editor or cover editor during High Priestess.
+
+Right page: Final Outputs
+
+Show the planned books MangaNana will create.
+
+Keep useful aggregate information such as:
+
+file/output count
 
 estimated pages
 
 estimated size
 
-fallback sources where used
+layout
 
-Right page: Live Preview
+language
 
-The right page is reserved for optional preview/image-processing work.
+The existing compact output table/list is acceptable; decorative cover thumbnails are not required.
 
-The user must be able to download without loading preview assets.
+Stage 3 answers:
 
-Initial state may show:
+How should these books be packaged and identified?
 
-Live Preview
+What exactly will MangaNana create?
 
-[ Load Live Preview ]
+Stage isolation
 
-Only after the user requests preview should MangaNana download representative preview pages.
+Only one stage body may exist visibly at a time.
+
+Going Back must completely hide downstream containers.
+
+Changing upstream selection/layout may mark downstream state stale, but must never rebuild/show Finalization automatically.
+
+This regression requires explicit automated coverage.
+
+Activity Log and progress
+
+Idle presentation should remain compact.
+
+Do not leave completed full-width progress bars permanently visible.
+
+Search status belongs to Choose Manga.
+
+Preview status belongs to Book Customization.
+
+Final output/download status belongs to Finalization.
+
+Detailed Activity Log, Copy Log, and Save Log remain available when expanded.
+
+Hover descriptions
+
+Remove the custom explanatory hover-description/text-box system from ordinary workflow controls.
+
+Do not rely on tooltips to explain basic fields or buttons.
+
+Use clear labels, inline helper text where necessary, disabled-state reasons, contextual status, or Activity Log messages instead.
 
 Navigation validation
 
-Next becomes available only when the current stage has enough valid information.
-
-Page 1:
+Stage 1 requires:
 
 mode chosen
 
@@ -965,29 +1048,29 @@ usable inventory resolved
 
 at least one volume/chapter selected
 
-Page 2:
+Stage 2 requires:
 
-output settings valid
+valid reading/layout settings
 
-Page 3:
+Preview is never required.
 
-Download & Add available immediately
+Stage 3:
 
-Live Preview optional
+Download & Add to Calibre becomes available when the final output configuration is valid.
 
 Responsive book layout
 
-maintain stable left/right page proportions
+maintain stable left/right proportions
 
-center gutter provides subtle separation
-
-optional subtle stacked-page detail at the outer edge
+keep the center gutter subtle and truly centered
 
 preserve MangaNana's modern dark visual language
 
-avoid excessive skeuomorphism
+avoid excessive orange outlining on inactive controls
 
-scroll complex page contents internally rather than stretching controls indefinitely
+scroll complex pane contents internally rather than stretching controls indefinitely
+
+avoid overlap/clipping at supported window sizes
 
 Track 8: Interface Scaling
 
@@ -1031,53 +1114,63 @@ Track 9: Live Preview Engine
 
 Goal
 
-Provide near-real-time visual feedback for layout and image-processing settings without forcing preview downloads on users who do not need them.
+Provide visual feedback for output/layout and later image-processing settings without forcing preview downloads on users who do not need them.
 
-Optional loading
+High Priestess baseline
 
-Opening Review must not automatically fetch preview pages.
+Live eReader Preview lives on the right side of Book Customization.
 
-Only Load Live Preview or equivalent explicit action begins preview acquisition.
+It is optional and OFF by default.
 
-Users familiar with their preferred settings may choose a preset and download immediately without previewing.
+Opening Book Customization must not automatically fetch preview pages.
 
-Representative sample
+Only Enable Live Preview or an equivalent explicit action begins preview acquisition.
 
-Target roughly 3-6 useful pages:
+The bounded High Priestess implementation must render inside the Stage 2 preview pane rather than opening a separate preview window.
 
-cover/first page
+It must support:
 
-title/front matter
+Portrait — individual page preview
 
-normal manga page
+Landscape — paired page preview
 
-darker/heavily shaded page
+The old historical Pairing Preview limitation must not make Portrait preview unavailable.
 
-spread if available
+Run network/rendering work outside the GUI thread.
 
-color page when relevant
+Cancel or invalidate obsolete preview jobs.
 
-Preview architecture
+Do not allow late preview responses to overwrite newer user intent.
 
-run network and rendering work outside GUI thread
+Preview failure never blocks Finalization/download.
 
-download preview source pages once
+The Empress expansion
 
-cache preview pages for the session
+0.12.x — The Empress turns this same Stage 2 workspace into the advanced processing preview environment.
 
-reuse cached pages when controls change
+Planned Empress behavior:
 
-debounce rapid control changes
+download a small representative set of source pages explicitly
 
-cancel/invalidate obsolete renders
+cache/reuse source samples for the session
 
-display only newest render result
+display processed preview pages at a useful large size
 
-avoid moving surrounding UI during rendering
+support a vertically scrollable preview workspace
+
+reuse source samples while image controls change
+
+debounce rapid processing changes
+
+render only the newest state
+
+share processing functions with final CBZ output
+
+Named presets and the eReader Device Simulator are Empress features, not High Priestess features.
 
 Shared processing pipeline
 
-Preview and final CBZ must use the same underlying processing functions.
+Preview and final CBZ should converge on the same underlying processing functions.
 
 Conceptually:
 
@@ -1087,23 +1180,11 @@ Source image
 → dither/quantization
 → final output image
 
-Preview may use reduced-size copies for responsiveness, but processing behavior should not drift from final output.
+Preview may use performance-conscious representations where necessary, but processing behavior should not intentionally drift from final output.
 
-Comparison modes
+Potential comparison modes can be evaluated during Empress and later milestones rather than being required for High Priestess.
 
-Initial:
-
-Processed
-
-Original / Processed side by side
-
-Potential later:
-
-draggable before/after split
-
-zoomed detail comparison
-
-Track 10: Image Processing
+Track 10: Image Processing — The Empress
 
 Goal
 
@@ -1162,7 +1243,7 @@ Decode
 
 Dithering should normally occur after resizing so later resampling does not destroy the dither pattern or create additional moiré.
 
-Track 11: Dithering
+Track 11: Dithering — The Empress
 
 Goal
 
@@ -1248,7 +1329,7 @@ Cyotek Dithering, for visual comparison examples
 
 Reuse ideas and algorithms only in ways compatible with applicable licenses. MangaNana should keep its own processing architecture.
 
-Track 12: Processing Presets
+Track 12: Processing Presets — The Empress
 
 Goal
 
@@ -1266,7 +1347,7 @@ Crisp eInk
 
 Custom
 
-Users should also be able to save their own presets containing combinations such as:
+Users should also be able to save and name their own presets containing combinations such as:
 
 Contrast
 Saturation
@@ -1278,15 +1359,17 @@ Resolution/output profile
 
 Saved presets should be editable and removable.
 
-A user who already knows the preset they prefer should be able to select it on Download Settings and proceed directly to download.
+A user who already knows the preset they prefer should be able to select it on Book Customization and proceed without loading preview pages.
 
-Track 13: eReader Screen Emulation
+Track 13: eReader Device Simulator — The Empress
 
 Goal
 
-Let users estimate how processed manga may appear on a target display.
+Let users estimate how processed manga may appear on a target display by applying a preview-only simulation layer over the Live eReader Preview workspace.
 
-Screen emulation is preview-only.
+The eReader Device Simulator is preview-only.
+
+Its control should live at the top of the Live eReader Preview workspace so the user can enable/select a simulator profile without creating a separate preview system.
 
 It must never alter the final CBZ unless corresponding processing options are separately enabled.
 
@@ -1296,15 +1379,17 @@ Final CBZ image
 → optional display simulation
 → Live Preview
 
-Initial profiles:
+Initial profile direction:
 
-No Emulation
+No Simulation
 
 Generic B&W eReader
 
 Generic Color eReader
 
 Kobo Libra Colour
+
+Additional major Kobo/Kindle profiles may be added after their approximation rules are researched and validated.
 
 Potential simulation characteristics:
 
@@ -1326,27 +1411,59 @@ Device-specific profiles must be clearly described as approximations.
 
 Appearance varies with firmware, front-light settings, ambient lighting, calibration, and individual panels.
 
-Track 14: Review Panel Expansion
+Track 14: Finalization Panel Expansion
 
-Review should answer:
+Goal
+
+Make the last stage answer:
+
+How should these books be packaged and identified?
 
 What exactly is MangaNana about to create?
+
+High Priestess baseline
+
+Left page:
+
+Chapter Output strategy where relevant
+
+Manual Grouping where relevant
+
+relevant naming options
+
+bulk Title
+
+bulk Series
+
+bulk Author
+
+destination
+
+existing cover behavior
+
+Bulk metadata edits apply to the current job rather than forcing users to edit each planned output individually.
+
+Language remains a Choose Manga decision.
+
+Do not add a High Priestess cover editor.
+
+Right page: Final Outputs
 
 Potential entry:
 
 JoJolion Vol. 04
 
 Source: MangaDex
-Fallback source: none
 Language: English
 Pages: 226
-Processing: Manga B&W
 Output: Landscape
 Estimated size: ~93 MB
 
-For mixed-source jobs, source attribution should remain visible but subtle.
+Keep source attribution subtle but accurate.
 
-For Chapter mode, Review should make file output unambiguous.
+Keep aggregate page count and estimated-size information.
+
+For Chapter mode, Final Outputs should make file output unambiguous.
 
 Example:
 
@@ -1502,13 +1619,25 @@ Volume mode
 
 Chapter mode
 
-Source → Download Settings → Review
+Choose Manga → Book Customization → Finalization
 
 download/add to Calibre
 
 cancellation
 
 restart/stale-state behavior
+
+stage isolation after Back navigation
+
+changing Stage 1 selection after visiting Finalization does not resurrect downstream panels
+
+changing Portrait/Landscape after visiting Finalization does not resurrect downstream panels
+
+Finalization rebuild occurs only on explicit forward navigation
+
+no explanatory hover-description boxes on ordinary workflow controls
+
+Portrait Live Preview works without switching to Landscape
 
 Volume edge cases
 
@@ -1540,11 +1669,11 @@ named/unnamed chapters
 
 missing chapter covers
 
-ranges
+direct individual selections
 
-Select All / Deselect All
+Select All / Clear
 
-generated chapter-number cover badges
+Chapter Output grouping
 
 Multi-source cases
 
@@ -1650,9 +1779,9 @@ Preview/processing
 
 preview remains optional
 
-opening Review does not fetch preview pages
+opening Book Customization does not fetch preview pages
 
-Load Live Preview fetches only sample pages
+Enable Live Preview fetches only bounded sample pages
 
 session cache works
 
@@ -1715,6 +1844,12 @@ chapter cover fallback does not change reading-page order
 auxiliary cover exclusion
 
 Live Preview optionality
+
+Portrait and Landscape preview availability
+
+stage-container mutual exclusion
+
+upstream changes mark downstream state stale without showing/rebuilding it
 
 preview/final processing consistency
 
@@ -1912,111 +2047,105 @@ README screenshots
 
 Once the new UI is stable, use three primary screenshots:
 
-Source
+Choose Manga
 
-Download Settings
+Book Customization + Live eReader Preview
 
-Review + Live Preview
+Finalization + Final Outputs
 
 Suggested Active Development Order
 
 The current recommended sequence is:
 
-Keep the current beta stable and merge validated fixes to dev.
+Finish the High Priestess repair/polish pass without committing until manual qualification succeeds.
 
-Continue regression/core extraction.
+Re-run automated regression tests, compile checks, packaging validation, and Calibre installation after the repair.
 
-Finish moving MangaDex behavior behind SourceAdapter.
+Manually qualify:
 
-Build SourceRegistry and connector metadata.
+Choose Manga search/discovery
 
-Implement/validate the second provider.
+Volume and Chapter mode
 
-Implement/validate the third provider.
+Back/Next state preservation
 
-Build SourceCoordinator and progressive multi-source search.
+stage isolation
 
-Add conservative cross-source identity, inventory ranking, and fallback.
+Portrait and Landscape output
 
-Add explicit Volume / Chapter search and output modes.
+Portrait and Landscape Live Preview
 
-Build the three-stage book-style UI.
+Chapter Output strategies
 
-Add Source Search, Configure Sources, local provider logos, and lazy health states.
+bulk Title / Series / Author metadata
 
-Add authentication/session framework as required by supported connectors.
+Final Outputs page/size summaries
 
-Add MangaNana interface scaling.
+download/add to Calibre
 
-Build optional Live Preview.
+Preferences and Source Manager
 
-Add Contrast, Saturation, Gamma, Grayscale, and Resolution processing.
+Once High Priestess is stable, freeze the milestone.
 
-Add built-in and user processing presets.
+Then begin 0.12.x — The Empress:
 
-Add Atkinson, Floyd-Steinberg, Bayer 4x4, and Bayer 8x8 dithering.
+advanced image processing
 
-Add basic eReader preview/emulation.
-
-Expand/validate the English/live connector catalog toward ~50 strong sources.
-
-Run full beta/release qualification and permanent regression cases.
-
-Perform the final orientation/pairing accuracy review.
-
-Add the GitHub release update checker.
-
-Complete README/search-discoverability/release messaging.
-
-Cut the 1.0 release candidate when the active completion criteria are satisfied.
-
-This order is a guide, not a reason to force an architectural change before it is ready. Multi-source behavior remains the largest integration risk.
-
-Codex Implementation Sequence
-
-Use scoped feature-branch prompts instead of one giant task.
-
-Recommended prompt sequence:
-
-finish MangaDex behind SourceAdapter
-
-SourceRegistry
-
-SourceCoordinator
-
-second provider
-
-third provider
-
-multi-source identity/ranking/fallback
-
-Volume/Chapter modes
-
-three-stage book UI
-
-optional Live Preview
-
-image processing
+large scrollable processed preview
 
 dithering
 
-eReader emulation
+named processing presets
 
-Preferences expansion
+eReader Device Simulator and profiles
 
-final regression pass
+device/output tuning
 
-orientation/pairing accuracy pass
+After Empress:
 
-GitHub release update checker
+0.13.x — The Emperor — hardening/reliability
+
+0.14.x — Judgement — feature freeze/release qualification
+
+1.0 — The World — stable release
+
+Provider/catalog expansion, interface scaling, update checking, orientation/pairing accuracy, and documentation work should be scheduled where they best fit these milestones without destabilizing the active release.
+
+Codex Implementation Sequence
+
+Use scoped feature-branch prompts rather than one giant task.
+
+Current prompt sequence:
+
+High Priestess consolidated UI/state repair
+
+High Priestess regression/manual qualification fixes
+
+High Priestess packaging/finalization
+
+Empress preview/processing foundation
+
+Empress image processing and dithering
+
+Empress named presets
+
+Empress eReader Device Simulator
+
+Emperor reliability/hardening
+
+Judgement release qualification
+
+World 1.0 release preparation
 
 Each Codex task should:
 
 inspect existing behavior first
 
+read UX_PHILOSOPHY.md before user-facing changes
+
 make the smallest architectural change that satisfies the task
 
-preserve working UI/behavior unless intentionally changed
+preserve working behavior unless intentionally changed
 
 add/update relevant tests
 
@@ -2024,7 +2153,7 @@ run the relevant test suite
 
 summarize changed files and test results
 
-avoid committing unless explicitly requested
+avoid committing, pushing, tagging, or releasing unless explicitly requested
 
 Post-1.0 / Inactive Long-Term Ideas
 
@@ -2092,7 +2221,7 @@ making users understand provider implementation details
 
 mixing volume and chapter selectors in the same visible state
 
-turning Review into a debugging screen
+turning Finalization into a debugging screen
 
 moving controls during asynchronous loading
 
@@ -2104,9 +2233,10 @@ The complexity belongs in the architecture.
 
 The user experience should remain:
 
-Find manga
+Choose Manga
 → choose Volumes or Chapters
 → choose what to download
-→ choose how it should be built
-→ review
+→ customize reading/layout and optionally preview
+→ finalize book creation and bulk metadata
+→ verify Final Outputs
 → download and add to Calibre

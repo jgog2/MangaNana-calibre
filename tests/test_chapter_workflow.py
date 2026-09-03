@@ -32,11 +32,11 @@ class ChapterWorkflowTests(unittest.TestCase):
         self.assertEqual(compare_inventories((dex,pill), workflow='volume').selected.source_id, 'mangadex')
         self.assertEqual(compare_inventories((dex,pill), workflow='chapter').selected.source_id, 'mangapill')
 
-    def test_chapter_only_provider_is_not_fake_volume_provider(self):
+    def test_chapter_only_provider_qualifies_for_safe_volume_projection(self):
         pill = SourceInventory('mangapill','MangaPill',{},'en','original',chapter_count=80,usable=True,complete=True)
         decision = compare_inventories((pill,), workflow='volume')
-        self.assertIsNone(decision.selected)
-        self.assertIn('MangaPill', decision.error)
+        self.assertIs(decision.selected, pill)
+        self.assertEqual(0, decision.selected.native_volumes)
 
     def test_readme_has_the_plain_language_tagline(self):
         readme = (Path(__file__).resolve().parent.parent / 'README.md').read_text(encoding='utf-8')

@@ -63,14 +63,23 @@ class ProviderSearch:
 class SourceCoordinator:
     """Keep ordered provider search state and normalized source attribution."""
 
-    def __init__(self, registry):
+    def __init__(self, registry, sources=None):
         self.registry = registry
+        self._participating_source_ids = None if sources is None else tuple(
+            source.source_id for source in sources
+        )
         self._states = {}
         self.reset()
 
     @property
     def sources(self):
-        return tuple(s for s in self.registry.all() if s.enabled_by_default)
+        if self._participating_source_ids is None:
+            return tuple(s for s in self.registry.all() if s.enabled_by_default)
+        return tuple(
+            source for source_id in self._participating_source_ids
+            for source in (self.registry.get(source_id),)
+            if source is not None
+        )
 
     def reset(self):
         self._states = {
@@ -82,7 +91,7 @@ class SourceCoordinator:
     def mark_running(self, source_id):
         self._states[source_id].status = 'running'
 
-    def complete(self, source_id, data):
+    def complete(self, source_id, data, preserve_existing=False):
         state = self._states[source_id]
         source = self.registry.get(source_id)
         rows = []
@@ -96,15 +105,26 @@ class SourceCoordinator:
             rows.append(row)
         state.status = 'complete'
         state.error = ''
-        state.rows = rows
+        if preserve_existing:
+            identities={(row.get('id'),row.get('url')) for row in state.rows}
+            state.rows.extend(
+                row for row in rows
+                if (row.get('id'),row.get('url')) not in identities
+            )
+        else:
+            state.rows = rows
         result = dict(data or {})
         result['rows'] = rows
         result['source_id'] = source.source_id
         result['source_name'] = source.display_name
         return result
 
-    def fail(self, source_id, error):
+    def fail(self, source_id, error, preserve_existing=False):
         state = self._states[source_id]
+        if preserve_existing and state.rows:
+            state.status = 'complete'
+            state.error = ''
+            return
         state.status = 'failed'
         state.error = str(error or 'Unknown provider error')
         state.rows = []
@@ -174,3 +194,19 @@ def provider_search_progress_text(snapshot, elapsed_seconds=0):
         elif provider.get('status') == 'failed' and 'access blocked by site protection' in str(provider.get('error') or '').casefold():
             details.append(f'{name} — Access blocked by site protection')
     return base + ((' · ' + '; '.join(details)) if details else '')
+
+
+def settled_provider_progress(snapshot, participating_source_ids=None):
+    """Return settled and total counts for the current provider-search attempt."""
+    providers = tuple((snapshot or {}).get('providers') or ())
+    if participating_source_ids is not None:
+        participating = set(participating_source_ids)
+        providers = tuple(
+            provider for provider in providers
+            if provider.get('source_id') in participating
+        )
+    settled = sum(
+        provider.get('status') in ('complete', 'failed', 'cancelled')
+        for provider in providers
+    )
+    return settled, len(providers)

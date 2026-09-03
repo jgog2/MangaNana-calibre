@@ -33,6 +33,7 @@ def _text(value):
 class WeebCentralSource(SourceAdapter):
     source_id='weebcentral'; key=source_id; display_name='WeebCentral'
     domains=('weebcentral.com','www.weebcentral.com'); enabled_by_default=True
+    content_languages=('en',)
     capabilities=frozenset({'search','direct_series','direct_chapters','metadata','chapters','covers','pages','binary','adult_metadata','alternate_titles','authors'})
 
     def __init__(self, fetch_text=None, fetch_binary=None, cancel_check=None, sleeper=None):
@@ -155,7 +156,7 @@ class WeebCentralSource(SourceAdapter):
             cover_match=re.search(r'<source[^>]+srcset="([^"]+)"',block,re.I)
             if not cover_match: cover_match=re.search(r'<img[^>]+src="([^"]+)"',block,re.I)
             cover=unescape(cover_match.group(1)).split()[0] if cover_match else ''
-            if title: rows.append({'score':1000 if title.casefold()==query.casefold() else 250,'title':title,'full_title':title,'author':'','alternate_titles':[],'year':None,'adult':None,'id':series_id.upper(),'url':href,'cover_url':cover,'badge':'','source_id':self.source_id,'source_name':self.display_name})
+            if title: rows.append({'score':1000 if title.casefold()==query.casefold() else 250,'title':title,'full_title':title,'author':'','alternate_titles':[],'year':None,'available_languages':['en'],'adult':None,'id':series_id.upper(),'url':href,'cover_url':cover,'badge':'','source_id':self.source_id,'source_name':self.display_name})
         rows=rows[int(offset):int(offset)+int(limit)]
         return {'query':query,'offset':int(offset),'next_offset':int(offset)+len(rows),'limit':int(limit),'total':len(rows),'rows':rows,'fetched_count':len(rows),'filtered_doujinshi':0,'filtered_empty':0,'has_more':False}
 
@@ -192,8 +193,13 @@ class WeebCentralSource(SourceAdapter):
         series_id,url=self._series_url(value); endpoint=f'{BASE_URL}/series/{series_id}/full-chapter-list'
         html=self._request_text(endpoint,headers=self._headers('chapter-list',url))
         chapters=[]
-        for chapter_id,label in re.findall(r'href="/chapters/([0-9A-Z]{26})"[^>]*>.*?<span class="">\s*(?:Episode|Chapter)\s+([^<]+)</span>',html,re.I|re.S):
-            chapters.append({'id':chapter_id.upper(),'volume':None,'chapter':label.strip(),'title':'','pages':None})
+        for chapter_id,block in re.findall(
+                r'<a[^>]+href="/chapters/([0-9A-Z]{26})"[^>]*>(.*?)</a>',html,re.I|re.S):
+            label_match=re.search(r'\b(?:Episode|Chapter)\s+([^\s<]+)',_text(block),re.I)
+            if not label_match:
+                continue
+            chapters.append({'id':chapter_id.upper(),'volume':None,
+                             'chapter':label_match.group(1).strip(),'title':'','pages':None})
         chapters.sort(key=chapter_sort_key); return chapters
 
     def get_download_plan(self,value,language,start_volume=None,end_volume=None):

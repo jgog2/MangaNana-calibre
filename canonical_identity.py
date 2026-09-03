@@ -4,11 +4,16 @@ from dataclasses import dataclass
 import re
 import unicodedata
 
+try:
+    from .enrichment_model import EditionClass
+except ImportError:
+    from enrichment_model import EditionClass
+
 
 _COLOR_MARKERS = (
     ('fan_color', re.compile(r'\bfan\s+colou?red\b', re.I)),
     ('official_color', re.compile(
-        r'\b(?:official(?:ly)?\s+colou?red|digital\s+colou?red|full\s+colou?r|colou?red\s+edition|official\s+color)\b',
+        r'\b(?:official(?:ly)?\s+colou?red|digital\s+colou?red|full\s+colou?r|colou?red\s+edition|official\s+color|colou?r(?:ed)?)\b',
         re.I,
     )),
 )
@@ -21,13 +26,123 @@ def normalize_identity_text(value):
     return ' '.join(text.split())
 
 
-def edition_identity(result):
-    """Return the explicit edition class advertised by a result."""
+_ALTERNATE_SCRIPT_PARENTHETICAL = re.compile(r'\s*[（(]([^（）()]*)[）)]\s*$')
+_CREATOR_GROUP_WORDS = frozenset({
+    'studio', 'studios', 'team', 'group', 'productions', 'production',
+    'committee', 'project', 'collective', 'company', 'inc', 'ltd',
+})
+
+
+def normalize_creator_name(value):
+    """Normalize a creator for comparison without changing its display form."""
+    text = str(value or '').strip()
+    match = _ALTERNATE_SCRIPT_PARENTHETICAL.search(text)
+    if match and any(ord(character) > 127 for character in match.group(1)):
+        text = text[:match.start()]
+    words = normalize_identity_text(text).split()
+    # Bounded Hepburn long-vowel equivalence used by the trusted manga
+    # creator sources (Eiichirou/Eiichiro, Kentarou/Kentaro).
+    return ' '.join(re.sub(r'rou$', 'ro', word) for word in words)
+
+
+def creator_comparison_identity(value):
+    """Return a conservative, comparison-only personal/group identity."""
+    normalized = normalize_creator_name(value)
+    words = tuple(normalized.split())
+    if not words:
+        return ()
+    personal = (
+        2 <= len(words) <= 4 and
+        not (_CREATOR_GROUP_WORDS & set(words)) and
+        all(re.fullmatch(r"[^\W\d_]+(?:['’-][^\W\d_]+)*", word, re.UNICODE)
+            for word in words)
+    )
+    return ('person', *sorted(words)) if personal else ('literal', normalized)
+
+
+def creators_equivalent(first, second):
+    left = creator_comparison_identity(first)
+    return bool(left and left == creator_comparison_identity(second))
+
+
+def creator_query_variants(value, limit=3):
+    """Return at most three stable query spellings for one trusted creator."""
+    original = ' '.join(str(value or '').split())
+    normalized = normalize_creator_name(value)
+    words = normalized.split()
+    values = [original, normalized]
+    if (2 <= len(words) <= 4 and
+            creator_comparison_identity(normalized)[:1] == ('person',)):
+        values.append(' '.join(reversed(words)))
+    output = []
+    seen = set()
+    for item in values:
+        key = normalize_identity_text(item)
+        if item and key and key not in seen:
+            seen.add(key)
+            output.append(item)
+    return tuple(output[:max(0, int(limit))])
+
+
+def edition_classification(result):
+    """Classify only explicit provider/title evidence; absence stays UNKNOWN."""
+    explicit = str((result or {}).get('edition_class') or (result or {}).get('edition') or '').casefold().strip()
+    aliases = {
+        'standard': EditionClass.STANDARD, 'original': EditionClass.STANDARD,
+        'b&w': EditionClass.STANDARD, 'bw': EditionClass.STANDARD,
+        'official_color': EditionClass.OFFICIAL_COLOR, 'official color': EditionClass.OFFICIAL_COLOR,
+        'color': EditionClass.OFFICIAL_COLOR, 'colored': EditionClass.OFFICIAL_COLOR,
+        'fan_color': EditionClass.FAN_COLOR, 'fan color': EditionClass.FAN_COLOR,
+        'unknown': EditionClass.UNKNOWN,
+    }
+    if explicit in aliases:
+        return aliases[explicit]
     text = ' '.join(str(result.get(key) or '') for key in ('title', 'full_title', 'badge'))
     for name, pattern in _COLOR_MARKERS:
         if pattern.search(text):
-            return name
+            return EditionClass.FAN_COLOR if name == 'fan_color' else EditionClass.OFFICIAL_COLOR
+    badge = str((result or {}).get('badge') or '').casefold().strip()
+    if badge in ('b&w', 'bw', 'standard') or (result or {}).get('is_colored') is False:
+        return EditionClass.STANDARD
+    return EditionClass.UNKNOWN
+
+
+def edition_identity(result):
+    """Compatibility identity used to keep color siblings separate."""
+    classification = edition_classification(result or {})
+    if classification is EditionClass.OFFICIAL_COLOR:
+        return 'official_color'
+    if classification is EditionClass.FAN_COLOR:
+        return 'fan_color'
+    # Existing unmarked catalogue records historically represented the normal
+    # edition for grouping, but display code must still omit an unproven B&W tag.
     return 'original'
+
+
+def edition_display_label(result):
+    classification = edition_classification(result or {})
+    return {
+        EditionClass.STANDARD: 'B&W',
+        EditionClass.OFFICIAL_COLOR: 'COLOR',
+        EditionClass.FAN_COLOR: 'FAN COLOR',
+        EditionClass.UNKNOWN: '',
+    }[classification]
+
+
+def merge_calibre_tags(existing=(), work_tags=(), plugin_tag='MangaNana'):
+    """Keep user tags while adding the stable plugin and trusted work tags."""
+    plugin_key = normalize_identity_text(plugin_tag)
+    values = [value for value in (existing or ()) if normalize_identity_text(value) != plugin_key]
+    values += [plugin_tag] + list(work_tags or ())
+    merged = []
+    seen = set()
+    for value in values:
+        text = ' '.join(str(value or '').split())
+        key = normalize_identity_text(text)
+        if text and key and key not in seen:
+            seen.add(key)
+            merged.append(text)
+    return tuple(merged)
 
 
 def _values(result, key):
@@ -48,49 +163,42 @@ def identity_authors(result):
     return {normalize_identity_text(value) for value in values if normalize_identity_text(value)}
 
 
-def source_badge_specs(source_names):
-    """Return deterministic metadata for compact provider chips."""
-    return tuple({'text': name, 'kind': 'source'} for name in dict.fromkeys(source_names or ()) if name)
+def _trusted_canonical_work_id(result):
+    row=result or {}
+    work_id=str(row.get('canonical_work_id') or '').strip()
+    confidence=str(row.get('_canonical_identity_confidence') or
+                   row.get('identity_confidence') or '').casefold().strip()
+    return work_id if work_id and confidence == 'high' else ''
+
+
+def _canonical_modes_compatible(first, second):
+    """Reject only explicit language or acquisition-mode contradictions."""
+    for keys in (('language','preferred_language'),('workflow','acquisition_mode','mode')):
+        left=next((str(first.get(key) or '').casefold().strip() for key in keys
+                   if str(first.get(key) or '').strip()),'')
+        right=next((str(second.get(key) or '').casefold().strip() for key in keys
+                    if str(second.get(key) or '').strip()),'')
+        if left and right and left != right:
+            return False
+    return True
 
 
 def relevance_score(query, result):
-    """Score exact and strong all-token matches; return None for weak matches."""
-    normalized_query = normalize_identity_text(query)
-    if not normalized_query:
-        return None
-    primary = normalize_identity_text(result.get('title'))
-    aliases = {normalize_identity_text(value) for value in _values(result, 'alternate_titles')}
-    if primary == normalized_query:
-        return 1000
-    if normalized_query in aliases:
-        return 950
-    query_tokens = tuple(normalized_query.split())
-    if len(query_tokens) < 2:
-        return None
-    candidate_titles = [primary] + sorted(aliases)
-    matches = []
-    wanted = set(query_tokens)
-    for title in candidate_titles:
-        tokens = set(title.split())
-        if wanted <= tokens:
-            matches.append(700 - max(0, len(tokens) - len(wanted)) * 10)
-    return max(matches) if matches else None
+    """Compatibility wrapper for the provider-neutral tiered ranker."""
+    try:
+        from .search_ranking import relevance_score as rank_score
+    except ImportError:
+        from search_ranking import relevance_score as rank_score
+    return rank_score(query, result)
 
 
 def filter_relevant_results(query, results):
-    """Filter weak incidental matches while retaining canonical companions."""
-    rows = [dict(row) for row in (results or ())]
-    scores = [relevance_score(query, row) for row in rows]
-    grouped = group_canonical_results(rows)
-    retained_ids = set()
-    for group in grouped:
-        indexes = [index for index, row in enumerate(rows) if row in group.results]
-        if any(scores[index] is not None for index in indexes):
-            retained_ids.update(indexes)
-    ranked = [(scores[index] if scores[index] is not None else 0, index, row)
-              for index, row in enumerate(rows) if index in retained_ids]
-    ranked.sort(key=lambda item: (-item[0], item[1]))
-    return tuple(row for _score, _index, row in ranked)
+    """Compatibility wrapper returning rows from accepted canonical groups."""
+    try:
+        from .search_ranking import filter_relevant_results as rank_filter
+    except ImportError:
+        from search_ranking import filter_relevant_results as rank_filter
+    return rank_filter(query, results)
 
 
 @dataclass(frozen=True)
@@ -109,6 +217,12 @@ def _can_join(group_results, candidate):
         return False, ''
     if any(edition_identity(row) != edition_identity(candidate) for row in group_results):
         return False, ''
+    candidate_work_id=_trusted_canonical_work_id(candidate)
+    group_work_ids={_trusted_canonical_work_id(row) for row in group_results}
+    group_work_ids.discard('')
+    if (candidate_work_id and group_work_ids == {candidate_work_id} and
+            all(_canonical_modes_compatible(row,candidate) for row in group_results)):
+        return True, 'same trusted canonical work ID with compatible edition and acquisition mode'
     candidate_titles = identity_titles(candidate)
     group_titles = set().union(*(identity_titles(row) for row in group_results))
     overlap = candidate_titles & group_titles

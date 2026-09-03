@@ -5,9 +5,9 @@ Future milestones should update the constants in this file only. The eventual
 Roman-numeral suffixes when chosen by the project.
 """
 
-SEMANTIC_VERSION = '0.10.0-dev'
-CALIBRE_VERSION = (0, 10, 0)
-CODENAME = 'The Magician'
+SEMANTIC_VERSION = '0.11.0-dev'
+CALIBRE_VERSION = (0, 11, 0)
+CODENAME = 'The High Priestess'
 FUTURE_1_0_CODENAME = 'The World'
 
 DISPLAY_VERSION = f'MangaNana {SEMANTIC_VERSION} — {CODENAME}'

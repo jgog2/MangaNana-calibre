@@ -16,7 +16,7 @@ except ImportError:
     from canonical_identity import normalize_identity_text
 
 
-_NUMBER_RE = re.compile(r"^\s*(?:(?:chapter|ch\.?)\s*)?(\d+(?:\.\d+)?)\s*$", re.I)
+_NUMBER_RE = re.compile(r"^\s*(?:(?:chapter|ch\.?)\s*)?(-?\d+(?:\.\d+)?)\s*$", re.I)
 
 
 def _decimal(value):
@@ -25,13 +25,15 @@ def _decimal(value):
         number = Decimal(str(value).strip())
     except (InvalidOperation, ValueError, TypeError):
         return None
-    if not number.is_finite() or number < 0:
+    if not number.is_finite():
         return None
+    if number == 0:
+        number = Decimal(0)
     return format(number.normalize(), 'f')
 
 
 def normalize_chapter_number(value):
-    """Normalize only explicit numeric chapter labels (including decimals)."""
+    """Normalize only explicit numeric chapter labels (including signed decimals)."""
     if isinstance(value, (int, float, Decimal)):
         return _decimal(value)
     match = _NUMBER_RE.match(str(value or ''))
@@ -146,6 +148,9 @@ def _result_reference(inventory):
 
 def _provider_chapters(inventory, registry):
     """Fetch one provider's normalized chapter records with safe provenance."""
+    cached = tuple(getattr(inventory, 'chapter_records', ()) or ())
+    if cached:
+        return [(chapter_identity(row), dict(row)) for row in cached]
     source = registry.get(inventory.source_id)
     if source is None:
         raise RuntimeError(f'Unknown source: {inventory.source_id}')
@@ -164,6 +169,31 @@ def _compatible(primary, candidate):
     return (candidate.source_id != primary.source_id and candidate.usable and
             candidate.language == primary.language and
             candidate.edition == primary.edition)
+
+
+def _preserve_known_chapter_metadata(chapter, identity, compatible_records,
+                                     acquisition_multiplicity=1):
+    """Fill absent fields only for one locally unique acquisition key."""
+    merged = dict(chapter)
+    if not identity.number or acquisition_multiplicity != 1:
+        return merged
+    matches=[candidate for candidate_identity,candidate in compatible_records
+             if chapter_identities_match(identity,candidate_identity)]
+    for field in ('title', 'volume', 'cover_url'):
+        if merged.get(field) not in (None, ''):
+            continue
+        values=[]
+        for candidate in matches:
+            value=candidate.get(field)
+            if value in (None,''):
+                continue
+            comparison=(normalize_identity_text(value) if field == 'title'
+                        else (_decimal(value) if field == 'volume' else str(value)))
+            values.append((comparison,value))
+        distinct={comparison for comparison,_value in values if comparison is not None}
+        if len(distinct) == 1:
+            merged[field]=next(value for comparison,value in values if comparison in distinct)
+    return merged
 
 
 def build_cross_source_plan(inventories, registry, primary=None, workflow='chapter'):
@@ -198,6 +228,18 @@ def build_cross_source_plan(inventories, registry, primary=None, workflow='chapt
             # source is temporarily unavailable.
             continue
 
+    metadata_records = tuple(record for _candidate, records in secondaries for record in records)
+    primary_multiplicity={}
+    for identity,_chapter in primary_records:
+        if identity.number:
+            primary_multiplicity[identity.number]=primary_multiplicity.get(identity.number,0)+1
+    primary_records = [
+        (chapter_identity(reference), reference)
+        for identity, chapter in primary_records
+        for reference in (_preserve_known_chapter_metadata(
+            chapter,identity,metadata_records,primary_multiplicity.get(identity.number,0)
+        ),)
+    ]
     items = []
     gaps = []
     primary_identities = [identity for identity, _row in primary_records]

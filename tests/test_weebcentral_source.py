@@ -115,13 +115,25 @@ class WeebCentralTests(unittest.TestCase):
         chapters=source.get_chapters('https://weebcentral.com/series/01J76XY7KWP8KX5RFGVZY5TR95/x','en')
         self.assertEqual('Special',chapters[-1]['chapter'])
 
-    def test_chapter_ranking_and_volume_exclusion(self):
+    def test_current_chapter_link_shape_does_not_require_empty_span_class(self):
+        live_shape='''
+        <a class="flex" href="/chapters/01KXB61AGDZFBRTF58GHJNB6V8">
+          <span class="font-medium">Chapter 160</span>
+          <time>Last Read 2026-07-12T12:50:03Z</time>
+        </a>
+        '''
+        source=WeebCentralSource(fetch_text=lambda _url,**_kwargs:live_shape,sleeper=lambda _s:None)
+        rows=source.get_chapters('https://weebcentral.com/series/01J76XY7KWP8KX5RFGVZY5TR95/x','en')
+        self.assertEqual(['160'],[row['chapter'] for row in rows])
+        self.assertEqual(('en',),source.content_languages)
+
+    def test_chapter_ranking_and_volume_projection_qualification(self):
         candidate={'source_id':'weebcentral','source_name':'WeebCentral','id':'wc','url':'https://weebcentral.com/series/01J76XY7KWP8KX5RFGVZY5TR95/x','title':'Attack on Titan'}
         inventory=inspect_source_inventory(self.source,candidate,'en')
         self.assertTrue(inventory.usable); self.assertEqual(0,inventory.native_volumes)
         self.assertEqual(inventory.chapter_count,inventory.standalone_chapters)
         self.assertIs(compare_inventories((inventory,),workflow='chapter').selected,inventory)
-        self.assertIsNone(compare_inventories((inventory,),workflow='volume').selected)
+        self.assertIs(compare_inventories((inventory,),workflow='volume').selected,inventory)
         smaller=SourceInventory('mangapill','MangaPill',{'url':'pill'},'en','original',True,standalone_chapters=2,chapter_count=2,usable=True,complete=True)
         self.assertEqual('weebcentral',compare_inventories((smaller,inventory),workflow='chapter').selected.source_id)
 

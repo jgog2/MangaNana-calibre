@@ -17,6 +17,10 @@ prefs.defaults['reading_direction'] = 'rtl'
 
 prefs.defaults['kobo_safe_area_border'] = False
 prefs.defaults['show_adult_search_results'] = False
+prefs.defaults['source_enabled'] = {}
+prefs.defaults['ask_equivalent_sources'] = False
+prefs.defaults['search_enrichment'] = True
+prefs.defaults['prefer_colored'] = False
 
 # UI session restoration
 prefs.defaults['session_search']=''

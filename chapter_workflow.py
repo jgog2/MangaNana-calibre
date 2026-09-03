@@ -29,7 +29,9 @@ def chapter_label(chapter, zero_pad=False):
 
 
 def chapter_output_title(series_title, chapter, zero_pad=False):
-    return f'{series_title} (Ch. {chapter_label(chapter, zero_pad)})'
+    base = f'{series_title} (Ch. {chapter_label(chapter, zero_pad)})'
+    title = str((chapter or {}).get('title') or '').strip()
+    return f'{base} - {title}' if title else base
 
 
 def chapter_series_index(chapter):

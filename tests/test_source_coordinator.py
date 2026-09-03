@@ -3,7 +3,7 @@ import unittest
 from source_adapter import SourceAdapter
 from source_coordinator import (
     SourceCoordinator, SourceSearchError, count_chapter_pages, format_page_count,
-    provider_search_progress_text, review_manifest_progress,
+    provider_search_progress_text, review_manifest_progress, settled_provider_progress,
 )
 from source_registry import SourceRegistry
 
@@ -115,6 +115,27 @@ class SourceCoordinatorTests(unittest.TestCase):
         self.assertIn('MangaPill — Access blocked by site protection',text)
         self.assertNotIn('MangaPill — Slow response',text)
 
+    def test_settled_progress_counts_success_failure_and_cancellation(self):
+        coordinator, _dex, _pill = self.make_coordinator()
+        coordinator.mark_running('mangadex'); coordinator.mark_running('mangapill')
+        self.assertEqual((0, 2), settled_provider_progress(coordinator.snapshot()))
+        coordinator.complete('mangadex', {'rows': []})
+        self.assertEqual((1, 2), settled_provider_progress(coordinator.snapshot()))
+        coordinator.fail('mangapill', 'offline')
+        self.assertEqual((2, 2), settled_provider_progress(coordinator.snapshot()))
+        coordinator.reset(); coordinator.mark_running('mangadex'); coordinator.mark_running('mangapill')
+        coordinator.cancel_remaining()
+        self.assertEqual((2, 2), settled_provider_progress(coordinator.snapshot()))
+
+    def test_settled_progress_can_limit_itself_to_participating_providers(self):
+        coordinator, _dex, _pill = self.make_coordinator()
+        coordinator.mark_running('mangadex')
+        coordinator.complete('mangadex', {'rows': []})
+        self.assertEqual(
+            (1, 1),
+            settled_provider_progress(coordinator.snapshot(), ('mangadex',)),
+        )
+
     def test_cancelling_remaining_search_preserves_completed_rows(self):
         coordinator, _dex, _pill = self.make_coordinator()
         coordinator.mark_running('mangadex'); coordinator.mark_running('mangapill')
@@ -123,6 +144,23 @@ class SourceCoordinatorTests(unittest.TestCase):
         self.assertEqual('complete',states['mangadex']['status'])
         self.assertEqual('cancelled',states['mangapill']['status'])
         self.assertEqual('done',coordinator._states['mangadex'].rows[0]['id'])
+
+    def test_zero_alias_retry_preserves_successful_first_pass_rows(self):
+        coordinator, _dex, _pill = self.make_coordinator()
+        coordinator.mark_running('mangapill')
+        coordinator.complete('mangapill',{'query':'One Punch Man','rows':[{'id':'3262','title':'One-Punch Man'}]})
+        retry=coordinator.complete('mangapill',{'query':'OPM','rows':[]},preserve_existing=True)
+        self.assertEqual([],retry['rows'])
+        self.assertEqual('3262',coordinator._states['mangapill'].rows[0]['id'])
+
+    def test_failed_alias_retry_preserves_successful_first_pass_state(self):
+        coordinator, _dex, _pill = self.make_coordinator()
+        coordinator.complete('mangapill',{'rows':[{'id':'3262','title':'One-Punch Man'}]})
+        coordinator.mark_running('mangapill')
+        coordinator.fail('mangapill','optional retry offline',preserve_existing=True)
+        state=coordinator._states['mangapill']
+        self.assertEqual('complete',state.status)
+        self.assertEqual('3262',state.rows[0]['id'])
 
     def test_mangadex_known_page_counts_are_summed_without_manifest_requests(self):
         coordinator, dex, _pill = self.make_coordinator()

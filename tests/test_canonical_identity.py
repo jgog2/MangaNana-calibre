@@ -1,10 +1,12 @@
 import unittest
 
 from canonical_identity import (
+    creator_comparison_identity,
+    creator_query_variants,
+    creators_equivalent,
     filter_relevant_results,
     group_canonical_results,
     normalize_identity_text,
-    source_badge_specs,
 )
 
 
@@ -18,6 +20,25 @@ def result(source_id, title, *, aliases=(), author='', year=None, full_title='',
 
 
 class CanonicalIdentityTests(unittest.TestCase):
+    def test_shared_creator_comparison_handles_order_script_and_long_vowels(self):
+        equivalent=(
+            ('Tite Kubo','Kubo Tite'),
+            ('Eiichiro Oda','Oda Eiichirou'),
+            ('Eiichiro Oda','Oda Eiichirou (尾田栄一郎)'),
+            ('Kentaro Miura','Kentarou Miura'),
+        )
+        for first,second in equivalent:
+            with self.subTest(first=first,second=second):
+                self.assertTrue(creators_equivalent(first,second))
+        self.assertFalse(creators_equivalent('Studio Gaga','Kentarou Miura'))
+        self.assertFalse(creators_equivalent('ONE','One Piece'))
+        self.assertNotEqual(creator_comparison_identity('CLAMP'),creator_comparison_identity('Clamp Studio'))
+
+    def test_creator_query_variants_are_bounded_and_do_not_change_display_value(self):
+        display='Oda Eiichirou (尾田栄一郎)'
+        self.assertEqual((display,'oda eiichiro','eiichiro oda'),creator_query_variants(display))
+        self.assertLessEqual(len(creator_query_variants('Kubo Tite')),3)
+
     def test_unicode_case_whitespace_and_punctuation_normalization(self):
         self.assertEqual(normalize_identity_text('  ATTACK—ON   TITAN '), 'attack on titan')
         self.assertEqual(normalize_identity_text('Ａｔｔａｃｋ on Titan'), 'attack on titan')
@@ -81,6 +102,23 @@ class CanonicalIdentityTests(unittest.TestCase):
         ])
         self.assertEqual(len(groups), 2)
 
+    def test_trusted_canonical_work_id_groups_warm_cards_despite_display_authors(self):
+        rows=[
+            result('mangapill','Berserk',author='Kentarou Miura, Studio Gaga'),
+            result('mangadex','Berserk',author='Miura Kentarou'),
+            result('weebcentral','Berserk',author='Kentarou Miura, Studio Gaga'),
+        ]
+        for row in rows:
+            row.update({
+                'canonical_work_id':'anilist:30002|kitsu:8',
+                '_canonical_identity_confidence':'high',
+                'edition':'original',
+            })
+        groups=group_canonical_results(rows)
+        self.assertEqual(1,len(groups))
+        self.assertEqual({'mangapill','mangadex','weebcentral'},set(groups[0].source_ids))
+        self.assertIn('canonical work ID',groups[0].reason)
+
     def test_missing_aliases_do_not_break_exact_title_grouping(self):
         groups = group_canonical_results([
             result('mangadex', 'Monster', author='Naoki Urasawa'),
@@ -124,11 +162,28 @@ class CanonicalIdentityTests(unittest.TestCase):
         ])
         self.assertEqual(len(filtered), 1)
 
-    def test_source_badge_metadata_is_compact_and_deterministic(self):
-        self.assertEqual(source_badge_specs(('MangaDex', 'MangaPill', 'MangaDex')), (
-            {'text': 'MangaDex', 'kind': 'source'},
-            {'text': 'MangaPill', 'kind': 'source'},
-        ))
+    def test_single_token_query_keeps_whole_token_matches(self):
+        rows = [
+            result('mangadex', "JoJo's Bizarre Adventure Part 8 - JoJolion"),
+            result('mangapill', 'Jojoni Deremi ga Mashiteku Tsundere Gyaru'),
+        ]
+        filtered = filter_relevant_results('Jojo', rows)
+        self.assertEqual(
+            [row['title'] for row in filtered],
+            ["JoJo's Bizarre Adventure Part 8 - JoJolion"],
+        )
+
+    def test_representative_queries_retain_strong_title_matches(self):
+        cases = (
+            ('Jojo', "JoJo's Bizarre Adventure: Part 7 – Steel Ball Run"),
+            ('One Punch', 'One Punch Man'),
+            ('Chainsaw Man', 'Chainsaw Man'),
+            ('Attack on Titan', 'Attack on Titan'),
+        )
+        for query, title in cases:
+            with self.subTest(query=query):
+                filtered = filter_relevant_results(query, [result('mangadex', title)])
+                self.assertEqual([row['title'] for row in filtered], [title])
 
 
 if __name__ == '__main__':
