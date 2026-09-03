@@ -33,7 +33,7 @@ class SearchResolution:
 def inventory_is_eligible(inventory, workflow):
     if inventory is None or not inventory.usable:
         return False
-    return workflow != 'volume' or inventory.native_volumes > 0
+    return True
 
 
 def _reference(source, result):
@@ -109,6 +109,7 @@ def _choose_primary(inventories, workflow):
     if not eligible:
         return None
     return sorted(eligible, key=lambda row: (
+        0 if workflow != 'volume' or row.native_volumes else 1,
         0 if row.complete else 1,
         -row.chapter_count,
         -row.native_volumes,
@@ -186,9 +187,12 @@ def resolve_search_group(registry, candidates, preferred_language, workflow,
             reported = _reported_languages(source, candidate, metadata)
             if reported is not None and language not in reported:
                 continue
+            # Inspection already records both native membership and chapter
+            # rows. Reuse it across Chapter/Volume switches instead of issuing
+            # the same provider inventory request again.
             cache_key = (
-                workflow, source.source_id, _reference(source, candidate), language,
-                edition_identity(candidate),
+                'acquisition', source.source_id, _reference(source, candidate),
+                language, edition_identity(candidate),
             )
             inventory = _inventory_cache_get(inventory_cache, cache_key)
             if inventory is None:

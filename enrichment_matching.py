@@ -394,6 +394,80 @@ def resolve_canonical_work_facts(groups, overlays=None):
     return facts
 
 
+def propagate_trusted_family_work_facts(rows):
+    """Share only agreed high-confidence work facts across exact edition siblings."""
+    output=[dict(row or {}) for row in rows or ()]
+    families={}
+    for row in output:
+        family=work_title(row.get('_provider_native_title') or row.get('title'))
+        if family:
+            families.setdefault(family,[]).append(row)
+    for members in families.values():
+        trusted=[]
+        for row in members:
+            work_id=str(row.get('canonical_work_id') or '').strip()
+            confidence=str(row.get('_canonical_identity_confidence') or '').casefold()
+            if not confidence and (row.get('work_family_id') or row.get('external_ids')):
+                confidence='high'
+            if work_id and confidence == 'high':
+                trusted.append(row)
+        work_ids={str(row.get('canonical_work_id') or '').strip() for row in trusted}
+        if len(work_ids) != 1:
+            continue
+        creator_sets=[]
+        for row in trusted:
+            creators=tuple(_values(row.get('canonical_creators'))) or _values(
+                row.get('canonical_author')
+            )
+            keys=frozenset(_creator_key(value) for value in creators if _creator_key(value))
+            if keys:
+                creator_sets.append(keys)
+        if len(set(creator_sets)) > 1:
+            continue
+        creator_keys=creator_sets[0] if creator_sets else frozenset()
+        contradicted=False
+        if creator_keys:
+            for row in members:
+                offered=tuple(_values(row.get('canonical_creators'))) or _values(
+                    row.get('canonical_author') or row.get('author')
+                )
+                offered_keys={_creator_key(value) for value in offered if _creator_key(value)}
+                if offered_keys and not offered_keys & creator_keys:
+                    contradicted=True
+                    break
+        if contradicted:
+            continue
+        donor=sorted(trusted,key=lambda row:(
+            str(row.get('source_id') or ''),str(row.get('id') or row.get('url') or '')
+        ))[0]
+        aliases=tuple(dict.fromkeys(
+            value for row in trusted for value in row.get('canonical_aliases') or () if value
+        ))
+        creator_aliases=tuple(dict.fromkeys(
+            value for row in trusted
+            for value in row.get('canonical_creator_aliases') or () if value
+        ))
+        external_ids={
+            key:value for row in trusted for key,value in dict(row.get('external_ids') or {}).items()
+        }
+        for row in members:
+            row.update({
+                'canonical_work_id':donor.get('canonical_work_id') or '',
+                'canonical_title':donor.get('canonical_title') or '',
+                'canonical_author':donor.get('canonical_author') or '',
+                'canonical_creators':list(donor.get('canonical_creators') or ()),
+                'canonical_creator_provenance':donor.get('canonical_creator_provenance') or '',
+                'canonical_creator_aliases':list(creator_aliases),
+                'canonical_aliases':list(aliases),
+                'external_ids':dict(external_ids),
+                '_canonical_identity_confidence':'high',
+            })
+            for field in ('work_description','work_description_candidates','work_tags'):
+                if donor.get(field) not in (None,'',(),[],{}):
+                    row[field]=donor[field]
+    return tuple(output)
+
+
 def enrich_content_results(results, external_candidates):
     """Attach trusted work metadata while preserving every downloadable edition."""
     rows = [dict(result) for result in results or ()]

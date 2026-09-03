@@ -15,7 +15,7 @@ class MagicianFinalizationUiTests(unittest.TestCase):
 
     def test_prefer_colored_is_persistent_and_local_only(self):
         self.assertIn("prefs.defaults['prefer_colored'] = False", CONFIG)
-        self.assertIn("self.prefer_colored = QCheckBox('Prefer Colored')", MAIN)
+        self.assertIn("self.prefer_colored = MangaSelectionCheckBox('Prefer Colored')", MAIN)
         self.assertIn("prefs['prefer_colored'] = bool(checked)", MAIN)
         prefer=MAIN[MAIN.index('def _prefer_colored_changed('):MAIN.index('def _search_score(')]
         self.assertIn('_render_provider_search_results()',prefer)

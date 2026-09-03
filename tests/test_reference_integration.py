@@ -1,6 +1,8 @@
 import tempfile
+import threading
 import unittest
 import urllib.error
+from concurrent.futures import CancelledError
 from pathlib import Path
 
 from chapter_output import ChapterOutputMode, plan_chapter_outputs, resolve_volume_evidence
@@ -8,6 +10,7 @@ from reference_integration import (
     BOOKWALKER_CACHE_CONTRACT, ReferenceMetadataService, canonical_publication_context,
     canonical_reference_alias, chapter_metadata_label, fallback_source_label,
     is_placeholder_chapter_title, merge_wikipedia_chapters, preferred_description,
+    _google_targets,
 )
 from reference_metadata import PublicationArtwork, PublicationChapter, PublicationMatch, PublicationVolume
 from search_cache import IDENTITY_TTL, SearchMetadataCache
@@ -15,6 +18,186 @@ from workflow_state import HighPriestessState
 
 
 class ReferenceIntegrationTests(unittest.TestCase):
+    def test_google_targets_only_uncovered_canonical_volumes(self):
+        wikipedia={'volumes':[{'number':str(number)} for number in (1,2,3)]}
+        self.assertEqual(('2',),_google_targets({
+            'wikipedia':wikipedia,
+            'bookwalker':{'covers':[{'volume':'1'},{'volume':'3'}]},
+        }))
+        self.assertEqual((),_google_targets({
+            'wikipedia':wikipedia,
+            'bookwalker':{'covers':[{'volume':str(number)} for number in (1,2,3)]},
+        }))
+        self.assertEqual(('1','2','3'),_google_targets({
+            'wikipedia':wikipedia,'bookwalker':{'covers':[]},
+        }))
+
+    def test_configured_google_key_refreshes_legacy_unkeyed_cache_once(self):
+        class Wiki:
+            pattern_id='fixture'; parser_version='1'
+            def match_publication(self,_evidence):
+                return PublicationMatch('wikipedia','wiki-work','Work','confident','fixture')
+            def get_structure_page(self,_match): return 'List of Work chapters'
+            def get_chapter_list(self,_match):
+                return (PublicationChapter('1','Chapter','1','chapter','wikipedia'),)
+            def get_volume_list(self,_match): return (PublicationVolume('1'),)
+        class Book:
+            def match_publication(self,_evidence):
+                return PublicationMatch('bookwalker','','','no_match','fixture')
+        class Google:
+            supports_detail_cache=False; api_key='fake-configured-key'
+            def __init__(self): self.calls=0
+            def resolve(self,_context,targets):
+                self.calls+=1
+                return {
+                    'cache_contract':'google-books-artwork-v2',
+                    'detail_cache_contract':'google-books-volume-detail-v1',
+                    'status':'valid','configuration_status':'configured',
+                    'key_source':'local_private_file','target_volumes':list(targets),
+                    'covers':[],'candidates':[],'trusted_series_ids':[],
+                }
+        evidence={'title':'Work','creators':('Creator',),'requested_language':'en',
+                  'edition':'original','edition_profile':'standard','reference_key':'work'}
+        with tempfile.TemporaryDirectory() as folder:
+            cache=SearchMetadataCache(Path(folder)/'cache.sqlite3')
+            cache.put_reference_catalog('google:google-books-artwork-v2:work:en:standard',{
+                'cache_contract':'google-books-artwork-v2',
+                'detail_cache_contract':'google-books-volume-detail-v1',
+                'status':'valid','target_volumes':['1'],'covers':[],'candidates':[],
+            })
+            google=Google(); service=ReferenceMetadataService(cache,Wiki(),Book(),google)
+            first=service.lookup('work',evidence)
+            second=service.lookup('work',evidence)
+            self.assertEqual((1,'configured','hit'),(
+                google.calls,first['google_books']['configuration_status'],
+                second['google_books']['cache_state'],
+            ))
+            cache.close()
+    def test_reference_lookup_cancelled_before_start_makes_no_source_requests(self):
+        class Source:
+            def __init__(self): self.calls=0
+            def match_publication(self,_evidence):
+                self.calls+=1
+                return PublicationMatch('fixture','','','no_match','fixture')
+        wiki=Source(); book=Source(); google=Source()
+        with self.assertRaises(CancelledError):
+            ReferenceMetadataService(None,wiki,book,google).lookup(
+                'work',{'title':'Work'},should_cancel=lambda:True,
+            )
+        self.assertEqual((0,0,0),(wiki.calls,book.calls,google.calls))
+
+    def test_reference_lookup_cancelled_during_wikipedia_stops_before_bookwalker(self):
+        cancelled={'value':False}
+        class Wiki:
+            def match_publication(self,_evidence):
+                cancelled['value']=True
+                return PublicationMatch('wikipedia','','','no_match','fixture')
+        class Book:
+            def __init__(self): self.calls=0
+            def match_publication(self,_evidence):
+                self.calls+=1
+                return PublicationMatch('bookwalker','','','no_match','fixture')
+        book=Book()
+        with self.assertRaises(CancelledError):
+            ReferenceMetadataService(None,Wiki(),book,object()).lookup(
+                'work',{'title':'Work'},should_cancel=lambda:cancelled['value'],
+            )
+        self.assertEqual(0,book.calls)
+
+    def test_reference_lookup_cancelled_during_bookwalker_stops_before_catalog_and_google(self):
+        cancelled={'value':False}
+        class Wiki:
+            def match_publication(self,_evidence):
+                return PublicationMatch('wikipedia','','','no_match','fixture')
+        class Book:
+            def __init__(self): self.volume_calls=0
+            def match_publication(self,_evidence):
+                cancelled['value']=True
+                return PublicationMatch('bookwalker','series/1','Work','confident','fixture')
+            def get_volume_list(self,_match):
+                self.volume_calls+=1
+                return ()
+        class Google:
+            def __init__(self): self.calls=0
+            def resolve(self,*_args): self.calls+=1; return {}
+        book=Book(); google=Google()
+        with self.assertRaises(CancelledError):
+            ReferenceMetadataService(None,Wiki(),book,google).lookup(
+                'work',{'title':'Work'},should_cancel=lambda:cancelled['value'],
+            )
+        self.assertEqual((0,0),(book.volume_calls,google.calls))
+
+    def test_cancelled_refresh_does_not_replace_existing_last_known_good_catalog(self):
+        cancelled={'value':False}
+        existing={
+            'cache_contract':BOOKWALKER_CACHE_CONTRACT,
+            'match':{'confidence':'confident','publication_id':'series/old'},
+            'covers':[{'volume':'1','url':'old'}],
+        }
+        class Hit:
+            def __init__(self,value): self.value=value
+        class Cache:
+            def __init__(self): self.puts=[]; self.deletes=[]
+            def get_reference_structure(self,_key): return None
+            def get_reference_catalog(self,key):
+                if key == 'work:work:original':
+                    return Hit({'resolved_key':'series/old:series/old'})
+                return None
+            def get(self,kind,key,allow_stale=False):
+                if kind == 'reference_catalog' and key == 'series/old:series/old' and allow_stale:
+                    return Hit(existing)
+                return None
+            def put_reference_structure(self,key,value): self.puts.append((key,value))
+            def put_reference_catalog(self,key,value): self.puts.append((key,value))
+            def delete(self,*args): self.deletes.append(args)
+        class Wiki:
+            def match_publication(self,_evidence):
+                return PublicationMatch('wikipedia','','','no_match','fixture')
+        class Book:
+            def match_publication(self,_evidence):
+                cancelled['value']=True
+                return PublicationMatch('bookwalker','series/new','Work','confident','fixture')
+        cache=Cache()
+        with self.assertRaises(CancelledError):
+            ReferenceMetadataService(cache,Wiki(),Book(),object()).lookup(
+                'work',{'title':'Work','edition':'original'},
+                should_cancel=lambda:cancelled['value'],
+            )
+        self.assertEqual([],cache.puts)
+        self.assertEqual([],cache.deletes)
+        self.assertEqual('old',existing['covers'][0]['url'])
+
+    def test_stale_overlapping_lookup_stops_and_replacement_completes(self):
+        started=threading.Event(); release=threading.Event(); cancelled=threading.Event()
+        outcomes=[]
+        class SlowWiki:
+            def match_publication(self,_evidence):
+                started.set(); release.wait()
+                return PublicationMatch('wikipedia','','','no_match','fixture')
+        class NoMatch:
+            def match_publication(self,_evidence):
+                return PublicationMatch('fixture','','','no_match','fixture')
+        class Google:
+            def resolve(self,_context,_targets):
+                return {'status':'disabled','covers':[],'candidates':[],'target_volumes':[]}
+        def stale_lookup():
+            try:
+                ReferenceMetadataService(None,SlowWiki(),NoMatch(),Google()).lookup(
+                    'old',{'title':'Old'},should_cancel=cancelled.is_set,
+                )
+            except CancelledError:
+                outcomes.append('old_cancelled')
+        thread=threading.Thread(target=stale_lookup)
+        thread.start(); self.assertTrue(started.wait(2))
+        cancelled.set(); release.set()
+        replacement=ReferenceMetadataService(None,NoMatch(),NoMatch(),Google()).lookup(
+            'new',{'title':'New'},should_cancel=lambda:False,
+        )
+        thread.join(2)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(['old_cancelled'],outcomes)
+        self.assertEqual('new',replacement['work_key'])
+
     def test_google_gap_fill_cache_is_cold_warm_restart_invariant(self):
         class Wiki:
             pattern_id='fixture'; parser_version='5'

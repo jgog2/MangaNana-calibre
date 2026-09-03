@@ -2,9 +2,10 @@
 
 from dataclasses import asdict, dataclass
 from enum import Enum
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import CancelledError, ThreadPoolExecutor, as_completed
 import json
 import os
+from pathlib import Path
 import re
 import threading
 import urllib.error
@@ -35,6 +36,65 @@ _COLLECTION = re.compile(r'\b(?:omnibus|3[ -]?in[ -]?1|box\s*set)\b', re.I)
 _ALTERNATE = re.compile(r'\b(?:deluxe|collector(?:\'s)? edition|library edition|black edition|limited edition)\b', re.I)
 _NOVEL = re.compile(r'\b(?:novel|guidebook|character book|art of)\b', re.I)
 _SPINOFF = re.compile(r'\b(?:before the fall|buddy stories|lost girls|junior high)\b', re.I)
+_SECRET_QUERY = re.compile(r'([?&]key=)[^&\s]+', re.I)
+PRIVATE_KEY_RELATIVE_PATH = ('plugins', 'manganana', 'private', 'google_books_api_key.txt')
+
+
+class GoogleBooksKeyConfiguration:
+    """Secret-bearing configuration whose representation is always redacted."""
+    __slots__ = ('api_key', 'source', 'status')
+
+    def __init__(self, api_key='', source='', status='missing'):
+        self.api_key = str(api_key or '')
+        self.source = str(source or '')
+        self.status = str(status or 'missing')
+
+    def __repr__(self):
+        return ('GoogleBooksKeyConfiguration(source=%r, status=%r, api_key=<redacted>)' %
+                (self.source, self.status))
+
+
+def _runtime_config_dir():
+    try:
+        from calibre.constants import config_dir
+        return str(config_dir or '')
+    except Exception:
+        return str(os.environ.get('CALIBRE_CONFIG_DIRECTORY') or '')
+
+
+def google_books_private_key_path(config_directory=None):
+    root = str(config_directory if config_directory is not None else _runtime_config_dir())
+    return Path(root).joinpath(*PRIVATE_KEY_RELATIVE_PATH) if root else None
+
+
+def load_google_books_api_key(config_directory=None, environ=None, read_text=None):
+    """Load local BYOK first, then environment, without exposing key material."""
+    environment = os.environ if environ is None else environ
+    path = google_books_private_key_path(config_directory)
+    file_error = False
+    if path is not None and path.is_file():
+        try:
+            reader = read_text or (lambda value: value.read_text(encoding='utf-8'))
+            value = str(reader(path) or '').strip()
+            if value:
+                return GoogleBooksKeyConfiguration(value, 'local_private_file', 'configured')
+        except Exception:
+            file_error = True
+    value = str(environment.get('MANGANANA_GOOGLE_BOOKS_API_KEY') or '').strip()
+    if value:
+        return GoogleBooksKeyConfiguration(
+            value, 'environment',
+            'configured_after_file_error' if file_error else 'configured',
+        )
+    return GoogleBooksKeyConfiguration(
+        '', '', 'file_unreadable' if file_error else 'missing',
+    )
+
+
+def _safe_exception_text(exc, api_key=''):
+    message = _SECRET_QUERY.sub(r'\1<redacted>', str(exc or ''))
+    secret = str(api_key or '')
+    return message.replace(secret, '<redacted>') if secret else message
 
 
 class Classification(str, Enum):
@@ -254,13 +314,33 @@ class GoogleBooksArtworkResolver:
     source_id='google_books'
     supports_detail_cache=True
 
-    def __init__(self,request_json=None,request_detail=None,api_key=None,enabled=None):
-        self.api_key=api_key if api_key is not None else os.environ.get('MANGANANA_GOOGLE_BOOKS_API_KEY','')
-        self.enabled=(os.environ.get('MANGANANA_GOOGLE_BOOKS_ENABLED','1') != '0') if enabled is None else bool(enabled)
+    def __init__(self,request_json=None,request_detail=None,api_key=None,enabled=None,
+                 should_cancel=None,config_directory=None,environ=None,key_reader=None):
+        environment=os.environ if environ is None else environ
+        if api_key is None:
+            self.key_configuration=load_google_books_api_key(
+                config_directory,environment,key_reader,
+            )
+        else:
+            self.key_configuration=GoogleBooksKeyConfiguration(
+                str(api_key or '').strip(),'explicit','configured' if str(api_key or '').strip() else 'missing',
+            )
+        self.api_key=self.key_configuration.api_key
+        explicit_disabled=str(environment.get('MANGANANA_GOOGLE_BOOKS_ENABLED') or '').strip() == '0'
+        self._explicitly_disabled=(enabled is not None and not bool(enabled)) or explicit_disabled
+        self.enabled=(bool(self.api_key) and not explicit_disabled) if enabled is None else bool(enabled)
         self._request_json=request_json or self._http_json
         self._request_detail=request_detail or self._http_detail
         self.request_count=0
         self.detail_request_count=0
+        self._should_cancel=should_cancel or (lambda:False)
+
+    def set_cancel_check(self,should_cancel=None):
+        self._should_cancel=should_cancel or (lambda:False)
+
+    def _check_cancel(self):
+        if self._should_cancel():
+            raise CancelledError()
 
     def _http_json(self,params):
         query=dict(params)
@@ -273,11 +353,15 @@ class GoogleBooksArtworkResolver:
             return json.loads(response.read().decode('utf-8'))
 
     def _query(self,text,max_results):
+        self._check_cancel()
         self.request_count+=1
-        return tuple((self._request_json({
-            'q':text,'langRestrict':'en','printType':'books','projection':'full',
-            'maxResults':min(MAX_BROAD_RESULTS,int(max_results)),
-        }) or {}).get('items') or ())
+        try:
+            return tuple((self._request_json({
+                'q':text,'langRestrict':'en','printType':'books','projection':'full',
+                'maxResults':min(MAX_BROAD_RESULTS,int(max_results)),
+            }) or {}).get('items') or ())
+        except Exception as exc:
+            raise RuntimeError(_safe_exception_text(exc,self.api_key)) from None
 
     def _http_detail(self,volume_id):
         if not self.api_key:
@@ -298,6 +382,7 @@ class GoogleBooksArtworkResolver:
         return 'TRANSIENT_FAILURE'
 
     def _fetch_detail(self,candidate,context,target,trusted,cache_get,cache_put,circuit):
+        self._check_cancel()
         volume_id=candidate.google_volume_id
         cached=cache_get(volume_id) if cache_get else None
         if cached and cached.get('cache_contract') == DETAIL_CACHE_CONTRACT:
@@ -324,8 +409,11 @@ class GoogleBooksArtworkResolver:
                     'validation_evidence':list(evidence),'image_links':dict(full.image_links),
                     'preview_field':preview_field,'preview_url':preview_url,
                     'source_field':source_field,'source_url':source_url,'cache_state':'refreshed'}
+            self._check_cancel()
             if cache_put: cache_put(volume_id,detail)
             return detail
+        except CancelledError:
+            raise
         except Exception as exc:
             status=self._detail_status(exc)
             with circuit['lock']:
@@ -333,7 +421,8 @@ class GoogleBooksArtworkResolver:
                 if status in ('AUTH_FAILURE','RATE_LIMITED') or circuit['transient_failures'] >= 2:
                     circuit['open']=True; circuit['reason']=status
             return {'cache_contract':DETAIL_CACHE_CONTRACT,'status':status,
-                    'google_volume_id':volume_id,'error':str(exc)}
+                    'google_volume_id':volume_id,
+                    'error':_safe_exception_text(exc,self.api_key)}
 
     def _promote_volume(self,target,rows,context,trusted,cache_get,cache_put,circuit,shared,shared_lock):
         attempts=[]
@@ -369,10 +458,17 @@ class GoogleBooksArtworkResolver:
         return None
 
     def resolve(self,context,target_volumes,detail_cache_get=None,detail_cache_put=None):
+        self._check_cancel()
         context=dict(context or {}); targets=tuple(sorted({_number(value) for value in target_volumes if _number(value)},key=float))
-        empty={'cache_contract':CACHE_CONTRACT,'status':'disabled','covers':[],'candidates':[],
-               'trusted_series_ids':[],'target_volumes':list(targets),'network':{'requests':0}}
-        if (not self.enabled or str(context.get('requested_language') or '').casefold() != 'en' or
+        empty={'cache_contract':CACHE_CONTRACT,'status':'unavailable_publication_context','covers':[],'candidates':[],
+               'trusted_series_ids':[],'target_volumes':list(targets),'network':{'requests':0},
+               'configuration_status':self.key_configuration.status,
+               'key_source':self.key_configuration.source}
+        if not self.enabled:
+            return {**empty,'status':(
+                'disabled_by_configuration' if self._explicitly_disabled else 'unavailable_no_api_key'
+            )}
+        if (str(context.get('requested_language') or '').casefold() != 'en' or
                 str(context.get('edition_profile') or '') != 'standard'):
             return empty
         if not targets:
@@ -382,6 +478,7 @@ class GoogleBooksArtworkResolver:
             return {**empty,'status':'insufficient_canonical_evidence'}
         candidates={}; discovery_queries=[]
         for query in _discovery_queries(context):
+            self._check_cancel()
             discovery_queries.append(query)
             for original in self._query(query,MAX_BROAD_RESULTS):
                 candidate=normalize_google_volume(original)
@@ -404,7 +501,9 @@ class GoogleBooksArtworkResolver:
         target_titles=tuple(dict.fromkeys((title,*(str(value).strip() for value in
             context.get('trusted_aliases') or () if str(value or '').strip()))))[:3]
         for target in tuple(value for value in targets if value not in covered):
+            self._check_cancel()
             for target_title in target_titles:
+                self._check_cancel()
                 if targeted_requests >= targeted_budget:
                     break
                 targeted_requests+=1
@@ -453,17 +552,21 @@ class GoogleBooksArtworkResolver:
         covers=[]; circuit={'open':False,'reason':'','transient_failures':0,'lock':threading.Lock()}
         shared={}; shared_lock=threading.Lock()
         if self.api_key and detail_groups:
+            self._check_cancel()
             with ThreadPoolExecutor(max_workers=4) as executor:
                 futures={executor.submit(self._promote_volume,target,rows,context,trusted,
                                          detail_cache_get,detail_cache_put,circuit,shared,shared_lock):target
                          for target,rows in sorted(detail_groups.items(),key=lambda item:float(item[0]))}
                 for future in as_completed(futures):
+                    self._check_cancel()
                     cover=future.result()
                     if cover: covers.append(cover)
         covers.sort(key=lambda row:float(row['volume']))
         return {'cache_contract':CACHE_CONTRACT,'detail_cache_contract':DETAIL_CACHE_CONTRACT,
-                'status':'valid' if candidates else 'no_discovery_candidates','covers':covers,
+                'status':'valid' if covers else 'no_compatible_exact_covers','covers':covers,
                 'candidates':evaluations,'trusted_series_ids':list(trusted),
+                'configuration_status':self.key_configuration.status,
+                'key_source':self.key_configuration.source,
                 'discovery_queries':discovery_queries,
                 'target_volumes':list(targets),'network':{'requests':self.request_count,
                 'detail_requests':self.detail_request_count,'detail_concurrency':4,

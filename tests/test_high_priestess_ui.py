@@ -401,6 +401,31 @@ class HighPriestessUiContracts(unittest.TestCase):
         self.assertNotIn('self.search_box.text()',lookup)
         self.assertNotIn('self._search_query',lookup)
 
+    def test_reference_worker_is_cancellation_aware_and_current_callback_refreshes_covers(self):
+        worker=section('class ReferenceLookupWorker(QThread):','class ImageBatchWorker(QThread):')
+        self.assertIn('should_cancel=self.isInterruptionRequested',worker)
+        reset=section('def _reset_reference_lookup(self):','def _start_reference_lookup(self):')
+        self.assertIn('worker.requestInterruption()',reset)
+        handler=section('def _on_reference_lookup_ready(self, payload):','def _calibre_work_tags(')
+        self.assertIn("payload.get('request_id') != self._reference_request_id",handler)
+        self.assertIn('self._reference_volume_covers=reference_covers',handler)
+        self.assertIn('self._refresh_unified_volume_plan()',handler)
+        self.assertIn('self._load_visible_volume_thumbs',handler)
+
+    def test_bookwalker_log_and_volume_hint_use_neutral_current_inventory_copy(self):
+        handler=section('def _on_reference_lookup_ready(self, payload):','def _calibre_work_tags(')
+        self.assertIn('exact volume covers',handler)
+        self.assertNotIn('exact standard covers',handler)
+        self.assertIn('raw catalog complete; canonical catalog rejected',handler)
+        self.assertIn('Google Books artwork lookup unavailable: no API key configured.',handler)
+        self.assertIn('Google Books artwork fallback disabled by configuration.',handler)
+        self.assertIn('unavailable_publication_context',handler)
+        self.assertIn('no_compatible_exact_covers',handler)
+        self.assertNotIn('disabled or API key unavailable',handler)
+        actions=section('def _update_volume_selection_hint(self):','def _clear_inventory_selection(')
+        self.assertIn('volume_selection_hint(has_numbered,has_standalone)',actions)
+        self.assertNotIn("'volumes' not in self.current_source.capabilities",actions)
+
 
 if __name__ == '__main__':
     unittest.main()

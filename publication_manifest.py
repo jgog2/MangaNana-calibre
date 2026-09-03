@@ -19,6 +19,8 @@ except ImportError:
 
 MANIFEST_SCHEMA_VERSION = 'publication-manifest-v2'
 _PLACEHOLDER_TITLES = frozenset({'', 'fallback', 'unknown', 'none', 'null', 'n/a', 'untitled'})
+_EXPLICIT_CHAPTER_RANGE = re.compile(r'^\s*(\d+)\s*[-\u2013\u2014]\s*(\d+)\s*$')
+_MAX_EXPLICIT_CHAPTER_RANGE_SPAN = 200
 
 
 def normalize_publication_number(value):
@@ -30,6 +32,17 @@ def normalize_publication_number(value):
     if not number.is_finite() or number < 0:
         return None
     return format(number.normalize(), 'f')
+
+
+def _explicit_chapter_range(value):
+    """Expand only bounded, inclusive integer ranges from explicit records."""
+    matched = _EXPLICIT_CHAPTER_RANGE.fullmatch(str(value or ''))
+    if not matched:
+        return ()
+    start, end = (int(part) for part in matched.groups())
+    if end < start or end - start > _MAX_EXPLICIT_CHAPTER_RANGE_SPAN:
+        return ()
+    return tuple(str(number) for number in range(start, end + 1))
 
 
 def _placeholder_title(value, chapter_key=''):
@@ -394,6 +407,33 @@ class PublicationManifestBuilder:
                 self.ambiguous_chapter_keys.add(key)
         if not rows:
             return self
+        reference_memberships = {}
+        expanded_ranges = []
+        for original in rows:
+            chapter = dict(original)
+            kind = str(chapter.get('kind') or 'chapter')
+            volume_key = normalize_publication_number(chapter.get('volume'))
+            if volume_key is None:
+                continue
+            if kind == 'range':
+                keys = _explicit_chapter_range(
+                    chapter.get('number') or chapter.get('chapter')
+                )
+                if keys:
+                    expanded_ranges.append((chapter, keys, volume_key))
+            elif kind in ('chapter', 'special', 'uncollected'):
+                key = normalize_chapter_number(
+                    chapter.get('number') or chapter.get('chapter')
+                )
+                keys = (key,) if key is not None else ()
+            else:
+                keys = ()
+            for key in keys:
+                reference_memberships.setdefault(key, set()).add(volume_key)
+        conflicting_memberships = {
+            key for key, volumes in reference_memberships.items() if len(volumes) != 1
+        }
+        self.ambiguous_chapter_keys.update(conflicting_memberships)
         for original in rows:
             chapter = dict(original)
             key = normalize_chapter_number(chapter.get('number') or chapter.get('chapter'))
@@ -411,13 +451,26 @@ class PublicationManifestBuilder:
                                       str(chapter.get('source_page') or ''))
             volume_key = normalize_publication_number(chapter.get('volume'))
             volume = None
-            if volume_key is not None and (current is None or not current.volume.present or
-                                           current.volume.source == 'wikipedia'):
+            if (key not in conflicting_memberships and volume_key is not None and
+                    (current is None or not current.volume.present or
+                     current.volume.source == 'wikipedia')):
                 volume = FieldEvidence(volume_key, 'wikipedia',
                                        str(chapter.get('confidence') or 'explicit'),
                                        str(chapter.get('source_page') or ''))
             self._set_chapter(key, str(chapter.get('number') or key),
                               str(chapter.get('kind') or 'chapter'), title, volume)
+        for chapter, keys, volume_key in expanded_ranges:
+            evidence = FieldEvidence(
+                volume_key, 'wikipedia', str(chapter.get('confidence') or 'explicit'),
+                str(chapter.get('source_page') or ''),
+            )
+            for key in keys:
+                if key in conflicting_memberships:
+                    continue
+                current = self.chapters.get(key)
+                volume = (evidence if current is None or not current.volume.present or
+                          current.volume.source == 'wikipedia' else None)
+                self._set_chapter(key, key, 'chapter', volume=volume)
         for original in row.get('volumes') or ():
             volume=dict(original)
             key=normalize_publication_number(volume.get('number') or volume.get('volume'))

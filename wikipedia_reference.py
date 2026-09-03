@@ -1,5 +1,6 @@
 """Bounded Wikipedia publication-structure adapter with explicit collections."""
 
+from concurrent.futures import CancelledError
 from dataclasses import asdict, dataclass
 import json
 import re
@@ -40,6 +41,8 @@ _PUBLICATION_INDEX_FIELD = re.compile(
     r'^\s*\|\s*(?:volume|publication)_list\s*=\s*([^\r\n]+)', re.I | re.M
 )
 _EDITION_MARKERS = frozenset({'color', 'colored', 'colour', 'coloured', 'omnibus'})
+_MULTIPART_COMPONENT = re.compile(r'\bPart\s+\d+\s*[:\-\u2013\u2014]\s*(\S(?:.*\S)?)\s*$', re.I)
+_INTRODUCTORY_EVIDENCE_LIMIT = 24000
 _HTTP_REQUEST_LOCK = threading.Lock()
 _LAST_HTTP_REQUEST = 0.0
 _MINIMUM_HTTP_INTERVAL = 1.5
@@ -200,6 +203,15 @@ def _clean_title(value):
     text = re.sub(r'\[\[([^\]]+)\]\]', r'\1', text)
     text = re.sub(r"'{2,}", '', text)
     return ' '.join(text.strip(' "\'').split())
+
+
+def _comparison_text_from_wikitext(value):
+    """Remove comparison-noise without collapsing surrounding wikitext."""
+    text = _HTML_COMMENT.sub('', str(value or ''))
+    text = re.sub(r'\[\[([^\]|]+)\|([^\]]+)\]\]', r'\2', text)
+    text = re.sub(r'\[\[([^\]]+)\]\]', r'\1', text)
+    text = re.sub(r"'{2,}", '', text)
+    return ' '.join(text.split())
 
 
 def _field_values(template, prefix):
@@ -396,7 +408,7 @@ class WikipediaPublicationAdapter:
     max_collection_pages = 18
     max_collection_segments = 16
 
-    def __init__(self, request_json=None):
+    def __init__(self, request_json=None, should_cancel=None):
         self.request_count = 0
         self.retry_count = 0
         self.rate_limit_count = 0
@@ -405,6 +417,14 @@ class WikipediaPublicationAdapter:
         self._wikitext_cache = {}
         self._page_cache = {}
         self._structure_pages = {}
+        self._should_cancel = should_cancel or (lambda: False)
+
+    def set_cancel_check(self, should_cancel=None):
+        self._should_cancel = should_cancel or (lambda: False)
+
+    def _check_cancel(self):
+        if self._should_cancel():
+            raise CancelledError()
 
     def _http_json(self, params):
         global _LAST_HTTP_REQUEST
@@ -441,6 +461,23 @@ class WikipediaPublicationAdapter:
         return {normalize_identity_text(value) for value in values if normalize_identity_text(value)}
 
     @staticmethod
+    def _component_titles(evidence):
+        """Return bounded, comparison-only multipart subtitle candidates."""
+        row = dict(evidence or {})
+        if str(row.get('identity_confidence') or '').casefold() != 'high':
+            return ()
+        values = [row.get('title'), *(row.get('aliases') or ()),
+                  *(row.get('alternate_titles') or ())]
+        components = {}
+        for value in values:
+            matched = _MULTIPART_COMPONENT.search(str(value or ''))
+            component = matched.group(1).strip() if matched else ''
+            normalized = normalize_identity_text(component)
+            if normalized and normalized != normalize_identity_text(value):
+                components.setdefault(normalized, component)
+        return tuple(components.values())
+
+    @staticmethod
     def _creator_corroboration_forms(value):
         """Return bounded shared comparison/query forms.
 
@@ -452,18 +489,35 @@ class WikipediaPublicationAdapter:
                                    if normalize_identity_text(form)))
 
     def _query(self, **params):
+        self._check_cancel()
         self.request_count += 1
         return self._request_json({'format': 'json', **params})
 
+    def _candidate_page_creator_corroborates(self, title, creator_forms):
+        """Check creator evidence only in the candidate page introduction."""
+        try:
+            text = self._page(title).wikitext
+        except Exception:
+            return False
+        end = min(len(text), _INTRODUCTORY_EVIDENCE_LIMIT)
+        for heading in _HEADING.finditer(text):
+            if len(heading.group(1)) == len(heading.group(3)) == 2:
+                end = min(end, heading.start())
+                break
+        introduction = text[:end]
+        normalized = normalize_identity_text(_comparison_text_from_wikitext(introduction))
+        return bool(normalized and any(value in normalized for value in creator_forms))
+
     def match_publication(self, evidence):
+        self._check_cancel()
         titles = self._titles(evidence)
         if not titles:
             return PublicationMatch(self.source_id, '', '', 'no_match', 'No title evidence.')
+        evidence_row = dict(evidence or {})
         query = str(dict(evidence or {}).get('title') or '')
         data = self._query(action='query', list='search', srsearch=query, srlimit=8)
         rows = ((data.get('query') or {}).get('search') or ())
         exact = [row for row in rows if normalize_identity_text(row.get('title')) in titles]
-        evidence_row = dict(evidence or {})
         creator = normalize_identity_text(
             evidence_row.get('author') or evidence_row.get('creator') or ''
         )
@@ -503,16 +557,63 @@ class WikipediaPublicationAdapter:
             )
         if manga_title_rows and not any(
                 normalize_identity_text(row.get('title')).endswith(' manga') for row in exact):
-            return PublicationMatch(self.source_id, '', '', 'ambiguous',
-                                    'Manga disambiguation lacks unique creator corroboration.')
-        if len(exact) != 1:
-            return PublicationMatch(self.source_id, '', '', 'ambiguous' if rows else 'no_match',
-                                    'No unique exact title/alias match.')
-        row = exact[0]; title = row['title']
-        return PublicationMatch(self.source_id, str(row.get('pageid') or title), title,
-                                'confident', 'Unique exact Wikipedia title/alias match.',
-                                edition=str(dict(evidence or {}).get('edition') or 'unknown'),
-                                url='https://en.wikipedia.org/wiki/' + urllib.parse.quote(title.replace(' ', '_')))
+            normal_match = PublicationMatch(
+                self.source_id, '', '', 'ambiguous',
+                'Manga disambiguation lacks unique creator corroboration.',
+            )
+        elif len(exact) != 1:
+            normal_match = PublicationMatch(
+                self.source_id, '', '', 'ambiguous' if rows else 'no_match',
+                'No unique exact title/alias match.',
+            )
+        else:
+            row = exact[0]; title = row['title']
+            return PublicationMatch(
+                self.source_id, str(row.get('pageid') or title), title,
+                'confident', 'Unique exact Wikipedia title/alias match.',
+                edition=str(evidence_row.get('edition') or 'unknown'),
+                url='https://en.wikipedia.org/wiki/' + urllib.parse.quote(title.replace(' ', '_')),
+            )
+
+        canonical_creators = (
+            evidence_row.get('author') or evidence_row.get('creator') or '',
+            *(evidence_row.get('creators') or ()),
+        )
+        component_titles = self._component_titles(evidence_row)
+        if (str(evidence_row.get('identity_confidence') or '').casefold() != 'high' or
+                not any(normalize_identity_text(value) for value in canonical_creators) or
+                len(component_titles) != 1):
+            return normal_match
+
+        component = component_titles[0]
+        component_key = normalize_identity_text(component)
+        component_data = self._query(
+            action='query', list='search', srsearch=component, srlimit=8
+        )
+        component_rows = ((component_data.get('query') or {}).get('search') or ())
+        component_candidates = [
+            row for row in component_rows
+            if normalize_identity_text(row.get('title')) in (
+                component_key, f'{component_key} manga',
+            )
+        ]
+        if len(component_candidates) != 1:
+            return PublicationMatch(
+                self.source_id, '', '', 'ambiguous',
+                'Component title lacks unique creator corroboration.',
+            )
+        row = component_candidates[0]; title = row['title']
+        if not self._candidate_page_creator_corroborates(title, corroborating_creators):
+            return PublicationMatch(
+                self.source_id, '', '', 'ambiguous',
+                'Component title lacks unique creator corroboration.',
+            )
+        return PublicationMatch(
+            self.source_id, str(row.get('pageid') or title), title, 'confident',
+            'Unique multipart component title corroborated by creator evidence.',
+            edition=str(evidence_row.get('edition') or 'unknown'),
+            url='https://en.wikipedia.org/wiki/' + urllib.parse.quote(title.replace(' ', '_')),
+        )
 
     def _wikitext(self, title):
         if title not in self._wikitext_cache:
@@ -767,6 +868,7 @@ class WikipediaPublicationAdapter:
 
     def resolve_publication(self, match, segment_cache_get=None, segment_cache_put=None):
         """Resolve one page or an explicitly linked, bounded page collection."""
+        self._check_cancel()
         root = self._page(match.title)
         if _GRAPHIC_LIST.search(root.wikitext):
             segment = self._segment_from_page(
@@ -818,6 +920,7 @@ class WikipediaPublicationAdapter:
         bound_exceeded = False
 
         while queue:
+            self._check_cancel()
             if processed_pages >= self.max_collection_pages:
                 bound_exceeded = True
                 break

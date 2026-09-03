@@ -1,10 +1,11 @@
 import unittest
 from itertools import permutations
 
-from canonical_identity import CanonicalGroup, edition_classification, edition_display_label, group_canonical_results, merge_calibre_tags, normalize_identity_text
+from canonical_identity import CanonicalGroup, edition_classification, edition_display_label, edition_identity, group_canonical_results, merge_calibre_tags, normalize_identity_text
 from enrichment_matching import (
     canonical_creator_value, consensus_rating, enrich_content_results, match_external_identity,
-    normalized_popularity, resolve_canonical_work_facts, trusted_alias_for_query,
+    normalized_popularity, propagate_trusted_family_work_facts,
+    resolve_canonical_work_facts, trusted_alias_for_query,
 )
 from enrichment_model import (
     EditionClass, ExternalMangaCandidate, IdentityConfidence,
@@ -33,6 +34,67 @@ def content(title, source='mangadex', **extra):
 
 
 class EnrichmentMatchingTests(unittest.TestCase):
+    @staticmethod
+    def trusted_family_donor(title='Example Work'):
+        return {
+            'source_id':'mangadex','id':'standard','title':title,
+            'canonical_work_id':'anilist:100|kitsu:200',
+            'canonical_title':'Example Canonical','canonical_author':'Creator One',
+            'canonical_creators':['Creator One'],
+            'canonical_creator_aliases':['One Creator'],
+            'canonical_creator_provenance':'trusted_external',
+            'canonical_aliases':['Example Work'],
+            'external_ids':{'anilist_id':'100','kitsu_id':'200'},
+            'work_family_id':'trusted-family','_canonical_identity_confidence':'high',
+            'edition':'original','bookwalker_covers':['standard-only'],
+        }
+
+    def test_trusted_work_facts_cross_exact_edition_siblings_without_edition_or_artwork(self):
+        standard=self.trusted_family_donor()
+        official={'source_id':'mangapill','id':'color',
+                  'title':'Example Work Official Colored','edition':'official_color'}
+        fan={'source_id':'other','id':'fan','title':'Example Work Fan Colored',
+             'edition':'fan_color'}
+        rows=propagate_trusted_family_work_facts((standard,official,fan))
+        standard_row,official_row,fan_row=rows
+        self.assertEqual(('anilist:100|kitsu:200',)*3,
+                         tuple(row.get('canonical_work_id') for row in rows))
+        self.assertEqual(('original','official_color','fan_color'),
+                         tuple(edition_identity(row) for row in rows))
+        self.assertEqual('Example Work Official Colored',official_row['title'])
+        self.assertNotIn('bookwalker_covers',official_row)
+        self.assertEqual(['standard-only'],standard_row['bookwalker_covers'])
+        context=canonical_publication_context(official_row['canonical_work_id'],{
+            'canonical_title':official_row['canonical_title'],
+            'trusted_aliases':official_row['canonical_aliases'],
+            'canonical_author':official_row['canonical_author'],
+            'canonical_creators':official_row['canonical_creators'],
+            'canonical_creator_aliases':official_row['canonical_creator_aliases'],
+            'identity_confidence':official_row['_canonical_identity_confidence'],
+            'edition':edition_identity(official_row),
+        })
+        self.assertTrue(context.shareable)
+        self.assertTrue(context.reference_key.endswith('|color'))
+
+    def test_family_work_fact_conflicts_and_nonexact_titles_fail_closed(self):
+        first=self.trusted_family_donor()
+        second={**self.trusted_family_donor(),'source_id':'second','id':'second',
+                'canonical_work_id':'anilist:999'}
+        sibling={'source_id':'mangapill','id':'color',
+                 'title':'Example Work Official Colored','edition':'official_color'}
+        conflicting=propagate_trusted_family_work_facts((first,second,sibling))
+        self.assertNotIn('canonical_work_id',conflicting[2])
+
+        contradicted=propagate_trusted_family_work_facts((
+            first,{**sibling,'author':'Different Creator'},
+        ))
+        self.assertNotIn('canonical_work_id',contradicted[1])
+
+        similar=propagate_trusted_family_work_facts((
+            first,{**sibling,'title':'Example Work Side Story Official Colored'},
+        ))
+        self.assertNotIn('canonical_work_id',similar[1])
+
     @staticmethod
     def _work_fact(rows, overlays=None):
         facts=resolve_canonical_work_facts(group_canonical_results(rows),overlays)

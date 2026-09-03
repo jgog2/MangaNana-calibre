@@ -1,6 +1,7 @@
 """Production-facing reference lookup and conservative field merge helpers."""
 
 from dataclasses import asdict, dataclass
+from concurrent.futures import CancelledError
 import hashlib
 import json
 import re
@@ -384,7 +385,17 @@ class ReferenceMetadataService:
         self.bookwalker = bookwalker or BookwalkerPublicationAdapter()
         self.google_books = google_books or GoogleBooksArtworkResolver()
 
-    def lookup(self, selected_work_id, evidence):
+    def lookup(self, selected_work_id, evidence, should_cancel=None):
+        should_cancel = should_cancel or (lambda: False)
+
+        def check_cancel():
+            if should_cancel():
+                raise CancelledError()
+
+        for adapter in (self.wikipedia, self.bookwalker, self.google_books):
+            if hasattr(adapter, 'set_cancel_check'):
+                adapter.set_cancel_check(should_cancel)
+        check_cancel()
         row = dict(evidence or {})
         key = str(row.get('reference_key') or '').strip() or reference_work_key(selected_work_id, row)
         edition = str(row.get('edition') or 'original')
@@ -409,6 +420,7 @@ class ReferenceMetadataService:
                  if self.cache and resolved_key and hit is None else None)
         stale_invalidated = bool(hit is not None and not _usable_wikipedia_cache(hit.value, self.wikipedia))
         if stale_invalidated:
+            check_cancel()
             self.cache.delete('reference_structure', resolved_key)
             self.cache.delete('reference_structure', wiki_pointer)
             hit = None
@@ -426,7 +438,9 @@ class ReferenceMetadataService:
                                if stale is not None and _usable_wikipedia_cache(stale.value, self.wikipedia)
                                else {})
             try:
+                check_cancel()
                 match = self.wikipedia.match_publication(row)
+                check_cancel()
                 if match.confidence == 'confident':
                     if hasattr(self.wikipedia, 'resolve_publication'):
                         def segment_cache_get(segment_key):
@@ -440,9 +454,11 @@ class ReferenceMetadataService:
                             return dict(segment_hit.value or {}) if segment_hit else None
 
                         def segment_cache_put(segment_key, value):
+                            check_cancel()
                             if self.cache:
                                 self.cache.put_reference_structure(segment_key, value)
 
+                        check_cancel()
                         resolved = self.wikipedia.resolve_publication(
                             match, segment_cache_get, segment_cache_put,
                         )
@@ -473,11 +489,14 @@ class ReferenceMetadataService:
                             'refreshed_after_invalidation' if stale_invalidated else 'refreshed'
                         )
                         if self.cache:
+                            check_cancel()
                             resolved_key = str(parsed.get('cache_identity') or '')
                             self.cache.put_reference_structure(resolved_key, result['wikipedia'])
+                            check_cancel()
                             pointer_value={'resolved_key':resolved_key,'compatibility':compatibility}
                             self.cache.put_reference_structure(wiki_pointer,pointer_value)
                             if compatibility_key:
+                                check_cancel()
                                 self.cache.put_reference_structure('compatible-wiki:'+compatibility_key,pointer_value)
                     elif last_known_good:
                         result['wikipedia'] = last_known_good
@@ -490,6 +509,8 @@ class ReferenceMetadataService:
                     status=('ambiguous' if match.confidence == 'ambiguous' else 'unmatched')
                     result['wikipedia'] = {'match': asdict(match), 'status': status,
                                            'chapters': [], 'volumes': []}
+            except CancelledError:
+                raise
             except Exception as exc:
                 if last_known_good:
                     result['wikipedia'] = last_known_good
@@ -514,6 +535,7 @@ class ReferenceMetadataService:
                     }
                     result['errors']['wikipedia'] = message
 
+        check_cancel()
         book_pointer = 'work:' + key + ':' + edition
         pointer = self.cache.get_reference_catalog(book_pointer) if self.cache else None
         if pointer is None and self.cache:
@@ -539,10 +561,14 @@ class ReferenceMetadataService:
                                if stale is not None and _usable_bookwalker_cache(stale.value)
                                else {})
             try:
+                check_cancel()
                 match = self.bookwalker.match_publication(row)
+                check_cancel()
                 if match.confidence == 'confident':
                     volumes = self.bookwalker.get_volume_list(match)
+                    check_cancel()
                     covers = self.bookwalker.get_volume_covers(match)
+                    check_cancel()
                     edition_art = self.bookwalker.get_edition_artwork(match)
                     result['bookwalker'] = {
                         'cache_contract': BOOKWALKER_CACHE_CONTRACT,
@@ -573,12 +599,17 @@ class ReferenceMetadataService:
                         result['bookwalker'] = last_known_good
                         result['bookwalker']['cache_state'] = 'last_known_good'
                     if self.cache and result['bookwalker'].get('cache_state') == 'refreshed':
+                        check_cancel()
                         resolved_key=str(match.publication_id) + ':' + str(match.edition_id or edition)
                         self.cache.put_reference_catalog(resolved_key, result['bookwalker'])
+                        check_cancel()
                         pointer_value={'resolved_key':resolved_key,'compatibility':compatibility}
                         self.cache.put_reference_catalog(book_pointer,pointer_value)
                         if compatibility_key:
+                            check_cancel()
                             self.cache.put_reference_catalog('compatible-book:'+compatibility_key,pointer_value)
+            except CancelledError:
+                raise
             except Exception as exc:
                 if last_known_good:
                     result['bookwalker'] = last_known_good
@@ -586,6 +617,7 @@ class ReferenceMetadataService:
                     result['bookwalker']['refresh_error'] = str(exc)
                 else:
                     result['errors']['bookwalker'] = str(exc)
+        check_cancel()
         requested_language=str(row.get('requested_language') or '').casefold()
         edition_profile=str(row.get('edition_profile') or '').casefold()
         targets=_google_targets(result)
@@ -596,9 +628,12 @@ class ReferenceMetadataService:
         cached_google=dict(hit.value or {}) if hit is not None else {}
         cached_targets=tuple(sorted({normalize_chapter_number(value) for value in
             cached_google.get('target_volumes') or () if normalize_chapter_number(value) is not None},key=float))
+        current_google_keyed=bool(str(getattr(self.google_books,'api_key','') or '').strip())
+        cached_google_keyed=str(cached_google.get('configuration_status') or '').startswith('configured')
         if (hit is not None and cached_google.get('cache_contract') == GOOGLE_BOOKS_CACHE_CONTRACT and
                 cached_google.get('detail_cache_contract') == GOOGLE_BOOKS_DETAIL_CACHE_CONTRACT and
-                cached_targets == targets):
+                cached_targets == targets and
+                (not current_google_keyed or cached_google_keyed)):
             result['google_books']=dict(hit.value or {}); result['google_books']['cache_state']='hit'
             result['google_books']['network']={'requests':0}
         else:
@@ -619,16 +654,23 @@ class ReferenceMetadataService:
                         return dict(detail_hit.value or {}) if detail_hit else None
 
                     def detail_cache_put(volume_id,value):
+                        check_cancel()
                         self.cache.put_reference_catalog(
                             'google-detail:'+GOOGLE_BOOKS_DETAIL_CACHE_CONTRACT+':'+str(volume_id),value
                         )
+                    check_cancel()
                     google=self.google_books.resolve(context,targets,detail_cache_get,detail_cache_put)
                 else:
+                    check_cancel()
                     google=self.google_books.resolve(context,targets)
+                check_cancel()
                 google['cache_state']='refreshed'
                 result['google_books']=google
                 if self.cache and google.get('status') == 'valid':
+                    check_cancel()
                     self.cache.put_reference_catalog(google_key,google)
+            except CancelledError:
+                raise
             except Exception as exc:
                 stale_value=dict(stale.value or {}) if stale is not None else {}
                 stale_targets=tuple(sorted({normalize_chapter_number(value) for value in

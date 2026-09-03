@@ -1,6 +1,6 @@
 import unittest
 
-from workflow_state import HighPriestessState
+from workflow_state import HighPriestessState, volume_selection_hint
 
 
 def result(source, identity):
@@ -8,6 +8,14 @@ def result(source, identity):
 
 
 class HighPriestessStateTests(unittest.TestCase):
+    def test_volume_selection_hint_uses_actual_unified_inventory(self):
+        self.assertEqual('Select at least one volume to continue.',
+                         volume_selection_hint(True,False))
+        self.assertEqual('Select Standalone Chapters to continue.',
+                         volume_selection_hint(False,True))
+        self.assertEqual('Select at least one volume or Standalone Chapters to continue.',
+                         volume_selection_hint(True,True))
+
     def test_pending_query_does_not_replace_executed_query(self):
         state=HighPriestessState(mode='volume')
         state.set_pending_query('One Piece')

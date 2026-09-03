@@ -1,8 +1,10 @@
 """Bounded BOOK☆WALKER identity/catalog prototype; not UI-integrated."""
 
+from concurrent.futures import CancelledError
 from dataclasses import dataclass
 import html
 import re
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -22,6 +24,8 @@ _SERIES = re.compile(r'(?:https://bookwalker\.jp)?/series/(\d+)/list/', re.I)
 _NEXT = re.compile(r'<link\b(?=[^>]*\brel=["\']next["\'])(?=[^>]*\bhref=["\']([^"\']+)["\'])[^>]*>', re.I)
 _TOTAL = re.compile(r'(?:全|/\s*)([0-9,]+)\s*件')
 _TITLE_ATTR = re.compile(r'class="m-book-item__title".*?title="([^"]+)"', re.I | re.S)
+_TITLE_LINK = re.compile(r'<a\b(?=[^>]*\bm-book-item__title\b)[^>]*>', re.I | re.S)
+_LINK_TITLE_ATTR = re.compile(r'\btitle=["\']([^"\']+)["\']', re.I | re.S)
 _TITLE = re.compile(r'<title>\s*(.*?)\s*</title>', re.I | re.S)
 _DESCRIPTION = re.compile(r'<meta\s+(?:name|property)="(?:description|og:description)"\s+content="([^"]+)"', re.I)
 _IMAGE = re.compile(r'data-original="([^"]+)"', re.I)
@@ -31,7 +35,17 @@ _VOLUME = re.compile(r'(?:第\s*)?(\d+(?:\.\d+)?)\s*(?:巻|卷|巻[）)])|[（(]
 _COLOR = re.compile(r'(?:カラー版|full\s+color|colou?red\s+edition)', re.I)
 _MONO = re.compile(r'(?:モノクロ版|\bb[& ]?w\b|\bblack\s*(?:and|&)\s*white\b)', re.I)
 _PROMOTION = re.compile(r'(?:無料|お試し|sample|trial)', re.I)
+_SUPPLEMENTARY_SUFFIX = re.compile(
+    r'\s*(?:特装版|限定版)(?:\s+(?:Ending|Beginning))?\s*$', re.I,
+)
 _CATALOG_QUALIFIER = re.compile(r'\s*[（(][^（）()]+[）)]\s*$')
+_CATALOG_VOLUME_SUFFIX = re.compile(r'\s+(?:第\s*)?\d+(?:\.\d+)?\s*(?:巻|卷)?\s*$')
+_CATALOG_EDITION_SUFFIX = re.compile(
+    r'\s*(?:カラー版|モノクロ版|full\s+color|colou?red\s+edition|'
+    r'b[& ]?w|black\s*(?:and|&)\s*white)\s*$', re.I
+)
+_LATIN_PART = re.compile(r'\bpart\s*(\d+)\b', re.I)
+_JAPANESE_PART = re.compile(r'第\s*(\d+)\s*部')
 _JAPANESE = re.compile(r'[\u3040-\u30ff\u3400-\u9fff]')
 MAX_SEARCH_TERMS = 8
 MAX_CATALOG_PAGES = 10
@@ -94,22 +108,67 @@ def _cards(page):
             _text((_AUTHOR.search(block) or ['', ''])[1]),
             html.unescape((_IMAGE.search(block) or ['', ''])[1]),
         ))
+    # Campaign products can use a different outer wrapper while retaining the
+    # same stable product URL and m-book-item__title anchor. Count those as raw
+    # store products so advertised totals remain independently verifiable.
+    seen = {row.product_id for row in rows}
+    for link in _TITLE_LINK.findall(page):
+        product = _PRODUCT.search(link)
+        title = _LINK_TITLE_ATTR.search(link)
+        if not product or not title:
+            continue
+        product_id = _product_uuid(product.group(1))
+        if product_id in seen:
+            continue
+        seen.add(product_id)
+        rows.append(_CatalogCard(
+            product_id, _text(title.group(1)), _product_url(product_id),
+        ))
     return tuple(rows)
 
 
-def _edition_from_title(title, identities):
+def _trusted_part_numbers(evidence):
+    row = dict(evidence or {})
+    values = (row.get('title'), *(row.get('aliases') or ()),
+              *(row.get('alternate_titles') or ()))
+    return frozenset(
+        int(number)
+        for value in values
+        for pattern in (_LATIN_PART, _JAPANESE_PART)
+        for number in pattern.findall(str(value or ''))
+    )
+
+
+def _catalog_base_identity(title, identities, trusted_parts=()):
+    """Return one exact comparison-only catalog identity, or fail closed."""
+    value = _text(title)
+    value = _CATALOG_VOLUME_SUFFIX.sub('', value)
+    value = _CATALOG_EDITION_SUFFIX.sub('', value)
+    value = _CATALOG_QUALIFIER.sub('', value)
+    candidate_parts = {int(number) for number in _JAPANESE_PART.findall(value)}
+    trusted_parts = frozenset(int(number) for number in trusted_parts)
+    if len(candidate_parts) > 1:
+        return ''
+    if candidate_parts and trusted_parts and candidate_parts != trusted_parts:
+        return ''
+    normalized = normalize_identity_text(value)
+    if normalized in identities:
+        return normalized
+    if len(candidate_parts) == 1 and candidate_parts == trusted_parts:
+        normalized = normalize_identity_text(_JAPANESE_PART.sub('', value))
+        if normalized in identities:
+            return normalized
+    return ''
+
+
+def _edition_from_title(title, identities, trusted_parts=()):
     """Classify only explicit catalog variant markers or an exact base title."""
     value = _text(title)
-    normalized = normalize_identity_text(value)
     if _COLOR.search(value):
         return 'official_color'
     if _MONO.search(value):
         return 'original'
-    # Public search cards are series-level records and commonly append a
-    # parenthesized imprint to the exact work title. Strip only that trailing
-    # catalog qualifier; spin-off wording before it remains identity-bearing.
-    catalog_identity = normalize_identity_text(_CATALOG_QUALIFIER.sub('', value))
-    if normalized in identities or catalog_identity in identities:
+    if _catalog_base_identity(value, identities, trusted_parts):
         return 'original'
     return 'unknown'
 
@@ -134,12 +193,22 @@ def _search_terms(evidence):
 class BookwalkerPublicationAdapter:
     source_id = 'bookwalker'
 
-    def __init__(self, request_text=None):
+    def __init__(self, request_text=None, should_cancel=None):
         self.request_count = 0
         self._request_text = request_text or self._http_text
         self._page_cache = {}
         self._matched_cards = {}
         self._catalogs = {}
+        self._catalog_contexts = {}
+        self._last_rejection_reason = ''
+        self._should_cancel = should_cancel or (lambda: False)
+
+    def set_cancel_check(self, should_cancel=None):
+        self._should_cancel = should_cancel or (lambda: False)
+
+    def _check_cancel(self):
+        if self._should_cancel():
+            raise CancelledError()
 
     def _http_text(self, url):
         request = urllib.request.Request(url, headers={
@@ -151,6 +220,7 @@ class BookwalkerPublicationAdapter:
 
     def _fetch(self, url):
         if url not in self._page_cache:
+            self._check_cancel()
             self.request_count += 1
             text = self._request_text(url)
             if text:
@@ -163,6 +233,74 @@ class BookwalkerPublicationAdapter:
         values = (row.get('title'), *(row.get('aliases') or ()), *(row.get('alternate_titles') or ()))
         return {normalize_identity_text(value) for value in values if normalize_identity_text(value)}
 
+    def _confirm_product(self, candidate, expected):
+        """Confirm one stable product, one series relation, and one volume."""
+        self._check_cancel()
+        page = self._fetch(candidate.url)
+        series_ids = tuple(dict.fromkeys(_SERIES.findall(page)))
+        page_title = _text((_TITLE.search(page) or ['', ''])[1])
+        canonical = re.search(r'<link rel="canonical" href="([^"]+)"', page, re.I)
+        canonical_url = canonical.group(1) if canonical else candidate.url
+        canonical_product = _PRODUCT.search(canonical_url)
+        volume = _volume_number(page_title)
+        if (len(series_ids) != 1 or not volume or not canonical_product or
+                canonical_product.group(1) != candidate.product_id):
+            return None
+        series_id = series_ids[0]
+        return PublicationMatch(
+            self.source_id, 'series/' + series_id, candidate.title, 'confident',
+            'Unique compatible result confirmed by canonical product URL and series list.',
+            edition=expected, url=BASE + '/series/' + series_id + '/list/',
+            edition_id='series/' + series_id, volume_id=candidate.product_id,
+            volume_number=volume,
+        )
+
+    @staticmethod
+    def _seed_card(candidates):
+        def key(card):
+            number = _volume_number(card.title)
+            return (0, float(number), card.product_id) if number else (1, 0, card.product_id)
+        return min(candidates, key=key)
+
+    def _confirm_candidate_series(self, candidates, expected, identities, trusted_parts):
+        """Resolve one product or prove several products share one complete series."""
+        self._check_cancel()
+        if not candidates:
+            return None
+        seed = candidates[0] if len(candidates) == 1 else self._seed_card(candidates)
+        match = self._confirm_product(seed, expected)
+        if not match:
+            self._last_rejection_reason = 'product confirmation failed'
+            return None
+        self._catalog_contexts[match.publication_id] = {
+            'expected_edition': expected,
+            'identities': frozenset(identities),
+            'trusted_parts': frozenset(trusted_parts),
+        }
+        if len(candidates) > 1:
+            catalog = self._series_cards(match)
+            metadata = self.catalog_metadata(match)
+            catalog_ids = {card.product_id for card in catalog}
+            candidate_ids = {card.product_id for card in candidates}
+            if not metadata.get('complete'):
+                self._last_rejection_reason = 'raw series traversal incomplete'
+                return None
+            if metadata.get('record_count_delta'):
+                self._last_rejection_reason = 'raw catalog record-count deficit'
+                return None
+            if not candidate_ids <= catalog_ids:
+                self._last_rejection_reason = 'search candidate absent from confirmed raw series'
+                return None
+            if not metadata.get('canonical_complete'):
+                self._last_rejection_reason = str(
+                    metadata.get('canonical_rejection_reason') or
+                    'canonical publication catalog invalid'
+                )
+                return None
+        self._matched_cards[match.publication_id] = seed
+        self._last_rejection_reason = ''
+        return match
+
     def match_publication(self, evidence):
         row = dict(evidence or {})
         identities = self._identities(row)
@@ -170,8 +308,10 @@ class BookwalkerPublicationAdapter:
         if not identities or not terms:
             return PublicationMatch(self.source_id, '', '', 'no_match', 'No title evidence.')
         expected = edition_identity(row)
-        candidates = []; saw_cards = False
+        trusted_parts = _trusted_part_numbers(row)
+        saw_cards = False
         for term in terms:
+            self._check_cancel()
             search_url = BASE + '/search/?word=' + urllib.parse.quote(term) + '&order=score'
             try:
                 search = self._fetch(search_url)
@@ -183,40 +323,30 @@ class BookwalkerPublicationAdapter:
                     continue
                 raise
             cards = _cards(search); saw_cards = saw_cards or bool(cards)
-            candidates.extend(card for card in cards if _compatible_catalog_kind(card)
-                              and not _PROMOTION.search(card.title)
-                              and _edition_from_title(card.title, identities) == expected
-                              and any(normalize_identity_text(card.title) == identity
-                                      or normalize_identity_text(card.title).startswith(identity + ' ')
-                                      for identity in identities))
-            candidates = list({card.product_id: card for card in candidates}.values())
-            if len(candidates) == 1:
-                break
-        if len(candidates) != 1:
-            return PublicationMatch(self.source_id, '', '',
-                                    'ambiguous' if candidates or saw_cards else 'no_match',
-                                    'No unique compatible BOOK☆WALKER edition result.')
-        candidate = candidates[0]
-        page = self._fetch(candidate.url)
-        series_ids = tuple(dict.fromkeys(_SERIES.findall(page)))
-        page_title = _text((_TITLE.search(page) or ['', ''])[1])
-        canonical = re.search(r'<link rel="canonical" href="([^"]+)"', page, re.I)
-        canonical_url = canonical.group(1) if canonical else candidate.url
-        canonical_product = _PRODUCT.search(canonical_url)
-        volume = _volume_number(page_title)
-        if len(series_ids) != 1 or not volume or not canonical_product or canonical_product.group(1) != candidate.product_id:
-            return PublicationMatch(self.source_id, '', '', 'ambiguous',
-                                    'Product page did not confirm one stable series and volume record.')
-        series_id = series_ids[0]
-        self._matched_cards['series/' + series_id] = candidate
+            candidates = tuple({card.product_id: card for card in cards
+                                if _compatible_catalog_kind(card)
+                                and not _PROMOTION.search(card.title)
+                                and _edition_from_title(
+                                    card.title, identities, trusted_parts
+                                ) == expected
+                                and _catalog_base_identity(
+                                    card.title, identities, trusted_parts
+                                )}.values())
+            match = self._confirm_candidate_series(
+                candidates, expected, identities, trusted_parts,
+            )
+            if match:
+                return match
         return PublicationMatch(
-            self.source_id, 'series/' + series_id, candidate.title, 'confident',
-            'Unique compatible result confirmed by canonical product URL and series list.',
-            edition=expected, url=BASE + '/series/' + series_id + '/list/',
-            edition_id='series/' + series_id, volume_id=candidate.product_id, volume_number=volume,
+            self.source_id, '', '', 'ambiguous' if saw_cards else 'no_match',
+            'No unique compatible BOOK☆WALKER edition result.' + (
+                ' Last rejection: ' + self._last_rejection_reason + '.'
+                if self._last_rejection_reason else ''
+            ),
         )
 
     def _series_cards(self, match):
+        self._check_cancel()
         cache_key = str(match.publication_id or match.url)
         if cache_key in self._catalogs:
             return self._catalogs[cache_key][0]
@@ -227,6 +357,7 @@ class BookwalkerPublicationAdapter:
         seen = set(); rows = []; pages = 0; expected_total = 0
         complete = False; error = ''
         while url and pages < MAX_CATALOG_PAGES:
+            self._check_cancel()
             parsed = urllib.parse.urlparse(url)
             if (parsed.scheme != 'https' or parsed.netloc.casefold() != 'bookwalker.jp' or
                     parsed.path != expected_path or url in seen):
@@ -269,14 +400,15 @@ class BookwalkerPublicationAdapter:
         return unique
 
     def catalog_metadata(self, match):
-        cards = self._series_cards(match)
+        cards, canonical = self._canonical_catalog(match)
         metadata = dict(self._catalogs.get(str(match.publication_id or match.url), ((), {}))[1])
-        numbers = sorted({self._usable_volume(card) for card in cards if self._usable_volume(card)}, key=float)
+        numbers = sorted({_volume_number(card.title) for card in cards}, key=float)
         integers = {int(float(value)) for value in numbers if float(value).is_integer()}
         gaps = []
         if integers:
             gaps = sorted(set(range(min(integers), max(integers) + 1)) - integers)
         metadata.update({
+            **canonical,
             'exact_volume_numbers': numbers,
             'minimum_volume': numbers[0] if numbers else '',
             'maximum_volume': numbers[-1] if numbers else '',
@@ -284,25 +416,126 @@ class BookwalkerPublicationAdapter:
         })
         return metadata
 
+    def _canonical_catalog(self, match):
+        """Return validated publication products separately from raw traversal."""
+        raw = self._series_cards(match)
+        raw_metadata = dict(
+            self._catalogs.get(str(match.publication_id or match.url), ((), {}))[1]
+        )
+        context = dict(self._catalog_contexts.get(match.publication_id) or {})
+        identities = frozenset(context.get('identities') or ())
+        trusted_parts = frozenset(context.get('trusted_parts') or ())
+        if not identities:
+            seed = _text(match.title)
+            base = _CATALOG_QUALIFIER.sub('', _CATALOG_EDITION_SUFFIX.sub(
+                '', _CATALOG_VOLUME_SUFFIX.sub('', seed)
+            ))
+            identities = frozenset(filter(None, (
+                normalize_identity_text(seed), normalize_identity_text(base),
+            )))
+            trusted_parts = _trusted_part_numbers({'title': seed})
+        expected = str(context.get('expected_edition') or match.edition or 'unknown')
+        if expected == 'unknown':
+            expected = _edition_from_title(match.title, identities, trusted_parts)
+        eligible = []
+        excluded_promotions = 0
+        supplementary = []
+        rejection = ''
+        grouped = {}
+        for card in raw:
+            if _PROMOTION.search(card.title):
+                excluded_promotions += 1
+                continue
+            number = _volume_number(card.title)
+            if not _compatible_catalog_kind(card):
+                rejection = 'non-promotional catalog-kind mismatch'
+                break
+            if not number:
+                rejection = 'non-promotional product lacks explicit volume number'
+                break
+            # NFKC is comparison-only: never change the stored card or identity.
+            comparison_title = unicodedata.normalize('NFKC', _text(card.title))
+            supplementary_base = _SUPPLEMENTARY_SUFFIX.sub('', comparison_title)
+            is_supplementary = supplementary_base != comparison_title
+            if is_supplementary:
+                if _COLOR.search(comparison_title) or _MONO.search(comparison_title):
+                    rejection = 'supplementary product contains publication-edition marker'
+                    break
+                if not _catalog_base_identity(
+                        supplementary_base, identities, trusted_parts):
+                    rejection = 'supplementary product title mismatch'
+                    break
+                supplementary.append((number, card))
+                continue
+            if (not identities or
+                    not _catalog_base_identity(card.title, identities, trusted_parts)):
+                rejection = 'non-promotional product title mismatch'
+                break
+            if _edition_from_title(card.title, identities, trusted_parts) != expected:
+                rejection = 'non-promotional edition mismatch'
+                break
+            grouped.setdefault(number, []).append(card)
+        if not rejection:
+            duplicates = sorted(number for number, rows in grouped.items() if len(rows) != 1)
+            if duplicates:
+                rejection = 'duplicate non-promotional volume number: ' + ', '.join(duplicates)
+            else:
+                eligible = [rows[0] for rows in grouped.values()]
+        if not rejection:
+            missing_counterparts = sorted({
+                number for number, _card in supplementary
+                if len(grouped.get(number, ())) != 1
+            }, key=float)
+            if missing_counterparts:
+                rejection = ('supplementary variant lacks one ordinary counterpart: ' +
+                             ', '.join(missing_counterparts))
+                eligible = []
+        numbers = sorted((_volume_number(card.title) for card in eligible), key=float)
+        integer_numbers = [int(float(value)) for value in numbers if float(value).is_integer()]
+        gaps = []
+        if not rejection and numbers and len(integer_numbers) == len(numbers):
+            gaps = sorted(set(range(min(integer_numbers), max(integer_numbers) + 1)) -
+                          set(integer_numbers))
+            if gaps:
+                rejection = 'canonical integer volume gap: ' + ', '.join(map(str, gaps))
+                eligible = []
+                numbers = []
+        raw_complete = bool(
+            raw_metadata.get('complete') and not raw_metadata.get('record_count_delta')
+        )
+        if not raw_complete and not rejection:
+            rejection = ('raw catalog record-count deficit' if
+                         raw_metadata.get('record_count_delta') else
+                         'raw series traversal incomplete')
+            eligible = []
+            numbers = []
+        diagnostics = {
+            'raw_records_fetched': len(raw),
+            'promotional_products_excluded': excluded_promotions,
+            'supplementary_variants_excluded': len(supplementary),
+            'canonical_volume_count': len(eligible),
+            'canonical_complete': bool(raw_complete and eligible and not rejection),
+            'canonical_rejection_reason': rejection,
+        }
+        return tuple(eligible), diagnostics
+
     @staticmethod
     def _usable_volume(card):
         return _volume_number(card.title) if not _PROMOTION.search(card.title) else ''
 
     def get_volume_list(self, match):
-        grouped = {}
-        for card in self._series_cards(match):
-            number = self._usable_volume(card)
-            if number:
-                grouped.setdefault(number, []).append(card)
-        # A volume number with several non-promotional records is not resolved by display order.
-        return tuple(PublicationVolume(number, rows[0].title, self.source_id, rows[0].product_id,
-                                       rows[0].url, match.edition_id, 'explicit')
-                     for number, rows in grouped.items() if len(rows) == 1)
+        cards, diagnostics = self._canonical_catalog(match)
+        if not diagnostics.get('canonical_complete'):
+            return ()
+        return tuple(PublicationVolume(
+            _volume_number(card.title), card.title, self.source_id, card.product_id,
+            card.url, match.edition_id, 'explicit',
+        ) for card in cards)
 
     def get_volume_covers(self, match):
         volumes = {row.volume_id: row for row in self.get_volume_list(match)}
         values = []
-        for card in self._series_cards(match):
+        for card in self._canonical_catalog(match)[0]:
             volume = volumes.get(card.product_id)
             if volume and card.image:
                 values.append(PublicationArtwork(card.image, 'volume', volume.number, self.source_id, 'exact',
@@ -310,6 +543,9 @@ class BookwalkerPublicationAdapter:
         return tuple(values)
 
     def get_edition_artwork(self, match):
+        if (str(match.publication_id or match.url) in self._catalogs and
+                not self._canonical_catalog(match)[1].get('canonical_complete')):
+            return ()
         card = self._matched_cards.get(match.publication_id)
         if not card or not card.image:
             return ()
@@ -320,6 +556,9 @@ class BookwalkerPublicationAdapter:
         return ()
 
     def get_description(self, match):
+        if (str(match.publication_id or match.url) in self._catalogs and
+                not self._canonical_catalog(match)[1].get('canonical_complete')):
+            return ''
         page = self._fetch(_product_url(match.volume_id)) if _product_uuid(match.volume_id) else ''
         description = _DESCRIPTION.search(page)
         return _text(description.group(1) if description else '')

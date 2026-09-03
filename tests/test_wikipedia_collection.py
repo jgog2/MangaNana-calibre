@@ -2,12 +2,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from canonical_identity import normalize_identity_text
 from publication_manifest import PublicationManifestBuilder, build_publication_projection
 from reference_integration import ReferenceMetadataService
 from reference_metadata import PublicationArtwork, PublicationChapter, PublicationMatch, PublicationVolume
 from search_cache import IDENTITY_TTL, SearchMetadataCache
 from wikipedia_reference import (
     WikipediaPublicationAdapter, WikipediaPublicationSegment, _aggregate_segments,
+    _clean_title, _comparison_text_from_wikitext,
 )
 
 
@@ -38,6 +40,18 @@ class WikipediaFixture:
             'title': title, 'pageid': pageid, 'revid': revid,
             'wikitext': {'*': text},
         }}
+
+
+class WikipediaSearchFixture(WikipediaFixture):
+    def __init__(self, search_rows_by_query, pages=None):
+        super().__init__(pages or {})
+        self.search_rows_by_query = search_rows_by_query
+
+    def __call__(self, params):
+        if params['action'] == 'query':
+            self.calls.append(dict(params))
+            return {'query': {'search': self.search_rows_by_query.get(params['srsearch'], [])}}
+        return super().__call__(params)
 
 
 def collection_pages(extra_index='', segment_two=None):
@@ -82,6 +96,190 @@ def match(edition='original'):
 
 
 class WikipediaCollectionTests(unittest.TestCase):
+    @staticmethod
+    def multipart_evidence(title, **overrides):
+        evidence = {
+            'title': title, 'author': 'Hirohiko Araki',
+            'creators': ('Hirohiko Araki',),
+            'creator_aliases': ('Araki Hirohiko',),
+            'identity_confidence': 'high', 'edition': 'original',
+        }
+        evidence.update(overrides)
+        return evidence
+
+    def test_exact_title_match_remains_first_and_does_not_search_component(self):
+        title = "JoJo's Bizarre Adventure Part 8: JoJolion"
+        fixture = WikipediaSearchFixture({title: [
+            {'pageid': 8, 'title': title, 'snippet': 'Exact trusted title'},
+        ]})
+        selected = WikipediaPublicationAdapter(fixture).match_publication(
+            self.multipart_evidence(title)
+        )
+        self.assertEqual(('confident', title), (selected.confidence, selected.title))
+        self.assertEqual([title], [row['srsearch'] for row in fixture.calls])
+
+    def test_multipart_component_resolves_steel_ball_run_with_creator(self):
+        title = "JoJo's Bizarre Adventure: Part 7\u2013Steel Ball Run"
+        fixture = WikipediaSearchFixture({
+            title: [{'pageid': 70, 'title': 'JoJo', 'snippet': 'Franchise'}],
+            'Steel Ball Run': [{
+                'pageid': 71, 'title': 'Steel Ball Run',
+                'snippet': 'A manga series and the seventh part of a larger series',
+            }],
+        }, {
+            'Steel Ball Run': (71, 701,
+                '{{Infobox animanga/Header\n| ja_kanji = \u30b9\u30c6\u30a3\u30fc\u30eb\u30fb\u30dc\u30fc\u30eb\u30fb\u30e9\u30f3\n}}\n'
+                '{{Infobox animanga/Print\n| type = manga\n'
+                '| author = [[Hirohiko Araki]]\n| volumes = 24\n}}\n'
+                "{{Nihongo|'''''Steel Ball Run'''''|\u30b9\u30c6\u30a3\u30fc\u30eb\u30fb\u30dc\u30fc\u30eb\u30fb\u30e9\u30f3|lead=yes}} "
+                'is a Japanese manga series.\n== Plot ==\nBody'),
+        })
+        selected = WikipediaPublicationAdapter(fixture).match_publication(
+            self.multipart_evidence(title)
+        )
+        self.assertEqual(('confident', 'Steel Ball Run'),
+                         (selected.confidence, selected.title))
+        self.assertEqual([title, 'Steel Ball Run'],
+                         [row['srsearch'] for row in fixture.calls
+                          if row['action'] == 'query'])
+
+    def test_multipart_component_resolves_jojolion_with_creator(self):
+        title = "JoJo's Bizarre Adventure Part 8: JoJolion"
+        fixture = WikipediaSearchFixture({
+            title: [],
+            'JoJolion': [{
+                'pageid': 81, 'title': 'JoJolion',
+                'snippet': 'A manga series and the eighth part, written and illustrated...',
+            }],
+        }, {
+            'JoJolion': (81, 801,
+                '{{Infobox animanga/Header\n| ja_kanji = \u30b8\u30e7\u30b8\u30e7\u30ea\u30aa\u30f3\n}}\n'
+                '{{Infobox animanga/Print\n| type = manga\n'
+                '| author = [[Hirohiko Araki]]\n| volumes = 27\n}}\n'
+                "{{nihongo|'''''JoJolion'''''|\u30b8\u30e7\u30b8\u30e7\u30ea\u30aa\u30f3|Jojorion|lead=yes}} "
+                'is the eighth main story arc.\n==Plot==\nBody'),
+        })
+        selected = WikipediaPublicationAdapter(fixture).match_publication(
+            self.multipart_evidence(title)
+        )
+        self.assertEqual(('confident', 'JoJolion'),
+                         (selected.confidence, selected.title))
+
+    def test_multipart_component_requires_creator_corroboration(self):
+        title = "JoJo's Bizarre Adventure Part 8: JoJolion"
+        fixture = WikipediaSearchFixture({
+            title: [],
+            'JoJolion': [{
+                'pageid': 81, 'title': 'JoJolion',
+                'snippet': 'A manga series and the eighth part, written and illustrated...',
+            }],
+        }, {
+            'JoJolion': (81, 801,
+                '{{Infobox animanga/Print\n| type = manga\n'
+                '| author = [[Another Creator]]\n}}\n'
+                "'''JoJolion''' is a Japanese manga series.\n== Plot ==\nBody"),
+        })
+        selected = WikipediaPublicationAdapter(fixture).match_publication(
+            self.multipart_evidence(title)
+        )
+        self.assertEqual('ambiguous', selected.confidence)
+
+    def test_component_creator_after_nihongo_but_before_section_corroborates(self):
+        title = 'Example Part 2: Component'
+        fixture = WikipediaSearchFixture({
+            title: [],
+            'Component': [{'pageid': 21, 'title': 'Component', 'snippet': 'A manga'}],
+        }, {
+            'Component': (21, 201,
+                '{{nihongo|Component|\u30b3\u30f3\u30dd\u30fc\u30cd\u30f3\u30c8|lead=yes}} is a manga.\n'
+                '{{Infobox animanga/Print\n| author = [[Hirohiko Araki]]\n}}\n'
+                '== Plot ==\nBody'),
+        })
+        selected = WikipediaPublicationAdapter(fixture).match_publication(
+            self.multipart_evidence(title)
+        )
+        self.assertEqual(('confident', 'Component'),
+                         (selected.confidence, selected.title))
+
+    def test_unrelated_nihongo_does_not_erase_intro_creator_text(self):
+        text = (
+            '| author = [[Hirohiko Araki]]\n'
+            '{{nihongo|Unrelated display text|\u5225\u306e\u8868\u8a18}}\n'
+            'Additional introductory text.'
+        )
+        normalized = normalize_identity_text(_comparison_text_from_wikitext(text))
+        self.assertIn('hirohiko araki', normalized)
+
+    def test_clean_title_nihongo_title_field_behavior_is_unchanged(self):
+        self.assertEqual(
+            'JoJolion',
+            _clean_title("{{nihongo|''JoJolion''|\u30b8\u30e7\u30b8\u30e7\u30ea\u30aa\u30f3}}"),
+        )
+
+    def test_component_creator_only_after_first_section_is_not_corroboration(self):
+        title = 'Example Part 2: Component'
+        fixture = WikipediaSearchFixture({
+            title: [],
+            'Component': [{
+                'pageid': 21, 'title': 'Component',
+                'snippet': 'A manga publication',
+            }],
+        }, {
+            'Component': (21, 201,
+                "'''Component''' is a manga.\n== Publication ==\n"
+                'It was written by Hirohiko Araki.'),
+        })
+        selected = WikipediaPublicationAdapter(fixture).match_publication(
+            self.multipart_evidence(title)
+        )
+        self.assertEqual('ambiguous', selected.confidence)
+
+    def test_component_without_page_creator_evidence_is_ambiguous(self):
+        title = 'Example Part 2: Component'
+        fixture = WikipediaSearchFixture({
+            title: [],
+            'Component': [{
+                'pageid': 21, 'title': 'Component',
+                'snippet': 'A manga publication',
+            }],
+        }, {
+            'Component': (21, 201,
+                "'''Component''' is a manga.\n== Publication ==\nBody"),
+        })
+        selected = WikipediaPublicationAdapter(fixture).match_publication(
+            self.multipart_evidence(title)
+        )
+        self.assertEqual('ambiguous', selected.confidence)
+
+    def test_low_confidence_identity_does_not_search_component(self):
+        title = 'Example Part 2: Component'
+        fixture = WikipediaSearchFixture({title: []})
+        selected = WikipediaPublicationAdapter(fixture).match_publication(
+            self.multipart_evidence(title, identity_confidence='medium')
+        )
+        self.assertEqual('no_match', selected.confidence)
+        self.assertEqual([title], [row['srsearch'] for row in fixture.calls])
+
+    def test_non_part_punctuation_does_not_derive_component(self):
+        title = 'Example: Component-Subtitle'
+        fixture = WikipediaSearchFixture({title: []})
+        selected = WikipediaPublicationAdapter(fixture).match_publication(
+            self.multipart_evidence(title)
+        )
+        self.assertEqual('no_match', selected.confidence)
+        self.assertEqual([title], [row['srsearch'] for row in fixture.calls])
+
+    def test_conflicting_multipart_components_fail_closed(self):
+        title = 'Example Part 7: First Work'
+        fixture = WikipediaSearchFixture({title: []})
+        selected = WikipediaPublicationAdapter(fixture).match_publication(
+            self.multipart_evidence(
+                title, aliases=('Example Part 7: Second Work',),
+            )
+        )
+        self.assertEqual('no_match', selected.confidence)
+        self.assertEqual([title], [row['srsearch'] for row in fixture.calls])
+
     def test_manga_disambiguation_requires_creator_corroboration(self):
         rows = [
             {'pageid': 1, 'title': 'Bleach', 'snippet': 'Chemical compound'},

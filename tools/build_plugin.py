@@ -39,6 +39,7 @@ PYTHON_FILES = (
     "title_metadata.py",
     "manga_load_context.py",
     "inventory_comparison.py",
+    "unified_volume.py",
     "mangadex_source.py",
     "mangapill_source.py",
     "weebcentral_source.py",

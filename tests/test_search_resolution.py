@@ -110,11 +110,22 @@ class SearchResolutionTests(unittest.TestCase):
         self.assertEqual('ja', resolution.language)
         self.assertEqual(('mangapill',), resolution.expected_source_ids)
 
-    def test_no_usable_selected_mode_inventory_is_rejected(self):
+    def test_chapter_native_inventory_qualifies_for_volume_projection(self):
         pill = FakeSource('mangapill', ('en',), {'en': chapters('pill', 1, 10)})
         resolution = resolve_search_group(SourceRegistry((pill,)), (candidate('mangapill'),), 'en', 'volume')
-        self.assertFalse(resolution.usable)
-        self.assertEqual((), resolution.expected_source_ids)
+        self.assertTrue(resolution.usable)
+        self.assertEqual(('mangapill',), resolution.expected_source_ids)
+
+    def test_mode_switch_reuses_resolved_acquisition_inventory(self):
+        pill = FakeSource('mangapill', ('en',), {'en': chapters('pill', 1, 10)})
+        registry = SourceRegistry((pill,)); inventory_cache = {}; metadata_cache = {}
+        resolve_search_group(registry, (candidate('mangapill'),), 'en', 'chapter',
+                             metadata_cache, inventory_cache)
+        calls = (pill.metadata_calls, pill.plan_calls, pill.chapter_calls)
+        resolution = resolve_search_group(registry, (candidate('mangapill'),), 'en', 'volume',
+                                          metadata_cache, inventory_cache)
+        self.assertTrue(resolution.usable)
+        self.assertEqual(calls, (pill.metadata_calls, pill.plan_calls, pill.chapter_calls))
 
     def test_safe_cross_source_gap_plan_orders_primary_then_filler(self):
         pill = FakeSource('mangapill', ('en',), {'en': chapters('pill', 1, 3)})

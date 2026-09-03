@@ -1,9 +1,12 @@
+import tempfile
 import unittest
 import urllib.error
+from pathlib import Path
 
 from google_books_reference import (
     CACHE_CONTRACT, Classification, GoogleBooksArtworkResolver,
-    classify_manifestation, normalize_google_volume, trusted_series_ids,
+    classify_manifestation, google_books_private_key_path,
+    load_google_books_api_key, normalize_google_volume, trusted_series_ids,
 )
 
 
@@ -30,6 +33,120 @@ def volume(identifier='v7',title='One Piece, Vol. 7',order=7,series='series-one-
 
 
 class GoogleBooksReferenceTests(unittest.TestCase):
+    def test_key_enablement_and_publication_status_matrix(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=google_books_private_key_path(folder)
+            path.parent.mkdir(parents=True)
+            path.write_text('fake-local-key',encoding='utf-8')
+            for override,expected in ((None,'no_compatible_exact_covers'),
+                                      ('1','no_compatible_exact_covers'),
+                                      ('0','disabled_by_configuration')):
+                environment={} if override is None else {'MANGANANA_GOOGLE_BOOKS_ENABLED':override}
+                resolver=GoogleBooksArtworkResolver(config_directory=folder,environ=environment,
+                    request_json=lambda _params:{'items':[]})
+                self.assertEqual(expected,resolver.resolve(CONTEXT,('7',))['status'])
+                self.assertEqual('local_private_file',resolver.key_configuration.source)
+            enabled=GoogleBooksArtworkResolver(config_directory=folder,environ={},
+                request_json=lambda _params:{'items':[]})
+            for language,edition in (('es','standard'),('en','fan_color'),('en','color'),('','standard')):
+                self.assertEqual('unavailable_publication_context',enabled.resolve(
+                    {**CONTEXT,'requested_language':language,'edition_profile':edition},('7',)
+                )['status'])
+            self.assertEqual('no_remaining_artwork_gaps',enabled.resolve(CONTEXT,())['status'])
+            self.assertEqual(0,enabled.request_count)
+            self.assertEqual(0,enabled.detail_request_count)
+        with tempfile.TemporaryDirectory() as folder:
+            absent=GoogleBooksArtworkResolver(config_directory=folder,environ={})
+            self.assertEqual('unavailable_no_api_key',absent.resolve(CONTEXT,('7',))['status'])
+            environment_key=GoogleBooksArtworkResolver(config_directory=folder,
+                environ={'MANGANANA_GOOGLE_BOOKS_API_KEY':'fake-environment-key'},
+                request_json=lambda _params:{'items':[]})
+            self.assertEqual('no_compatible_exact_covers',environment_key.resolve(CONTEXT,('7',))['status'])
+
+    def test_private_key_path_is_cross_platform_relative_to_calibre_config(self):
+        root=Path('calibre-config-root')
+        self.assertEqual(
+            root/'plugins'/'manganana'/'private'/'google_books_api_key.txt',
+            google_books_private_key_path(root),
+        )
+
+    def test_local_private_key_is_stripped_and_precedes_environment(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=google_books_private_key_path(folder)
+            path.parent.mkdir(parents=True)
+            path.write_text('  fake-local-key\n',encoding='utf-8')
+            loaded=load_google_books_api_key(
+                folder,{'MANGANANA_GOOGLE_BOOKS_API_KEY':'fake-environment-key'},
+            )
+            self.assertEqual(('fake-local-key','local_private_file','configured'),(
+                loaded.api_key,loaded.source,loaded.status,
+            ))
+
+    def test_missing_or_empty_local_key_falls_back_to_environment(self):
+        for create_empty in (False,True):
+            with self.subTest(create_empty=create_empty), tempfile.TemporaryDirectory() as folder:
+                path=google_books_private_key_path(folder)
+                if create_empty:
+                    path.parent.mkdir(parents=True)
+                    path.write_text(' \n',encoding='utf-8')
+                loaded=load_google_books_api_key(
+                    folder,{'MANGANANA_GOOGLE_BOOKS_API_KEY':'fake-environment-key'},
+                )
+                self.assertEqual(('fake-environment-key','environment'),(
+                    loaded.api_key,loaded.source,
+                ))
+
+    def test_no_key_and_unreadable_file_are_safe_and_redacted(self):
+        with tempfile.TemporaryDirectory() as folder:
+            missing=load_google_books_api_key(folder,{})
+            self.assertEqual(('', 'missing'),(missing.api_key,missing.status))
+            path=google_books_private_key_path(folder)
+            path.parent.mkdir(parents=True)
+            path.write_text('fake-file-key',encoding='utf-8')
+            def unreadable(_path):
+                raise PermissionError('generic denial')
+            failed=load_google_books_api_key(folder,{},unreadable)
+            self.assertEqual(('', 'file_unreadable'),(failed.api_key,failed.status))
+            self.assertNotIn('fake-file-key',repr(failed))
+
+    def test_runtime_key_enables_fallback_unless_explicitly_disabled(self):
+        environment={'MANGANANA_GOOGLE_BOOKS_API_KEY':'fake-environment-key'}
+        enabled=GoogleBooksArtworkResolver(environ=environment)
+        disabled=GoogleBooksArtworkResolver(environ={
+            **environment,'MANGANANA_GOOGLE_BOOKS_ENABLED':'0',
+        })
+        self.assertTrue(enabled.enabled)
+        self.assertFalse(disabled.enabled)
+
+    def test_secret_is_absent_from_results_cache_errors_and_configuration_repr(self):
+        secret='fake-secret-never-expose'
+        def request(_params):
+            raise RuntimeError('https://books.test/?key='+secret+'&q=work')
+        resolver=GoogleBooksArtworkResolver(
+            request_json=request,api_key=secret,enabled=True,
+        )
+        with self.assertRaises(RuntimeError) as raised:
+            resolver.resolve(CONTEXT,('7',))
+        visible=' '.join((str(raised.exception),repr(resolver.key_configuration)))
+        self.assertNotIn(secret,visible)
+        self.assertIn('<redacted>',visible)
+        safe_result=GoogleBooksArtworkResolver(
+            api_key=secret,enabled=True,
+        ).resolve(CONTEXT,())
+        self.assertNotIn(secret,repr(safe_result))
+
+    def test_nonstandard_editions_never_receive_standard_google_artwork(self):
+        calls=[]
+        resolver=GoogleBooksArtworkResolver(
+            request_json=lambda params:(calls.append(params) or {'items':[volume()]}),
+            api_key='fake-configured-key',enabled=True,
+        )
+        for edition in ('fan_color','color'):
+            with self.subTest(edition=edition):
+                result=resolver.resolve({**CONTEXT,'edition_profile':edition},('7',))
+                self.assertEqual(('unavailable_publication_context',[]),(result['status'],result['covers']))
+        self.assertEqual([],calls)
+
     def test_normalization_uses_order_number_and_largest_returned_field(self):
         row=normalize_google_volume(volume(images={'thumbnail':'thumb','medium':'medium','large':'large'}))
         self.assertEqual(('7','large','large','HIGH'),(
@@ -114,10 +231,10 @@ class GoogleBooksReferenceTests(unittest.TestCase):
     def test_disabled_non_english_and_missing_context_are_nonfatal(self):
         calls=[]
         resolver=GoogleBooksArtworkResolver(request_json=lambda p:calls.append(p),api_key='',enabled=False)
-        self.assertEqual('disabled',resolver.resolve(CONTEXT,('7',))['status'])
+        self.assertEqual('disabled_by_configuration',resolver.resolve(CONTEXT,('7',))['status'])
         self.assertEqual([],calls)
         foreign={**CONTEXT,'requested_language':'ja'}
-        self.assertEqual('disabled',GoogleBooksArtworkResolver(api_key='',enabled=True).resolve(foreign,('7',))['status'])
+        self.assertEqual('unavailable_publication_context',GoogleBooksArtworkResolver(api_key='',enabled=True).resolve(foreign,('7',))['status'])
         missing={**CONTEXT,'canonical_creators':()}
         self.assertEqual('insufficient_canonical_evidence',GoogleBooksArtworkResolver(api_key='',enabled=True).resolve(missing,('7',))['status'])
 
@@ -178,6 +295,7 @@ class GoogleBooksReferenceTests(unittest.TestCase):
         result=GoogleBooksArtworkResolver(request_json=lambda _p:{'items':rows},request_detail=detail,
                                           api_key='configured',enabled=True).resolve(CONTEXT,('7',))
         cover=result['covers'][0]
+        self.assertEqual('valid',result['status'])
         self.assertEqual(('small','source','extraLarge','volumes_get_full'),(
             cover['preview_url'],cover['source_url'],cover['source_field'],cover['retrieval'],
         ))

@@ -118,16 +118,19 @@ def compare_inventories(inventories, expected_edition='original', workflow=None)
     """Choose only when one provider is clearly superior; otherwise remain ambiguous."""
     rows = tuple(inventories or ())
     eligible = [row for row in rows if row.edition == expected_edition]
-    # A volume job is only meaningful when a provider exposes native volume
-    # structure.  Chapter-native providers remain eligible in Chapter mode.
-    usable = [row for row in eligible if row.usable and
-              (workflow != 'volume' or row.native_volumes > 0)]
+    # Volume mode can now qualify chapter-native acquisition inventories.  They
+    # remain standalone until trusted publication evidence safely groups them.
+    usable = [row for row in eligible if row.usable]
     if not usable:
-        if workflow == 'volume':
-            details = '; '.join(f'{row.source_name}: {row.summary}' for row in rows)
-            return InventoryDecision(rows, error=details or 'No usable native volumes are currently available.')
         details = '; '.join(f'{row.source_name}: {row.summary}' for row in rows)
         return InventoryDecision(rows, error=details or 'No providers could be inspected.')
+    if workflow == 'volume':
+        native = [row for row in usable if row.native_volumes > 0]
+        # Preserve the established native-volume preference whenever one is
+        # actually available. Chapter-native providers qualify when native
+        # structure is absent and may later gain safe derived grouping.
+        if native:
+            usable = native
     if len(usable) == 1:
         winner = usable[0]
         return InventoryDecision(rows, selected=winner,

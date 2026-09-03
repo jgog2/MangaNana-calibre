@@ -35,7 +35,7 @@ class SourceManagerUiTests(unittest.TestCase):
     def test_general_search_filters_before_workers_and_handles_zero_sources(self):
         section = MAIN[MAIN.index('def search_mangadex('):MAIN.index('def _on_search_ready(')]
         policy_index = section.index('participating = enabled_sources(SOURCE_REGISTRY, prefs)')
-        worker_index = section.index('worker=SourceSearchWorker(')
+        worker_index = section.index('worker=self._retain_async_worker(SourceSearchWorker(')
         self.assertLess(policy_index, worker_index)
         self.assertIn('SourceCoordinator(SOURCE_REGISTRY, participating)', section)
         self.assertIn('No manga sources are enabled.', section)

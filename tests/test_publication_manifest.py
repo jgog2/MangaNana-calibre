@@ -3,7 +3,7 @@ from pathlib import Path
 
 from publication_manifest import (
     MANIFEST_SCHEMA_VERSION, PublicationManifestBuilder, build_publication_projection,
-    project_inventory_through_manifest,
+    project_inventory_through_manifest, _explicit_chapter_range,
 )
 
 
@@ -40,6 +40,102 @@ def bookwalker():
 
 
 class PublicationManifestTests(unittest.TestCase):
+    def test_explicit_reference_range_supplies_membership_without_cloning_title(self):
+        evidence = {
+            **wiki_rows(0),
+            'chapters': [
+                {'number': '28', 'title': 'Individual title', 'volume': '6',
+                 'kind': 'chapter', 'confidence': 'explicit'},
+                {'number': '28-30', 'title': 'Scary Monsters (1-3)', 'volume': '6',
+                 'kind': 'range', 'confidence': 'explicit'},
+                {'number': '28-30', 'title': 'Diego Brando (1-3)', 'volume': '6',
+                 'kind': 'range', 'confidence': 'explicit'},
+            ],
+        }
+        manifest = PublicationManifestBuilder(work('Steel Ball Run'), 'original').apply_wikipedia(
+            evidence
+        ).build()
+        projection = build_publication_projection(
+            tuple({'chapter': str(number), 'title': ''} for number in range(28, 31)), manifest
+        )
+        self.assertEqual(('6', '6', '6'), tuple(
+            row.effective_volume.value for row in projection.chapters
+        ))
+        self.assertEqual(('reference_explicit',) * 3, tuple(
+            row.mapping_state for row in projection.chapters
+        ))
+        self.assertEqual('Individual title', projection.chapters[0].resolved_title.value)
+        self.assertFalse(projection.chapters[1].resolved_title.present)
+        self.assertFalse(projection.chapters[2].resolved_title.present)
+        self.assertEqual(('28', '29', '30'), manifest.volume('6').chapter_keys)
+
+    def test_reference_range_conflict_fails_closed_but_provider_volume_wins(self):
+        evidence = {
+            **wiki_rows(0),
+            'chapters': [
+                {'number': '1-3', 'title': 'Range', 'volume': '1', 'kind': 'range'},
+                {'number': '2', 'title': 'Exact', 'volume': '2', 'kind': 'chapter'},
+            ],
+        }
+        manifest = PublicationManifestBuilder(work(), 'original').apply_wikipedia(evidence).build()
+        unresolved = build_publication_projection(({'chapter': '2'},), manifest).chapters[0]
+        provider = build_publication_projection(
+            ({'chapter': '2', 'volume': '9', '_source_id': 'mangadex'},), manifest
+        ).chapters[0]
+        self.assertIn('2', manifest.ambiguous_chapter_keys)
+        self.assertEqual('unmapped', unresolved.mapping_state)
+        self.assertEqual(('9', 'provider_explicit'),
+                         (provider.effective_volume.value, provider.mapping_state))
+
+    def test_explicit_range_accepts_three_dashes_and_rejects_unsafe_shapes(self):
+        self.assertEqual(('28', '29', '30'), _explicit_chapter_range('28-30'))
+        self.assertEqual(('59', '60', '61', '62'), _explicit_chapter_range('59\u201362'))
+        self.assertEqual(('99', '100', '101', '102'), _explicit_chapter_range('99\u2014102'))
+        for value in ('28-', '-30', '28.5-30.5', 'A-B', '30-28', '1-999'):
+            with self.subTest(value=value):
+                self.assertEqual((), _explicit_chapter_range(value))
+
+    def test_range_membership_preserves_existing_fractional_derivation(self):
+        manifest = PublicationManifestBuilder(work(), 'original').apply_wikipedia({
+            **wiki_rows(0),
+            'chapters': [
+                {'number': '10-12', 'title': 'Aggregate', 'volume': '2', 'kind': 'range'},
+            ],
+        }).build()
+        projection = build_publication_projection(
+            ({'chapter': '11'}, {'chapter': '11.5'}), manifest
+        )
+        self.assertEqual(('reference_explicit', 'derived_fractional'), tuple(
+            row.mapping_state for row in projection.chapters
+        ))
+        self.assertEqual(('2', '2'), tuple(
+            row.effective_volume.value for row in projection.chapters
+        ))
+
+    def test_jojolion_range_only_volumes_project_as_reference_explicit(self):
+        ranges = (('59\u201362', '15'), ('79\u201382', '20'), ('87\u201390', '22'),
+                  ('91\u201394', '23'), ('99\u2013102', '25'))
+        evidence = {
+            **wiki_rows(0),
+            'chapters': [
+                {'number': number, 'title': 'Aggregate title', 'volume': volume,
+                 'kind': 'range', 'confidence': 'explicit'}
+                for number, volume in ranges
+            ],
+        }
+        manifest = PublicationManifestBuilder(work('JoJolion'), 'original').apply_wikipedia(
+            evidence
+        ).build()
+        inventory = tuple(
+            {'chapter': key}
+            for number, _volume in ranges for key in _explicit_chapter_range(number)
+        )
+        projection = build_publication_projection(inventory, manifest)
+        self.assertEqual(len(inventory), projection.coverage['reference_explicit'])
+        self.assertEqual({'15', '20', '22', '23', '25'}, {
+            row.effective_volume.value for row in projection.chapters
+        })
+
     def test_schema_work_chapter_volume_and_source_state(self):
         manifest = PublicationManifestBuilder(work(), 'original').apply_wikipedia(wiki_rows()).apply_bookwalker(bookwalker()).build('en')
         self.assertEqual(MANIFEST_SCHEMA_VERSION, manifest.schema_version)

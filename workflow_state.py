@@ -16,6 +16,16 @@ def provider_identity(record):
     return (source_id, item_id) if source_id and item_id else None
 
 
+def volume_selection_hint(has_numbered, has_standalone):
+    if has_numbered and has_standalone:
+        return 'Select at least one volume or Standalone Chapters to continue.'
+    if has_numbered:
+        return 'Select at least one volume to continue.'
+    if has_standalone:
+        return 'Select Standalone Chapters to continue.'
+    return 'Select at least one volume to continue.'
+
+
 @dataclass
 class HighPriestessState:
     stage: str = 'choose_manga'
@@ -36,6 +46,13 @@ class HighPriestessState:
     chapter_structure_state: str = 'idle'
     pending_chapter_inventory: tuple = ()
     chapter_presentation_frozen: bool = False
+    volume_preparation_generation: int = 0
+    volume_acquisition_state: str = 'idle'
+    publication_resolution_state: str = 'idle'
+    volume_inventory_final: bool = False
+    volume_native_count: int = 0
+    volume_derived_count: int = 0
+    volume_standalone_count: int = 0
     inventory_selection: frozenset = frozenset()
     search_generation: int = 0
     selected_record_load_generation: int = 0
@@ -98,6 +115,12 @@ class HighPriestessState:
         self.chapter_structure_state = 'idle'
         self.pending_chapter_inventory = ()
         self.chapter_presentation_frozen = False
+        self.volume_acquisition_state = 'idle'
+        self.publication_resolution_state = 'idle'
+        self.volume_inventory_final = False
+        self.volume_native_count = 0
+        self.volume_derived_count = 0
+        self.volume_standalone_count = 0
         self.inventory_selection = frozenset()
         self.invalidate_downstream()
 
@@ -114,9 +137,84 @@ class HighPriestessState:
         self.chapter_structure_state = 'pending'
         self.pending_chapter_inventory = ()
         self.chapter_presentation_frozen = False
+        self.volume_acquisition_state = 'idle'
+        self.publication_resolution_state = 'idle'
+        self.volume_inventory_final = False
+        self.volume_native_count = 0
+        self.volume_derived_count = 0
+        self.volume_standalone_count = 0
         self.inventory_selection = frozenset()
         self.invalidate_downstream()
         return self.selected_record_load_generation
+
+    def begin_publication_resolution(self, selection_generation):
+        if selection_generation != self.selected_record_load_generation:
+            return False
+        self.publication_resolution_state = 'pending'
+        return True
+
+    def settle_publication_resolution(self, selection_generation):
+        if selection_generation != self.selected_record_load_generation:
+            return False
+        self.publication_resolution_state = 'terminal'
+        return True
+
+    def begin_volume_preparation(self, selection_generation, preparation_generation):
+        if selection_generation != self.selected_record_load_generation:
+            return False
+        self.volume_preparation_generation = int(preparation_generation)
+        self.volume_acquisition_state = 'pending'
+        self.volume_inventory_final = False
+        self.volume_native_count = 0
+        self.volume_derived_count = 0
+        self.volume_standalone_count = 0
+        return True
+
+    def settle_volume_acquisition(self, selection_generation, preparation_generation,
+                                  native_count, standalone_count):
+        if (selection_generation != self.selected_record_load_generation or
+                preparation_generation != self.volume_preparation_generation):
+            return False
+        self.volume_acquisition_state = 'ready'
+        self.volume_native_count = max(0, int(native_count or 0))
+        self.volume_standalone_count = max(0, int(standalone_count or 0))
+        return True
+
+    def fail_volume_preparation(self, selection_generation, preparation_generation):
+        if (selection_generation != self.selected_record_load_generation or
+                preparation_generation != self.volume_preparation_generation):
+            return False
+        self.volume_acquisition_state = 'terminal_failure'
+        self.volume_inventory_final = False
+        return True
+
+    def finalize_volume_inventory(self, selection_generation, preparation_generation,
+                                  native_count, derived_count, standalone_count):
+        if (selection_generation != self.selected_record_load_generation or
+                preparation_generation != self.volume_preparation_generation):
+            return False
+        self.volume_acquisition_state = 'ready'
+        self.volume_inventory_final = True
+        self.volume_native_count = max(0, int(native_count or 0))
+        self.volume_derived_count = max(0, int(derived_count or 0))
+        self.volume_standalone_count = max(0, int(standalone_count or 0))
+        return True
+
+    @property
+    def volume_presentation_state(self):
+        if self.volume_acquisition_state == 'pending':
+            return 'loading_acquisition'
+        if self.volume_acquisition_state != 'ready':
+            return 'idle'
+        if self.volume_inventory_final:
+            if (not self.volume_native_count and not self.volume_derived_count and
+                    self.volume_standalone_count):
+                return 'final_standalone'
+            return 'ready'
+        if self.volume_standalone_count:
+            return ('resolving_publication' if self.publication_resolution_state != 'terminal'
+                    else 'building_groups')
+        return 'ready'
 
     def apply_inventory(self, generation, inventory):
         if generation != self.selected_record_load_generation:
