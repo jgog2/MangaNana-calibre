@@ -1,0 +1,54 @@
+Title:           PDF Fixture
+
+Author:          
+
+Creator:         MangaNana
+
+Producer:        Qt 6.10.1
+
+CreationDate:    Sun Sep  6 01:46:23 2026 Central Daylight Time
+
+ModDate:         Sun Sep  6 01:46:23 2026 Central Daylight Time
+
+Custom Metadata: no
+
+Metadata Stream: yes
+
+Tagged:          no
+
+UserProperties:  no
+
+Suspects:        no
+
+Form:            none
+
+JavaScript:      no
+
+Pages:           3
+
+Encrypted:       no
+
+Page    1 size:  72 x 144 pts
+
+Page    1 rot:   0
+
+Page    2 size:  216 x 72 pts
+
+Page    2 rot:   0
+
+Page    3 size:  108 x 144 pts
+
+Page    3 rot:   0
+
+File size:       27120 bytes
+
+Optimized:       no
+
+PDF version:     1.4
+
+
+LOCAL_MATRIX=PASS: CBZ/PDF input, CBZ/PDF output, both layouts, all cover modes
+SOURCE_MATRIX=PASS: native/grouped volumes, chapters, standalone; both formats/layouts
+IMPORT_UI=PASS: modes, independent titles, stage gating, format invalidation, locking, cleanup
+CALIBRE_TEST_LIBRARY=PASS: CBZ/PDF import, metadata, cover, no source IDs, format-aware replacement; fixture books removed
+No external network or normal-library writes. Samples: C:\MangaNana-Dev\Test-Data\manganana-emperor-validation

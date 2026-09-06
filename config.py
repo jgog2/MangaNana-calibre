@@ -34,3 +34,6 @@ prefs.defaults['session_layout']=''
 # dimensions from existing installations are deliberately not migrated.
 prefs.defaults['window_w']=None
 prefs.defaults['window_h']=None
+
+# The Emperor: container preference is independent of page processing.
+prefs.defaults['output_format'] = 'cbz'

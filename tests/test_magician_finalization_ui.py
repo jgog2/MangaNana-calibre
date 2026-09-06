@@ -80,8 +80,10 @@ class MagicianFinalizationUiTests(unittest.TestCase):
         self.assertIn("pending.get('external_authors')",loaded)
         imported=MAIN[MAIN.index('def on_downloaded('):]
         self.assertIn('_title,applied_author,applied_series=self._applied_metadata_values()',imported)
-        self.assertIn('Metadata(title, [applied_author])',imported)
-        self.assertIn('mi.series = applied_series',imported)
+        self.assertIn("item_author = item.get('author', applied_author)",imported)
+        self.assertIn("Metadata(title, [item_author or 'Unknown'])",imported)
+        self.assertIn("item_series = item.get('series', applied_series)",imported)
+        self.assertIn('mi.series = item_series or None',imported)
 
     def test_zero_result_snapshot_is_removed_after_provider_barrier(self):
         finished=MAIN[MAIN.index('def _finish_coordinated_search('):MAIN.index('def _find_search_item(')]

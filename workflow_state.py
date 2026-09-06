@@ -95,7 +95,7 @@ class HighPriestessState:
         return True
 
     def change_mode(self, mode):
-        if mode not in ('volume', 'chapter') or mode == self.mode:
+        if mode not in ('volume', 'chapter', 'import') or mode == self.mode:
             return False
         self.mode = mode
         self.search_generation += 1

@@ -87,14 +87,15 @@ class Combo(Control):
 
 
 def production_namespace():
+    from book_export import write_book, validate_pdf
     ns=load_image_helpers('_image_size', '_normalize_exif_orientation', '_exif_orientation_value',
                           '_select_verified_preview_source', '_to_rgb', '_save_jpeg',
                           '_landscape_safe_area', '_kobo_landscape_canvas', '_landscape_canvas_for_single',
                           '_fit_page_to_slot', '_paired_canvas', '_spread_with_margin', 'build_landscape_pages', '_validate_cbz_output',
-                          'output_page_jobs', 'output_job_size', 'render_output_page')
+                          'output_page_jobs', 'output_job_size', 'load_page_record', 'render_output_page')
     ns.update(QThread=Thread, pyqtSignal=Signal, time=time, os=os, ProcessingSettings=ProcessingSettings,
               native_dithering=native_dithering,final_workers=final_workers,ordered_render=ordered_render,
-              render_cover=render_cover,
+              render_cover=render_cover, write_book=write_book, validate_pdf=validate_pdf,
               BUILTIN_PRESETS_BY_ID=BUILTIN_PRESETS_BY_ID,matching_preset=matching_preset,
               QImage=DetailImage, detail_rgba=detail_rgba,
               NONE_PROFILE_ID=NONE_PROFILE_ID,

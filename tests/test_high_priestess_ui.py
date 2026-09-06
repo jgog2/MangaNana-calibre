@@ -35,7 +35,7 @@ class HighPriestessUiContracts(unittest.TestCase):
     def test_choose_manga_starts_generic_and_has_no_volume_range_ui(self):
         build=section('def build_ui(self):','# BOOK CUSTOMIZATION:')
         self.assertIn("self.inventory_heading=self.heading('Manga')",build)
-        self.assertIn("self.mode_helper=QLabel('Choose Volumes or Chapters to begin.')",build)
+        self.assertIn("self.mode_helper=QLabel('Choose Volumes, Chapters, or Import to begin.')",build)
         self.assertIn("QPushButton('Select All')",build)
         self.assertIn("QPushButton('Clear')",build)
         self.assertNotIn('Select a Volume Range',build)
@@ -63,7 +63,7 @@ class HighPriestessUiContracts(unittest.TestCase):
 
     def test_stage_one_footer_is_mode_aware_and_not_final_output_bound(self):
         actions=section('def _update_workflow_actions(self):','def _has_volume_selection(')
-        self.assertIn("self.workflow_hint.setText('Choose Volumes or Chapters to begin.')",actions)
+        self.assertIn("self.workflow_hint.setText('Choose Volumes, Chapters, or Import to begin.')",actions)
         self.assertIn("noun='chapter' if self.workflow_mode == 'chapter' else 'volume'",actions)
         choose=actions[:actions.index("if stage == 'book_customization':")]
         self.assertNotIn('selected_download_count',choose)

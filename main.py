@@ -26,6 +26,9 @@ from qt.core import (
 
 from calibre_plugins.manganana.config import prefs
 from calibre_plugins.manganana.cover_rendering import COVER_MODES, render_cover
+from calibre_plugins.manganana.book_export import write_book, validate_pdf
+from calibre_plugins.manganana.import_workflow import ImportWorkflowMixin
+from calibre_plugins.manganana.import_workers import LocalPreviewWorker, LocalCoverWorker
 from calibre_plugins.manganana.image_processing import ProcessingSettings, apply_processing, process_page_blob
 from calibre_plugins.manganana.processing_presets import (
     BUILTIN_PRESETS, BUILTIN_PRESETS_BY_ID, CUSTOM_PRESET_ID, delete_user_preset,
@@ -777,6 +780,15 @@ def output_job_size(job, processing):
     return size
 
 
+def load_page_record(record):
+    """Load one record at the renderer boundary, retaining disk-backed book storage."""
+    if record.get('image') is not None:
+        return record['image']
+    if record.get('local_path'):
+        return Path(record['local_path']).read_bytes()
+    return record['blob']
+
+
 def render_output_page(job, processing, check_cancel=None, in_memory=False, overview=False):
     """One already-defined page; no acquisition or pairing decisions here."""
     if check_cancel: check_cancel()
@@ -785,12 +797,16 @@ def render_output_page(job, processing, check_cancel=None, in_memory=False, over
     ceiling = (720,540) if overview else None
     if kind == 'INDIVIDUAL':
         if not in_memory:
-            return record['ext'], process_page_blob(record['blob'], record['ext'], processing, check_cancel), kind
+            value = load_page_record(record)
+            ext = record['ext']
+            if isinstance(value, Image.Image):
+                data = BytesIO(); value.save(data, 'PNG'); value = data.getvalue(); ext = '.png'
+            return ext, process_page_blob(value, ext, processing, check_cancel), kind
         image = record.get('image')
         if image is None:
-            with Image.open(BytesIO(record['blob'])) as source: image = source.copy()
+            with Image.open(BytesIO(load_page_record(record))) as source: image = source.copy()
         return record['ext'], apply_processing(image, processing, check_cancel=check_cancel, working_ceiling=ceiling), kind
-    values = [r.get('image') or r['blob'] for r in records]
+    values = [load_page_record(r) for r in records]
     kwargs = dict(processing=processing, in_memory=in_memory, check_cancel=check_cancel, working_ceiling=ceiling)
     if kind == 'PAIRED': image = _paired_canvas(*values, **kwargs)
     elif kind == 'ORIGINAL SPREAD': image = _spread_with_margin(values[0], **kwargs)
@@ -1204,7 +1220,7 @@ class DownloadWorker(QThread):
     failed = pyqtSignal(str)
     cancelled_ok = pyqtSignal()
 
-    def __init__(self, source, url, title, author, series, language, start, end, covers, zero_pad, existing_volumes, selected_volumes=None, include_bonus=True, page_layout='original_pages', reading_direction='rtl', main_cover_url='', volume_covers=None, chapter_jobs=None, chapter_output_groups=None, processing=None, cover_mode='keep'):
+    def __init__(self, source, url, title, author, series, language, start, end, covers, zero_pad, existing_volumes, selected_volumes=None, include_bonus=True, page_layout='original_pages', reading_direction='rtl', main_cover_url='', volume_covers=None, chapter_jobs=None, chapter_output_groups=None, processing=None, cover_mode='keep', output_format='cbz'):
         super().__init__()
         self.source = source
         self.source_name = source.display_name
@@ -1215,6 +1231,7 @@ class DownloadWorker(QThread):
         self.start_volume, self.end_volume = start, end
         self.covers, self.zero_pad = covers, zero_pad
         self.cover_mode = cover_mode
+        self.output_format = output_format if output_format in ('cbz', 'pdf') else 'cbz'
         if cover_mode != 'keep':
             self.covers = cover_mode == 'stamp'
         self.existing = set(existing_volumes)
@@ -1342,29 +1359,19 @@ class DownloadWorker(QThread):
             for milestone in (25,50,75):
                 if pct >= milestone and milestone not in milestones:
                     milestones.add(milestone); self.log.emit(f'Processing: {milestone}% complete.')
-        partial = Path(str(output_path)+'.part')
         iterator = ordered_render(jobs, lambda job, check: render_output_page(job, self.processing, check),
                                   workers, self._check_cancel, completed, metrics,
                                   fallback_active=lambda: native_dithering.backend_status() != 'native')
-        try:
-            with zipfile.ZipFile(partial, 'w', compression=zipfile.ZIP_STORED) as zf:
-                for index, (ext, blob, _kind) in iterator:
-                    self._check_cancel()
-                    started = time.perf_counter()
-                    zf.writestr(f'{index+1:05d}{ext}', blob)
-                    write_seconds += time.perf_counter()-started
-                self.progress.emit(100, 'Writing CBZ metadata and finalizing...')
-                self.log.emit(f'Rendered and encoded {total} pages in {metrics["render_seconds"]:.2f}s using {backend} ({workers} worker(s)).')
-                self.log.emit('Writing CBZ metadata and finalizing...')
-                started = time.perf_counter()
-                zf.writestr('ComicInfo.xml', self._comicinfo_xml(final_title, volume, chapter_number))
-            write_seconds += time.perf_counter()-started
-            self._check_cancel()
-            os.replace(partial, output_path)
-        finally:
-            iterator.close()
-            partial.unlink(missing_ok=True)
-        self.log.emit(f'CBZ finalized; serial ZIP I/O {write_seconds:.2f}s. Output preparation total {time.perf_counter()-acquisition_started:.2f}s.')
+        def finalizing():
+            self.progress.emit(100, f'Writing {self.output_format.upper()} metadata and finalizing...')
+            self.log.emit(f'Rendered and encoded {total} pages in {metrics["render_seconds"]:.2f}s using {backend} ({workers} worker(s)).')
+            self.log.emit(f'Writing {self.output_format.upper()} metadata and finalizing...')
+        write_metrics = {}
+        write_book(output_path, self.output_format, iterator, title=final_title,
+                   comicinfo=self._comicinfo_xml(final_title, volume, chapter_number),
+                   check=self._check_cancel, finalizing=finalizing, metrics=write_metrics)
+        write_seconds = write_metrics['write_seconds']
+        self.log.emit(f'{self.output_format.upper()} finalized; serial container I/O {write_seconds:.2f}s. Output preparation total {time.perf_counter()-acquisition_started:.2f}s.')
         state.setdefault('phase_timings', []).append(dict(acquisition_seconds=acquisition_seconds,
                     write_seconds=write_seconds, **metrics))
         return cover_path
@@ -1417,7 +1424,7 @@ class DownloadWorker(QThread):
                 state['volume_done'] = 0
                 if vol is None:
                     final_title = f'{self.title} (Standalone Chapters)'
-                    filename = safe_filename(final_title) + '.cbz'
+                    filename = safe_filename(final_title) + '.' + self.output_format
                     label = 'Standalone Chapters'
                     # Standalone chapters do not have a formal volume cover.
                     # Use the manga's main cover so the Calibre entry still has
@@ -1426,7 +1433,7 @@ class DownloadWorker(QThread):
                 else:
                     vol_s = fmt_volume(vol, self.zero_pad)
                     final_title = f'{self.title} (Vol. {vol_s})'
-                    filename = safe_filename(final_title) + '.cbz'
+                    filename = safe_filename(final_title) + '.' + self.output_format
                     label = f'Volume {vol:g}'
                     cover_url = resolve_group_cover_url(
                         'volume', vol, covers, self.main_cover_url, group,
@@ -1440,9 +1447,9 @@ class DownloadWorker(QThread):
                 before_bytes = state['bytes']
                 try:
                     cover_path = self._download_group(group, output, final_title, vol, cover_url, state, idx, len(jobs), volume_pages_total)
-                    validated_pages = _validate_cbz_output(output, self.page_layout, self.processing)
-                    self.log.emit(f'Validated {label}: {validated_pages} reading page(s), CBZ structure OK.')
-                    outputs.append({'path': str(output), 'volume': vol, 'title': final_title, 'cover_path': cover_path})
+                    validated_pages = (_validate_cbz_output(output, self.page_layout, self.processing) if self.output_format == 'cbz' else validate_pdf(output, check=self._check_cancel))
+                    self.log.emit(f'Validated {label}: {validated_pages} reading page(s), {self.output_format.upper()} structure OK.')
+                    outputs.append({'path': str(output), 'volume': vol, 'title': final_title, 'cover_path': cover_path, 'format':self.output_format})
                     self.log.emit(f'{label} prepared for calibre.')
                 except Exception as e:
                     if self.cancelled:
@@ -1491,7 +1498,7 @@ class DownloadWorker(QThread):
         planned_pages=sum(int(row.get('pages') or 0) for job in jobs for row in job.get('chapters') or ())
         state={'pages_done':0,'pages_total':planned_pages,'bytes':0,'started':time.time(),'volume_done':0}
         outputs=[]; failures=[]
-        self.log.emit(f'Chapter output plan: {len(jobs)} CBZ file(s).')
+        self.log.emit(f'Chapter output plan: {len(jobs)} {self.output_format.upper()} file(s).')
         for index, job in enumerate(jobs, 1):
             self._check_cancel(); state['volume_done']=0
             group=tuple(sorted((dict(row) for row in job.get('chapters') or ()),key=chapter_sort_key))
@@ -1511,7 +1518,7 @@ class DownloadWorker(QThread):
                 volume=None; chapter=group[0]
                 label=f'Chapter {chapter_label(chapter, self.zero_pad)}'
                 final_title=chapter_output_title(self.title, chapter, self.zero_pad)
-            output=Path(work) / (safe_filename(final_title) + '.cbz')
+            output=Path(work) / (safe_filename(final_title) + '.' + self.output_format)
             source_names=', '.join(dict.fromkeys(str(row.get('_source_name') or self.source_name) for row in group))
             self.log.emit(f'Starting {label} [{source_names}]...')
             before_done=state['pages_done']; before_bytes=state['bytes']
@@ -1523,13 +1530,13 @@ class DownloadWorker(QThread):
                                                  cover_url, state, index, len(jobs),
                                                  sum(int(row.get('pages') or 0) for row in group),
                                                  chapter_number=group[0].get('chapter') if kind == 'chapter' else None)
-                _validate_cbz_output(output, self.page_layout, self.processing)
+                (_validate_cbz_output(output, self.page_layout, self.processing) if self.output_format == 'cbz' else validate_pdf(output, check=self._check_cancel))
                 output_index=(volume if kind == 'volume' else
                               (chapter_series_index(group[0]) if kind == 'chapter' else None))
                 outputs.append({'path':str(output),'volume':output_index,
                                 'title':final_title,'cover_path':cover_path,'kind':kind,
                                 'chapter_number':group[0].get('chapter') if kind == 'chapter' else None,
-                                'source_id':group[0].get('_source_id'),'chapter_count':len(group)})
+                                'source_id':group[0].get('_source_id'),'chapter_count':len(group),'format':self.output_format})
             except Exception as exc:
                 if self.cancelled: raise
                 output.unlink(missing_ok=True); state['pages_done']=before_done; state['bytes']=before_bytes
@@ -2263,7 +2270,7 @@ class PreferencesDialog(QDialog):
         self.duplicate_policy = QComboBox()
         self.duplicate_policy.addItem('Skip existing (Recommended)', 'skip')
         self.duplicate_policy.addItem('Ask when existing volumes are found', 'ask')
-        self.duplicate_policy.addItem('Replace existing CBZ files', 'replace')
+        self.duplicate_policy.addItem('Replace existing output files', 'replace')
         dpi = self.duplicate_policy.findData(prefs['duplicate_policy'])
         if dpi >= 0: self.duplicate_policy.setCurrentIndex(dpi)
         bl.addWidget(self.ask_vl)
@@ -2953,7 +2960,7 @@ class PreviewUseSelector(QPushButton):
 
 
 
-class MangaNanaDialog(QDialog):
+class MangaNanaDialog(ImportWorkflowMixin, QDialog):
     def __init__(self, gui, icon):
         super().__init__(gui)
         self.gui = gui
@@ -3112,7 +3119,9 @@ class MangaNanaDialog(QDialog):
         self._saved_opening_size = (prefs.get('window_w'), prefs.get('window_h'))
         self._opening_size_applied = False
         self._apply_opening_size()
+        self._init_import_workflow()
         self.build_ui()
+        self._build_import_ui()
         self._processing_timer = QTimer(self)
         self._processing_timer.setSingleShot(True)
         self._processing_timer.setInterval(160)
@@ -4246,12 +4255,21 @@ class MangaNanaDialog(QDialog):
             QProgressBar {{ border:1px solid #3A3F44; border-radius:5px; background:#151719; min-height:11px; }}
             QProgressBar::chunk {{ background:{ORANGE}; border-radius:4px; }}
             QHeaderView::section {{ background:#202428; color:#D8D8D8; border:0; border-bottom:1px solid #383D42; padding:6px; }}
-            QTableWidget {{ gridline-color:#292D31; }}
+            QTableWidget {{ gridline-color:#292D31; alternate-background-color:#171A1D; }}
         """)
 
     def _sync_discovery_top_heights(self):
         try:
             panels=[self._search_top_panel, self._selected_top_panel]
+            # Measure each card without the height constraint installed by the
+            # previous workflow mode. Otherwise that old maximum becomes part
+            # of sizeHint() and the cards can only get shorter across switches.
+            for panel in panels:
+                panel.setMinimumHeight(0); panel.setMaximumHeight(16777215)
+                if panel.layout(): panel.layout().invalidate()
+                panel.updateGeometry()
+            if self.workflow_mode == 'import':
+                return
             target=max(p.sizeHint().height() for p in panels)
             for panel in panels:
                 panel.setFixedHeight(target)
@@ -4359,16 +4377,20 @@ class MangaNanaDialog(QDialog):
         # CHOOSE MANGA: the same two-card/one-gutter book geometry as later stages.
         left = QWidget(); left.setMinimumWidth(520)
         discovery = QHBoxLayout(left); discovery.setContentsMargins(0,0,0,0); discovery.setSpacing(10)
+        self._discovery_layout = discovery
         search_page=self._card()
         lv = QVBoxLayout(search_page); lv.setContentsMargins(14,14,14,14); lv.setSpacing(9)
+        self._discovery_card_layout = lv
         lv.addWidget(self.heading('Choose Manga'))
 
         search_col = QVBoxLayout(); search_col.setSpacing(7)
+        self._discovery_search_layout = search_col
         lv.addLayout(search_col,1)
         search_top = QWidget()
         search_top_l = QVBoxLayout(search_top); search_top_l.setContentsMargins(0,0,0,0); search_top_l.setSpacing(7)
         mode_label=QLabel('Mode'); mode_label.setStyleSheet('font-size:11px; font-weight:700; color:#D8D8D8;')
         mode_row=QHBoxLayout(); mode_row.addWidget(mode_label)
+        self._mode_row = mode_row
         self.volume_mode_btn=QPushButton('Volumes'); self.chapter_mode_btn=QPushButton('Chapters')
         for button in (self.volume_mode_btn, self.chapter_mode_btn):
             button.setCheckable(True); button.setObjectName('modeChoice')
@@ -4396,7 +4418,7 @@ class MangaNanaDialog(QDialog):
         language_row.addWidget(self.download_language_label); language_row.addWidget(self.language,1)
         search_top_l.addLayout(language_row)
         search_top_l.addWidget(self.prefer_colored)
-        self.mode_helper=QLabel('Choose Volumes or Chapters to begin.')
+        self.mode_helper=QLabel('Choose Volumes, Chapters, or Import to begin.')
         self.mode_helper.setStyleSheet('color:#8F9499; font-size:11px;')
         search_top_l.addWidget(self.mode_helper)
 
@@ -4430,9 +4452,14 @@ class MangaNanaDialog(QDialog):
         search_footer_l.addWidget(self.show_more_btn)
         search_col.addWidget(search_footer)
         discovery.addWidget(search_page,1)
-        discovery.addWidget(self._book_gutter())
+        self._discovery_gutter = self._book_gutter()
+        discovery.addWidget(self._discovery_gutter)
 
         selected_page=self._card()
+        self._source_selected_page = selected_page
+        self._source_discovery_widgets = (search_label, self.search_box, self.search_btn,
+            self.download_language_label, self.language, self.prefer_colored, direct_label,
+            self.url, self.load_btn, search_results_header, self.search_results, search_footer)
         selected_col=QVBoxLayout(selected_page); selected_col.setContentsMargins(14,14,14,14); selected_col.setSpacing(7)
         selected_col.addWidget(self.heading('Selected Manga'))
         selected_top = QWidget(); selected_top.setObjectName('selectedMangaCard'); selected_top.setStyleSheet('QWidget#selectedMangaCard { background:#171A1D; border:1px solid #2C3136; border-radius:7px; }')
@@ -4482,7 +4509,7 @@ class MangaNanaDialog(QDialog):
         # Hidden compatibility values keep the downloader's established call
         # shape while High Priestess removes the obsolete Volume Range UI.
         self.start=QLineEdit(); self.end=QLineEdit(); self.start.hide(); self.end.hide()
-        self.range_hint=QLabel('Choose Volumes or Chapters to begin.')
+        self.range_hint=QLabel('Choose Volumes, Chapters, or Import to begin.')
         self.range_hint.setWordWrap(True); self.range_hint.setMinimumHeight(18); self.range_hint.setStyleSheet('color:#8F9499; font-size:11px;')
         selected_col.addWidget(self.range_hint)
         self.meta_summary=QLabel(''); self.meta_summary.setVisible(False)
@@ -4639,6 +4666,12 @@ class MangaNanaDialog(QDialog):
         chapter_output_layout.addLayout(manual_summary_row)
         self.chapter_output_widget.setVisible(False); bcv.addWidget(self.chapter_output_widget)
         self.volume_output_note=QLabel('Selected volumes will be created as individual CBZ files.')
+        format_row=QHBoxLayout(); format_row.addWidget(QLabel('Output Format'))
+        self.output_format=QComboBox()
+        self.output_format.addItem('CBZ','cbz'); self.output_format.addItem('PDF','pdf')
+        self.output_format.setCurrentIndex(max(0,self.output_format.findData(prefs.get('output_format','cbz'))))
+        format_row.addWidget(self.output_format,1); bcv.addLayout(format_row)
+        self.output_format.currentIndexChanged.connect(self._output_format_changed)
         self.volume_output_note.setWordWrap(True); self.volume_output_note.setStyleSheet('color:#D8D8D8; font-size:12px;')
         bcv.addWidget(self.volume_output_note)
         self.covers=QCheckBox('Use source volume cover in Calibre metadata'); self.covers.setChecked(prefs['include_volume_covers'])
@@ -4741,7 +4774,7 @@ class MangaNanaDialog(QDialog):
         self.log=QListWidget(); self.log.setMaximumHeight(105); self.log.setVisible(False); av.addWidget(self.log); self._activity_log_expanded=False
         shell.addWidget(activity)
 
-        self.workflow_hint=QLabel('Choose Volumes or Chapters to begin.')
+        self.workflow_hint=QLabel('Choose Volumes, Chapters, or Import to begin.')
         self.workflow_hint.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.workflow_hint.setStyleSheet('color:#9EA3A8; font-size:11px; padding:0 4px 2px 4px;')
         shell.addWidget(self.workflow_hint)
@@ -4842,7 +4875,7 @@ class MangaNanaDialog(QDialog):
             self.workflow_hint.setText('Book Customization restored. Finalization will rebuild only after Next.')
         elif self.workflow_state.stage == 'book_customization':
             self._set_stage('choose_manga')
-            self.workflow_hint.setText('Search results, provider selection, and inventory choices preserved.')
+            self.workflow_hint.setText('Imported books and selections preserved.' if self.workflow_mode == 'import' else 'Search results, provider selection, and inventory choices preserved.')
 
     def _clear_active_provider_selection(self, message='No manga selected'):
         self._manga_request_id += 1; self._volume_plan_request_id += 1
@@ -4866,15 +4899,17 @@ class MangaNanaDialog(QDialog):
 
     def _set_workflow_mode(self, mode):
         """Choose an explicit workflow and discard mode-specific stale state."""
-        if mode not in ('volume', 'chapter'):
+        if mode not in ('volume', 'chapter', 'import') or self._download_in_progress:
             return
         if self.workflow_mode == mode:
             self.volume_mode_btn.setChecked(mode == 'volume'); self.chapter_mode_btn.setChecked(mode == 'chapter')
+            self.import_mode_btn.setChecked(mode == 'import')
             return
-        if (self.loaded_metadata and self.current_manga_url and self._publication_manifest and
+        if (mode != 'import' and self.workflow_mode != 'import' and self.loaded_metadata and self.current_manga_url and self._publication_manifest and
                 self._reference_bundle and self._reference_worker is None):
             self._switch_resolved_workflow_mode(mode)
             return
+        self._reset_import_selection()
         self.workflow_mode=mode
         self.workflow_state.change_mode(mode)
         self._invalidate_cover_requests()
@@ -4936,6 +4971,7 @@ class MangaNanaDialog(QDialog):
         self.workflow_hint.setText(f'Mode changed to {mode_name}. Search again to find {mode[:-1] if mode.endswith("s") else mode}-compatible results.')
         self.mode_helper.setText(f'Mode changed to {mode_name}. Search again to find {mode}-compatible results.')
         self.add_log(f'{mode.title()} mode selected.')
+        self._sync_import_mode()
 
     def _switch_resolved_workflow_mode(self, mode):
         """Reuse a fully resolved selected work without repeating discovery."""
@@ -7132,6 +7168,8 @@ class MangaNanaDialog(QDialog):
             self.metadata_pending_label.setStyleSheet('color:#8F9499; font-size:11px;')
 
     def current_signature(self):
+        if self.workflow_mode == 'import':
+            return self._import_signature()
         applied_title,applied_author,applied_series=self._applied_metadata_values()
         return (
             self.workflow_mode, self.current_source_id, self.current_manga_url, applied_title, applied_author, applied_series,
@@ -7140,7 +7178,8 @@ class MangaNanaDialog(QDialog):
             self._chapter_output_mode.value,
             tuple(sorted((str(key),str(value)) for key,value in self._manual_volume_assignments.items())),
             self.covers.isChecked(), self.pad.isChecked(), self.page_layout.currentData(), self.reading_direction.currentData(), self.current_processing_settings(),
-            self.cover_mode.currentData() if hasattr(self,'cover_mode') else 'keep'
+            self.cover_mode.currentData() if hasattr(self,'cover_mode') else 'keep',
+            self.output_format.currentData() if hasattr(self,'output_format') else 'cbz'
         )
 
     def _clear_preview_state(self, summary=None, keep_rows=False):
@@ -7156,6 +7195,9 @@ class MangaNanaDialog(QDialog):
             self.preview_summary.setText(summary)
 
     def _live_preview_signature_value(self):
+        if self.workflow_mode == 'import':
+            return ('import', tuple((b['id'], tuple(b['identity'])) for b in self._selected_import_books()),
+                    self.page_layout.currentData(), self.reading_direction.currentData())
         selection=(tuple(sorted(self._selected_chapter_ids)) if self.workflow_mode == 'chapter'
                    else (tuple(sorted(self._selected_volumes)),bool(self._standalone_selected)))
         return (self.workflow_mode,self.current_source_id,self.current_manga_url,
@@ -7194,7 +7236,9 @@ class MangaNanaDialog(QDialog):
         self._update_live_preview_action()
 
     def invalidate_preview(self, *args):
-        if self.workflow_mode == 'chapter':
+        if self.workflow_mode == 'import':
+            selection=tuple(sorted(self._selected_import_ids))
+        elif self.workflow_mode == 'chapter':
             selection=tuple(sorted(self._selected_chapter_ids))
         else:
             selection=tuple(f'volume:{value:g}' for value in sorted(self._selected_volumes))
@@ -7224,7 +7268,7 @@ class MangaNanaDialog(QDialog):
         pending=(self.title.text().strip(),self.author.text().strip(),self.series.text().strip())
         self._metadata_pending=pending != (applied_title,applied_author,applied_series)
         if hasattr(self,'apply_metadata_btn'):
-            can_apply=bool(self._metadata_pending and pending[0] and pending[2] and self.preview_data and self._preview_build_signature is None)
+            can_apply=bool(self._metadata_pending and pending[0] and (pending[2] or self.workflow_mode == 'import') and self.preview_data and self._preview_build_signature is None)
             self.apply_metadata_btn.setEnabled(can_apply)
             self.metadata_pending_label.setText('Unapplied metadata edits' if self._metadata_pending else 'Metadata applied')
             self.metadata_pending_label.setStyleSheet(
@@ -7234,6 +7278,8 @@ class MangaNanaDialog(QDialog):
         self._update_workflow_actions()
 
     def apply_metadata(self):
+        if self.workflow_mode == 'import':
+            return self._apply_import_metadata()
         if not self.preview_data or self._preview_build_signature is not None:
             return
         base=self.title.text().strip(); author=self.author.text().strip(); series=self.series.text().strip()
@@ -7461,6 +7507,8 @@ class MangaNanaDialog(QDialog):
     def _update_workflow_actions(self):
         if not hasattr(self, 'preview_btn') or not hasattr(self, 'download_btn'):
             return
+        if self.workflow_mode == 'import':
+            return self._import_update_actions()
         has_selection = bool(self._has_volume_selection() and not self._manual_range_invalid and
                              self._download_language_valid and not self._volume_plan_loading and
                              not self._volume_resolution_pending())
@@ -7469,7 +7517,7 @@ class MangaNanaDialog(QDialog):
             self.download_btn.setEnabled(False)
             self._set_action_role(self.preview_btn,'primaryAction')
             if self.workflow_mode not in ('volume','chapter'):
-                self.preview_btn.setEnabled(False); self.workflow_hint.setText('Choose Volumes or Chapters to begin.')
+                self.preview_btn.setEnabled(False); self.workflow_hint.setText('Choose Volumes, Chapters, or Import to begin.')
             elif not self.loaded_metadata:
                 self.preview_btn.setEnabled(False); self.workflow_hint.setText('Search for and select a manga.')
             elif self._volume_resolution_pending():
@@ -7517,6 +7565,8 @@ class MangaNanaDialog(QDialog):
             self.workflow_hint.setText('Final Outputs are out of date. Refresh them to continue.')
 
     def _has_volume_selection(self):
+        if self.workflow_mode == 'import':
+            return bool(self._selected_import_books())
         if self.workflow_mode == 'chapter':
             return bool(self._selected_chapter_ids)
         return bool(self._using_entire_series or self._selected_volumes or self._standalone_selected)
@@ -7604,7 +7654,7 @@ class MangaNanaDialog(QDialog):
 
     def _update_volume_selection_hint(self):
         if self.workflow_mode not in ('volume','chapter'):
-            self.range_hint.setText('Choose Volumes or Chapters to begin.')
+            self.range_hint.setText('Choose Volumes, Chapters, or Import to begin.')
             self.range_hint.setStyleSheet('color:#8F9499; font-size:11px;')
             if hasattr(self,'clear_volume_btn'):
                 self.select_all_btn.setEnabled(False); self.clear_volume_btn.setEnabled(False)
@@ -7912,6 +7962,11 @@ class MangaNanaDialog(QDialog):
         return s, e
 
     def validate_details(self):
+        if self.workflow_mode == 'import':
+            if not self._selected_import_books() or self._import_inspection:
+                raise ValueError('Browse and select an inspected CBZ or PDF book first.')
+            title, author, series = self._applied_metadata_values()
+            return '', title, author, series, None, None
         title,author,series=self._applied_metadata_values()
         url = self.current_manga_url.strip()
         if not self.current_source or self.current_source.parse_manga_ref(url) is None: raise ValueError('Enter a valid supported manga link.')
@@ -7978,7 +8033,7 @@ class MangaNanaDialog(QDialog):
             box.setWindowIcon(self.icon)
             box.setIcon(QMessageBox.Icon.Question)
             box.setText(f'{len(existing)} existing volume(s) were found for this series.')
-            box.setInformativeText('Skip them to protect your current Calibre books, or include them so their CBZ files can be replaced after download?')
+            box.setInformativeText('Skip them to protect your current Calibre books, or include them so their selected-format files can be replaced after processing?')
             skip = box.addButton('Skip Existing', QMessageBox.ButtonRole.AcceptRole)
             replace = box.addButton('Include for Replacement', QMessageBox.ButtonRole.DestructiveRole)
             box.addButton('Cancel', QMessageBox.ButtonRole.RejectRole)
@@ -7996,6 +8051,8 @@ class MangaNanaDialog(QDialog):
     def continue_preview(self, *_args):
         if self.workflow_state.stage != 'finalization':
             return
+        if self.workflow_mode == 'import':
+            return self._prepare_import_finalization()
         try:
             url, title, author, series, s, e = self.validate_details()
             exact=sorted(self._selected_volumes)
@@ -8063,11 +8120,18 @@ class MangaNanaDialog(QDialog):
     def _sync_cover_mode_controls(self):
         mode=self.cover_mode.currentData()
         self.covers.setEnabled(mode == 'keep' and not getattr(self,'_download_in_progress',False))
-        self.cover_mode_note.setText({
+        local = self.workflow_mode == 'import'
+        notes = {
             'keep':'Use the source cover checkbox above to include the unchanged artwork.',
             'stamp':'Uses source artwork with the MangaAnkā stamp. Missing artwork leaves the cover unset.',
             'generate':'Creates a cover from the applied Title (Series fallback). No source artwork needed.',
-        }[mode] + ' Covers are separate from manga pages.')
+        }
+        if local:
+            notes.update(keep='Use the imported cover checkbox above to include the unchanged artwork.',
+                         stamp='Uses the imported cover artwork with the MangaAnkā stamp.')
+        self.cover_mode_note.setText(notes[mode] + (' The imported cover page remains in the reading sequence.'
+                                                  if local else ' Covers are separate from manga pages.'))
+        if hasattr(self, '_import_books'): self._sync_import_cover_controls()
 
     def _cover_mode_changed(self, *_args):
         self._sync_cover_mode_controls()
@@ -8096,8 +8160,10 @@ class MangaNanaDialog(QDialog):
         status=QLabel('Calibre metadata cover'); status.setWordWrap(True); layout.addWidget(status)
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
-        worker=self._retain_async_worker(CoverPreviewWorker(
-            self.current_source,self._planned_output_cover_url(row),options))
+        worker=self._retain_async_worker(
+            LocalCoverWorker(row,self.cover_mode.currentData(),self.covers.isChecked(),self.pad.isChecked())
+            if row.get('kind') == 'import' else CoverPreviewWorker(
+                self.current_source,self._planned_output_cover_url(row),options))
         active=[True]
         def ready(blob):
             if not active[0] or not dialog.isVisible(): return
@@ -8121,6 +8187,7 @@ class MangaNanaDialog(QDialog):
 
     def _planned_output_cover_url(self,row):
         """Mirror the downloader's already-resolved cover choice without fetching."""
+        if row.get('kind') == 'import': return ''
         mode=self.cover_mode.currentData() if hasattr(self,'cover_mode') else 'keep'
         if mode == 'generate' or (mode == 'keep' and not self.covers.isChecked()):
             return ''
@@ -8164,6 +8231,8 @@ class MangaNanaDialog(QDialog):
 
     def _final_output_source_widget(self,row):
         host=QWidget(); layout=QHBoxLayout(host); layout.setContentsMargins(4,2,4,2); layout.setSpacing(4)
+        if row.get('kind') == 'import':
+            layout.addWidget(QLabel(row['source_name'])); return host
         source_ids=tuple(row.get('source_ids') or ())
         if not source_ids:
             source_ids=(str(row.get('source_id') or self.current_source_id),)
@@ -8202,7 +8271,7 @@ class MangaNanaDialog(QDialog):
             include.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             include.setData(Qt.ItemDataRole.UserRole, item.get('volume'))
             self.preview_table.setItem(r, 0, include)
-            item['selected'] = bool(not item['existing'])
+            item['selected'] = bool(item.get('selected', not item['existing']))
             selector = PreviewUseSelector(checked=item['selected'], enabled=not item['existing'])
             selector.changed.connect(lambda checked, rr=r: self._preview_use_toggled(rr, checked))
             selector_host = QWidget()
@@ -8213,6 +8282,7 @@ class MangaNanaDialog(QDialog):
             volume_label = item.get('volume_text') or ('Bonus' if item.get('volume') is None else f"Vol. {float(item['volume']):g}")
             if volume_label and not str(volume_label).lower().startswith(('vol', 'ch.', 'bonus', 'standalone')):
                 volume_label = 'Vol. ' + str(volume_label)
+            if item.get('kind') == 'import': volume_label = 'Import'
             status_text = 'In Calibre' if item.get('existing') else ('Ready' if str(item.get('status') or '').lower() in ('will download','ready') else str(item.get('status') or 'Ready'))
             page_value=item.get('pages')
             source_label=item.get('source_name') or self.current_source.display_name
@@ -8235,7 +8305,11 @@ class MangaNanaDialog(QDialog):
         self._update_live_preview_action()
         self.progress_text.setText('Finalization ready.' if can_download else 'All selected items already exist in Calibre.')
         if can_download:
-            self.add_log('Finalization ready. Check Final Outputs, then choose Download & Add to Calibre.')
+            action='Process' if self.workflow_mode == 'import' else 'Download'
+            self.add_log(f'Finalization ready. Check Final Outputs, then choose {action} & Add to Calibre.')
+        elif self.workflow_mode == 'import':
+            self.progress_text.setText('No books selected for processing.')
+            self.add_log('No books selected for processing. Select a book in Final Outputs to continue.')
         else:
             self.add_log('Nothing to download. Every selected item is already in Calibre.')
             info_dialog(self, 'MangaNana', 'All selected items already exist in Calibre. Nothing will be downloaded.', show=True)
@@ -8291,6 +8365,9 @@ class MangaNanaDialog(QDialog):
         replacement_count = int(self.preview_data.get('replacement_count', 0) or 0)
         layout_text = 'Landscape paired pages' if self.page_layout.currentData() == 'paired_landscape' else 'Portrait pages'
         language_text = self.language.currentText() or 'Unknown language'
+        if self.workflow_mode == 'import':
+            languages=sorted({r.get('language') or 'und' for r in rows if r.get('selected')})
+            language_text=', '.join(languages) if languages else 'Unspecified language'
         chapter_mode=bool(self.preview_data.get('chapter_mode'))
         standalone_selected=any(bool(r.get('selected')) and r.get('volume') is None for r in rows)
         if existing_count or replacement_count:
@@ -8301,8 +8378,10 @@ class MangaNanaDialog(QDialog):
         else:
             grouped_chapters=chapter_mode and self.preview_data.get('chapter_output_mode') != ChapterOutputMode.INDIVIDUAL_CHAPTERS.value
             noun = 'volume' if grouped_chapters else ('chapter' if chapter_mode else ('item' if standalone_selected else 'volume'))
+            if self.workflow_mode == 'import': noun = 'book'
             first_line = f"{selected_count} {noun}{'s' if selected_count != 1 else ''}   •   {pages_s} pages   •   {est_s}"
-        self.preview_summary.setText(first_line + f"<br>{layout_text}   •   {language_text}")
+        format_text=self.output_format.currentData().upper() if hasattr(self,'output_format') else 'CBZ'
+        self.preview_summary.setText(first_line + f"<br>{layout_text}   •   {language_text}   •   {format_text}")
         self._update_workflow_actions()
         if hasattr(self, 'pairing_preview_btn'):
             self._update_live_preview_action()
@@ -8362,6 +8441,9 @@ class MangaNanaDialog(QDialog):
         return next((item for item in rows if item.get('selected') and not item.get('existing')),None)
 
     def _preview_sample_target(self):
+        if self.workflow_mode == 'import':
+            books=self._selected_import_books()
+            return {'volume':None,'label':books[0]['title'],'book':books[0]} if books else None
         if not self._has_volume_selection() or not self.loaded_metadata:
             return None
         if self.workflow_mode == 'chapter':
@@ -8412,10 +8494,10 @@ class MangaNanaDialog(QDialog):
             if self._detail_page is None and self._screen_emulation_id != NONE_PROFILE_ID:
                 self.live_preview_status.setText('Kobo Libra Colour is selected; simulation appears in single-page Detail Preview.')
             else:
-                self.live_preview_status.setText('Adjustments update this preview automatically. Refresh only when you want to download the source sample again.')
+                self.live_preview_status.setText('Adjustments update this preview automatically. Refresh only when you want to reload the local sample.' if self.workflow_mode == 'import' else 'Adjustments update this preview automatically. Refresh only when you want to download the source sample again.')
         else:
             self.pairing_preview_btn.setText('Enable Live Preview')
-            self.live_preview_status.setText('Preview is optional and off. Enable it to download a small bounded sample.')
+            self.live_preview_status.setText('Preview is optional and off. Enable it to load a small local sample.' if self.workflow_mode == 'import' else 'Preview is optional and off. Enable it to download a small bounded sample.')
 
     def open_pairing_preview(self):
         if self.pairing_preview_worker and self.pairing_preview_worker.isRunning():
@@ -8444,11 +8526,14 @@ class MangaNanaDialog(QDialog):
         self.progress.setValue(0)
         self.progress_text.setText(f'Building Live Preview for {label}...')
         self.add_log(f'Building Live Preview for {label}...')
-        self.pairing_preview_worker = PairingPreviewWorker(
-            self.current_source,self.current_manga_url,self.language.currentData(),volume,
-            self.reading_direction.currentData(),planned_chapters,
-            layout=self.page_layout.currentData(),sample_label=label,
-        )
+        if self.workflow_mode == 'import':
+            self.pairing_preview_worker = LocalPreviewWorker(target['book'],self.page_layout.currentData(),self.reading_direction.currentData())
+        else:
+            self.pairing_preview_worker = PairingPreviewWorker(
+                self.current_source,self.current_manga_url,self.language.currentData(),volume,
+                self.reading_direction.currentData(),planned_chapters,
+                layout=self.page_layout.currentData(),sample_label=label,
+            )
         self.pairing_preview_worker.ready.connect(lambda data,rid=request_id,key=sample_key:self.on_pairing_preview_ready(data,rid,key))
         self.pairing_preview_worker.failed.connect(lambda msg,rid=request_id,key=sample_key:self.on_pairing_preview_failed(msg,rid,key))
         self.pairing_preview_worker.progress.connect(lambda pct,text,rid=request_id,key=sample_key:self.on_pairing_preview_progress(pct,text,rid,key))
@@ -8550,6 +8635,10 @@ class MangaNanaDialog(QDialog):
     def _set_download_ui_locked(self, locked):
         """Keep the visible configuration synchronized with the active job."""
         self._download_in_progress = bool(locked)
+        for name in ('output_format','volume_mode_btn','chapter_mode_btn','import_mode_btn',
+                     'import_browse_btn','import_table','import_select_btn','import_clear_btn','import_remove_btn'):
+            control=getattr(self,name,None)
+            if control is not None: control.setEnabled(not locked)
         self.processing_reset.setEnabled(not locked)
         self.processing_preset.setEnabled(not locked)
         self.save_processing_preset.setEnabled(not locked)
@@ -8574,8 +8663,8 @@ class MangaNanaDialog(QDialog):
                 except Exception: pass
             self.preview_btn.setEnabled(False)
             self.download_btn.setEnabled(False)
-            self._set_cancel_action(True,'Cancel Download')
-            self.workflow_hint.setText('Download in progress. Settings are locked until it finishes or is cancelled.')
+            self._set_cancel_action(True,'Cancel Processing' if self.workflow_mode == 'import' else 'Cancel Download')
+            self.workflow_hint.setText('Processing in progress. Settings are locked until it finishes or is cancelled.')
         else:
             for control in (
                 self.search_box, self.prefer_colored, self.search_btn, self.url, self.load_btn,
@@ -8610,6 +8699,7 @@ class MangaNanaDialog(QDialog):
             except Exception: pass
             try: self._bulk_metadata_changed()
             except Exception: pass
+            if hasattr(self,'import_mode_btn'): self._sync_import_mode()
 
     def _check_download_disk_space(self):
         estimate = int((self.preview_data or {}).get('selected_estimated_bytes') or 0)
@@ -8630,6 +8720,8 @@ class MangaNanaDialog(QDialog):
 
     def start_download(self):
         try:
+            if self.workflow_mode == 'import':
+                return self._start_import_output()
             url, title, author, series, s, e = self.validate_details()
             if self.preview_signature != self.current_signature() or not self.preview_data:
                 raise ValueError('Final Outputs are out of date. Refresh them before downloading.')
@@ -8660,6 +8752,7 @@ class MangaNanaDialog(QDialog):
                                           volume_covers=self._loaded_covers,
                                           processing=self.processing,
                                           cover_mode=self.cover_mode.currentData(),
+                                          output_format=self.output_format.currentData(),
                                           chapter_output_groups=[row.get('group') for row in (self.preview_data.get('rows') or [])
                                                                  if row.get('selected') and row.get('group')] or None)
             self.worker.log.connect(self.add_log); self.worker.progress.connect(self.on_progress); self.worker.stats.connect(self.on_stats)
@@ -8729,7 +8822,7 @@ class MangaNanaDialog(QDialog):
             self.worker.cancel()
             self._set_cancel_action(False)
             self.progress_text.setText('Cancelling safely after the current request...')
-            self.add_log('Cancellation requested. Finishing the current network/file operation, then cleaning temporary files...')
+            self.add_log('Cancellation requested. Stopping local processing and cleaning temporary files...' if self.workflow_mode == 'import' else 'Cancellation requested. Finishing the current network/file operation, then cleaning temporary files...')
 
     def on_cancelled(self):
         self.worker = None
@@ -8738,7 +8831,7 @@ class MangaNanaDialog(QDialog):
         self._update_workflow_actions()
         self._set_cancel_action(False)
         self.progress_text.setText('Cancelled. Temporary partial files were cleaned up.')
-        self.add_log('Download cancelled. Temporary partial files were cleaned up; Calibre was not changed for unfinished volumes.')
+        self.add_log('Processing cancelled. Temporary files were cleaned up; Calibre was not changed.' if self.workflow_mode == 'import' else 'Download cancelled. Temporary partial files were cleaned up; Calibre was not changed for unfinished volumes.')
 
     def on_failed(self, msg):
         self.worker = None
@@ -8751,15 +8844,16 @@ class MangaNanaDialog(QDialog):
         self._set_cancel_action(False)
         self.progress_text.setText('Failed')
         box = QMessageBox(self)
-        box.setWindowTitle('MangaNana - Download failed')
+        box.setWindowTitle('MangaNana - Processing failed' if self.workflow_mode == 'import' else 'MangaNana - Download failed')
         box.setIcon(QMessageBox.Icon.Critical)
         box.setText(msg)
-        box.setInformativeText('You can choose Download & Add to Calibre again to retry the same finalized selection.')
+        action = 'Process' if self.workflow_mode == 'import' else 'Download'
+        box.setInformativeText(f'You can choose {action} & Add to Calibre again to retry the same finalized selection.')
         box.exec()
 
     def _replace_existing_book(self, book_id, item, author, series, language):
         p = item['path']; v = item['volume']; title = item['title']
-        self.db.add_format(book_id, 'CBZ', p, replace=True)
+        self.db.add_format(book_id, item.get('format','cbz').upper(), p, replace=True)
         updates = {
             'title': {book_id: title}, 'authors': {book_id: [author]},
             'series': {book_id: series}, 'languages': {book_id: [language]},
@@ -8806,22 +8900,26 @@ class MangaNanaDialog(QDialog):
         self.start_download()
 
     def completion_dialog(self, added, skipped, duplicates, pages, final_bytes, elapsed, ids, failures, failed_bonus=False, import_anomalies=()):
+        local = self.workflow_mode == 'import'
+        operation = 'Processing' if local else 'Download'
+        skipped_label = 'Books skipped' if local else 'Existing volumes skipped'
+        pages_label = 'Pages processed' if local else 'Pages downloaded'
         speed = final_bytes / elapsed if elapsed > 0 else 0
         size_s = f'{final_bytes/(1024**2):.1f} MB' if final_bytes < 1024**3 else f'{final_bytes/(1024**3):.2f} GB'
         box = QMessageBox(self)
         box.setWindowTitle('MangaNana - Complete')
         box.setWindowIcon(self.icon)
         box.setIcon(QMessageBox.Icon.Information if not failures else QMessageBox.Icon.Warning)
-        box.setText('Download and Calibre import completed.' if not failures else 'Download completed with some failed items.')
+        box.setText(f'{operation} and Calibre import completed.' if not failures else f'{operation} completed with some failed items.')
         failed_text = ', '.join(str(x) for x in failures) if failures else 'None'
         box.setInformativeText(
             f'Books added or updated: {added}\n'
-            f'Existing volumes skipped: {skipped}\n'
+            f'{skipped_label}: {skipped}\n'
             f'Duplicates rejected by Calibre: {duplicates}\n'
             f'Unclassified Calibre import responses: {len(import_anomalies or ())}\n'
             f'Failed items: {failed_text}\n'
-            f'Pages downloaded: {pages}\n'
-            f'Final CBZ size: {size_s}\n'
+            f'{pages_label}: {pages}\n'
+            f'Final output size: {size_s}\n'
             f'Elapsed time: {format_eta(elapsed)}\n'
             f'Average speed: {format_speed(speed)}'
         )
@@ -8840,7 +8938,14 @@ class MangaNanaDialog(QDialog):
 
     def on_downloaded(self, result):
         import_started = time.perf_counter()
+        local = (getattr(self, 'workflow_mode', None) == 'import' or
+                 any(item.get('kind') == 'import' for item in result.get('files', [])))
         try:
+            worker=getattr(self,'worker',None)
+            if (getattr(self,'_closing',False) or getattr(worker,'cancelled',False) or
+                    (worker is not None and worker.isInterruptionRequested())):
+                self.progress_text.setText('Cancelled. Prepared files discarded; Calibre was not changed.')
+                return
             added = 0; duplicates = 0; added_ids = []; import_anomalies = []
             _title,applied_author,applied_series=self._applied_metadata_values()
             existing_ids = self.existing_volume_ids(applied_series)
@@ -8850,20 +8955,23 @@ class MangaNanaDialog(QDialog):
                 if replace_existing and v is not None and float(v) in existing_ids:
                     bid = self._replace_existing_book(existing_ids[float(v)], item, applied_author, applied_series, self.language.currentData())
                     added += 1; added_ids.append(bid)
-                    self.add_log(f'Replaced existing Calibre CBZ for Volume {float(v):g}.')
+                    self.add_log(f'Replaced existing Calibre {item.get("format","cbz").upper()} for Volume {float(v):g}.')
                     continue
-                mi = Metadata(title, [applied_author])
-                mi.series = applied_series
+                item_author = item.get('author', applied_author)
+                item_series = item.get('series', applied_series)
+                mi = Metadata(title, [item_author or 'Unknown'])
+                mi.series = item_series or None
                 if v is not None: mi.series_index = float(v)
-                mi.languages = [self.language.currentData()]
+                mi.languages = [item.get('language', self.language.currentData()) or 'und']
                 mi.tags = list(self._calibre_work_tags())
-                mi.set_identifier(self.current_source_id, self.current_source.parse_manga_ref(self.current_manga_url))
+                if item.get('kind') != 'import':
+                    mi.set_identifier(self.current_source_id, self.current_source.parse_manga_ref(self.current_manga_url))
                 cp = item.get('cover_path')
                 if cp and Path(cp).exists():
                     ext = Path(cp).suffix.lower().lstrip('.') or 'jpg'
                     if ext == 'jpeg': ext = 'jpg'
                     mi.cover_data = (ext, Path(cp).read_bytes())
-                ids, dups = self.db.add_books([(mi, {'CBZ': p})], add_duplicates=False)
+                ids, dups = self.db.add_books([(mi, {item.get('format','cbz').upper(): p})], add_duplicates=False)
                 added += len(ids); duplicates += len(dups); added_ids.extend(ids)
                 if ids:
                     self.add_log(f'Calibre confirmed import of {title}.')
@@ -8891,9 +8999,10 @@ class MangaNanaDialog(QDialog):
                 actual_s = f'{final_bytes/(1024**3):.2f} GB' if final_bytes >= 1024**3 else f'{final_bytes/(1024**2):.1f} MB'
                 if reviewed_estimate > 0:
                     estimate_s = f'~{reviewed_estimate/(1024**3):.2f} GB' if reviewed_estimate >= 1024**3 else f'~{reviewed_estimate/(1024**2):.1f} MB'
-                    self.add_log(f'Download size: estimated {estimate_s}; final CBZ size {actual_s}.')
+                    size_label = 'Output size' if local else 'Download size'
+                    self.add_log(f'{size_label}: estimated {estimate_s}; final output size {actual_s}.')
                 else:
-                    self.add_log(f'Final CBZ size: {actual_s}.')
+                    self.add_log(f'Final output size: {actual_s}.')
             failed_volumes = [float(v) for v in (result.get('failed_volumes') or [])]
             failed_bonus = bool(result.get('failed_bonus'))
             failed_labels = list(result.get('failed_labels') or [])
@@ -8901,17 +9010,18 @@ class MangaNanaDialog(QDialog):
             if failed_labels:
                 self.progress_text.setText(f'Finished with issues. Added {added}, failed {len(failed_labels)}.')
             else:
-                self.progress_text.setText(f'Complete. Added {added} book(s), skipped {skipped}.')
-            self.add_log(f'Added or updated {added} book(s) in Calibre. Existing volumes skipped: {skipped}.')
+                self.progress_text.setText(f'Complete. Added {added} book{"s" if added != 1 else ""}, skipped {skipped}.')
+            skipped_label = 'Books skipped' if local else 'Existing volumes skipped'
+            self.add_log(f'Added or updated {added} book{"s" if added != 1 else ""} in Calibre. {skipped_label}: {skipped}.')
             self.add_log(f'Calibre import completed in {time.perf_counter()-import_started:.2f}s. Total operation: {float(result.get("elapsed") or 0)+time.perf_counter()-import_started:.2f}s.')
             if import_anomalies:
                 self.add_log('Calibre import outcome requires investigation for: ' + ', '.join(import_anomalies))
             final_size_s = f'{final_bytes/(1024**3):.2f} GB' if final_bytes >= 1024**3 else f'{final_bytes/(1024**2):.1f} MB'
             if failed_labels:
                 self.add_log('Failed items: ' + ', '.join(failed_labels))
-                self.add_log(f'Finished with issues: {added} book(s) added or updated, {len(failed_labels)} failed, {final_size_s} final CBZ data.')
+                self.add_log(f'Finished with issues: {added} book{"s" if added != 1 else ""} added or updated, {len(failed_labels)} failed, {final_size_s} final output data.')
             else:
-                self.add_log(f'Complete: {added} book(s) added or updated, {skipped} skipped, {final_size_s} final CBZ data, 0 failures.')
+                self.add_log(f'Complete: {added} book{"s" if added != 1 else ""} added or updated, {skipped} skipped, {final_size_s} final output data, 0 failures.')
                 self.add_log('Everything is complete. You can safely close MangaNana.')
             wd = result.get('workdir')
             if wd: shutil.rmtree(wd, ignore_errors=True)

@@ -1,0 +1,9 @@
+............................................Image processing: Native dithering acceleration enabled.
+..C:\MangaNana-Dev\MangaNana-calibre\tests\test_page_rendering.py:115: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  self.assertTrue(all(r==g==b for r,g,b,a in image.getdata()))
+..............................
+----------------------------------------------------------------------
+Ran 76 tests in 35.196s
+
+OK
+SCREEN_EMULATION_SELECTED_PAGE_SECONDS=0.161

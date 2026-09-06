@@ -1,0 +1,106 @@
+.............................................................................................................Image processing: Native dithering acceleration enabled.
+.C:\MangaNana-Dev\MangaNana-calibre\tests\test_dithering.py:71: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  self.assertEqual(before,im.tobytes()); self.assertEqual({71},set(result.getchannel('A').getdata()))
+..C:\MangaNana-Dev\MangaNana-calibre\tests\test_dithering.py:53: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  self.assertEqual(set(dithering.palette(levels)),set(dithering.quantize(im,levels).getdata()))
+....C:\MangaNana-Dev\MangaNana-calibre\tests\test_dithering.py:59: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  self.assertEqual(set(dithering.palette(levels)),set(channel.getdata()))
+.........C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\scipy\__init__.py:160: UserWarning: A NumPy version >=1.19.5 and <1.27.0 is required for this version of SciPy (detected version 2.2.6)
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+...
+A module that was compiled using NumPy 1.x cannot be run in
+NumPy 2.2.6 as it may crash. To support both 1.x and 2.x
+versions of NumPy, modules must be compiled with NumPy 2.0.
+Some module may need to rebuild instead e.g. with 'pybind11>=2.12'.
+
+If you are a user of the module, the easiest solution will be to
+downgrade to 'numpy<2' or try to upgrade the affected module.
+We expect that some modules will need time to support NumPy 2.
+
+Traceback (most recent call last):  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\__main__.py", line 18, in <module>
+    main(module=None)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\main.py", line 101, in __init__
+    self.runTests()
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\main.py", line 271, in runTests
+    self.result = testRunner.run(self.test)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\runner.py", line 184, in run
+    test(result)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\suite.py", line 122, in run
+    test(result)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\suite.py", line 122, in run
+    test(result)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\suite.py", line 122, in run
+    test(result)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\case.py", line 650, in __call__
+    return self.run(*args, **kwds)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\case.py", line 591, in run
+    self._callTestMethod(testMethod)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\unittest\case.py", line 549, in _callTestMethod
+    method()
+  File "C:\MangaNana-Dev\MangaNana-calibre\tests\test_dithering.py", line 137, in test_optional_numba_exact_integer_parity
+    actual=dithering.quantize(im,levels,algo,strength,backend='numba').tobytes()
+  File "C:\MangaNana-Dev\MangaNana-calibre\dithering.py", line 139, in quantize
+    return run(accelerated)
+  File "C:\MangaNana-Dev\MangaNana-calibre\dithering.py", line 134, in run
+    kernel_fn(src, dst, work, image.width, image.height, channels, row,
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\numba\core\dispatcher.py", line 374, in _compile_for_args
+    return_val = self.compile(tuple(argtypes))
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\numba\core\dispatcher.py", line 906, in compile
+    cres = self._compiler.compile(args, return_type)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\numba\core\dispatcher.py", line 80, in compile
+    status, retval = self._compile_cached(args, return_type)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\numba\core\dispatcher.py", line 94, in _compile_cached
+    retval = self._compile_core(args, return_type)
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\numba\core\dispatcher.py", line 107, in _compile_core
+    cres = compiler.compile_extra(self.targetdescr.typing_context,
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\numba\core\compiler.py", line 737, in compile_extra
+    pipeline = pipeline_class(typingctx, targetctx, library,
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\numba\core\compiler.py", line 396, in __init__
+    targetctx.refresh()
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\numba\core\base.py", line 267, in refresh
+    self.load_additional_registries()
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\numba\core\cpu.py", line 118, in load_additional_registries
+    from numba.np import linalg, arraymath, arrayobj # noqa F401
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\numba\np\arraymath.py", line 44, in <module>
+    _HAVE_BLAS = _check_blas()
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\numba\np\arraymath.py", line 38, in _check_blas
+    ensure_blas()
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\numba\np\linalg.py", line 57, in ensure_blas
+    import scipy.linalg.cython_blas
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\scipy\linalg\__init__.py", line 197, in <module>
+    from ._misc import *
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\scipy\linalg\_misc.py", line 3, in <module>
+    from .blas import get_blas_funcs
+  File "C:\Users\Jerry\AppData\Local\Programs\Python\Python310\lib\site-packages\scipy\linalg\blas.py", line 213, in <module>
+    from scipy.linalg import _fblas
+AttributeError: _ARRAY_API not found
+...........................C:\MangaNana-Dev\MangaNana-calibre\tests\test_empress_processing.py:152: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  self.assertEqual({87},set(result.getchannel('A').getdata()))
+...C:\MangaNana-Dev\MangaNana-calibre\tests\test_empress_processing.py:95: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  self.assertEqual(expected,list(result.convert('L').getdata()))
+..C:\MangaNana-Dev\MangaNana-calibre\tests\test_empress_processing.py:87: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  self.assertTrue(all(r==g==b for r,g,b in gray.convert('RGB').getdata()))
+......C:\MangaNana-Dev\MangaNana-calibre\tests\test_empress_processing.py:34: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  return sum(max(p)-min(p) for p in im.getdata())
+.......................................................................................................................C:\MangaNana-Dev\MangaNana-calibre\tests\test_image_regressions.py:330: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  self.assertEqual(list(result.getdata()), list(expected.getdata()))
+...............................................................................................................................Native dithering acceleration disabled; using portable processing. Reason: native failure
+....Native dithering acceleration unavailable; using portable processing. Reason: unsupported platform/architecture
+..........C:\MangaNana-Dev\MangaNana-calibre\tests\test_page_rendering.py:115: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  self.assertTrue(all(r==g==b for r,g,b,a in image.getdata()))
+........................................................................................................................................................................................................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 802 tests in 66.802s
+
+OK
+SCREEN_EMULATION_SELECTED_PAGE_SECONDS=0.162
