@@ -14,6 +14,16 @@ PYTHON_FILES = (
     "core_helpers.py",
     "diagnostics.py",
     "version_info.py",
+    "image_processing.py",
+    "cover_rendering.py",
+    "processing_presets.py",
+    "dithering.py",
+    "native_dithering.py",
+    "page_rendering.py",
+    "preview_render_state.py",
+    "preview_detail.py",
+    "screen_emulation.py",
+    "window_geometry.py",
     "source_adapter.py",
     "source_registry.py",
     "source_coordinator.py",
@@ -49,14 +59,18 @@ PYTHON_FILES = (
     "config.py",
     "i18n.py",
 )
-ROOT_FILES = (*PYTHON_FILES, "plugin-import-name-manganana.txt")
+ROOT_FILES = (*PYTHON_FILES, "plugin-import-name-manganana.txt", "THIRD_PARTY_NOTICES.md")
 IMAGE_FILES = (
     "images/icon.png",
     "images/favicon_mangadex_org_32x32.png",
     "images/favicon_mangapill_com_32x32.png",
     "images/favicon_weebcentral_com_32x32.png",
+    "images/tabler-book.svg",
 )
 OUTPUT_NAME = "MangaNana-Calibre-dev.zip"
+NATIVE_FILES = ("native/windows-x86_64/manganana_dither_abi1.dll",)
+COVER_FILES = tuple('assets/covers/' + name for name in (
+    'background.png', 'anchor.png', 'stamp.png', 'BebasNeue-Regular.ttf', 'OFL.txt'))
 
 
 def syntax_check(repository_root: Path) -> None:
@@ -74,6 +88,8 @@ def files_to_package(repository_root: Path) -> list[tuple[Path, str]]:
         for relative_path in ROOT_FILES
     ]
     files.extend((repository_root / path, path) for path in IMAGE_FILES)
+    files.extend((repository_root / path, path) for path in NATIVE_FILES)
+    files.extend((repository_root / path, path) for path in COVER_FILES)
     return files
 
 

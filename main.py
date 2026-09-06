@@ -20,11 +20,25 @@ from qt.core import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGridLayout,
     QFileDialog, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, Qt, QSize,
     QProgressBar, QPushButton, QTableWidget, QTableWidgetItem, QThread, QVBoxLayout, QWidget, QScrollArea, QPixmap, QIcon, QLayout,
-    QPainter, QColor, QPen, QTimer, QEvent, pyqtSignal, QGraphicsDropShadowEffect, QHeaderView, QSizePolicy,
-    QStackedWidget, QDesktopServices, QUrl, QStyle, QStyleOptionButton
+    QPainter, QColor, QPen, QTimer, QEvent, pyqtSignal, QGraphicsDropShadowEffect, QHeaderView, QSizePolicy, QInputDialog,
+    QStackedWidget, QDesktopServices, QUrl, QStyle, QStyleOptionButton, QSlider, QImage, QToolButton, QMenu
 )
 
 from calibre_plugins.manganana.config import prefs
+from calibre_plugins.manganana.cover_rendering import COVER_MODES, render_cover
+from calibre_plugins.manganana.image_processing import ProcessingSettings, apply_processing, process_page_blob
+from calibre_plugins.manganana.processing_presets import (
+    BUILTIN_PRESETS, BUILTIN_PRESETS_BY_ID, CUSTOM_PRESET_ID, delete_user_preset,
+    load_user_presets, matching_preset, save_user_preset, user_presets_payload,
+)
+from calibre_plugins.manganana.preview_render_state import RenderOwnership
+from calibre_plugins.manganana.page_rendering import final_workers, ordered_render
+from calibre_plugins.manganana import native_dithering
+from calibre_plugins.manganana.preview_detail import ZOOM_FACTORS, detail_rgba, zoom_dimensions
+from calibre_plugins.manganana.window_geometry import choose_window_size, MINIMUM_WINDOW_CLIENT
+from calibre_plugins.manganana.screen_emulation import (
+    KOBO_LIBRA_COLOUR_PROFILE_ID, NONE_PROFILE_ID, render_emulated_detail,
+)
 from calibre_plugins.manganana.core_helpers import (
     _iter_aggregate_nodes,
     choose_preferred_title,
@@ -547,14 +561,19 @@ def _kobo_landscape_canvas(im, horizontal_ratio=0.018, vertical_ratio=0.030):
     return canvas
 
 
-def _landscape_canvas_for_single(blob):
+def _landscape_canvas_for_single(blob, processing=None, in_memory=False, check_cancel=None, working_ceiling=None):
     """Put an isolated portrait page on the RIGHT half before final Kobo fitting."""
-    with Image.open(BytesIO(blob)) as src:
-        page = _to_rgb(src.copy())
+    if isinstance(blob, Image.Image):
+        page = _to_rgb(blob)
+    else:
+        with Image.open(BytesIO(blob)) as src:
+            page = _to_rgb(src.copy())
     w, h = page.size
     spread = Image.new('RGB', (w * 2, h), 'white')
     spread.paste(page, (w, 0))
-    return _save_jpeg(_kobo_landscape_canvas(spread))
+    canvas = _kobo_landscape_canvas(spread)
+    if processing is not None: canvas = apply_processing(canvas, processing, check_cancel=check_cancel, working_ceiling=working_ceiling)
+    return canvas if in_memory else _save_jpeg(canvas)
 
 
 def _fit_page_to_slot(page, slot_w, slot_h):
@@ -576,12 +595,15 @@ def _fit_page_to_slot(page, slot_w, slot_h):
     return fitted, margins
 
 
-def _paired_canvas(left_blob, right_blob, left_record=None, right_record=None, log=None):
+def _paired_canvas(left_blob, right_blob, left_record=None, right_record=None, log=None, processing=None, in_memory=False, check_cancel=None, working_ceiling=None):
     """Fit two pages independently into halves of the calibrated safe area."""
     canvas_w, canvas_h, mx, my, safe_w, safe_h = _landscape_safe_area()
     slot_w = safe_w // 2
-    with Image.open(BytesIO(left_blob)) as a, Image.open(BytesIO(right_blob)) as b:
-        left = _to_rgb(a.copy()); right = _to_rgb(b.copy())
+    if isinstance(left_blob, Image.Image) and isinstance(right_blob, Image.Image):
+        left, right = _to_rgb(left_blob), _to_rgb(right_blob)
+    else:
+        with Image.open(BytesIO(left_blob)) as a, Image.open(BytesIO(right_blob)) as b:
+            left = _to_rgb(a.copy()); right = _to_rgb(b.copy())
     left_size, right_size = left.size, right.size
     left, left_margins = _fit_page_to_slot(left, slot_w, safe_h)
     right, right_margins = _fit_page_to_slot(right, slot_w, safe_h)
@@ -608,17 +630,23 @@ def _paired_canvas(left_blob, right_blob, left_record=None, right_record=None, l
                 f"slot margins L{margins['left']} R{margins['right']} "
                 f"T{margins['top']} B{margins['bottom']}"
             )
-    return _save_jpeg(canvas)
+    if processing is not None: canvas = apply_processing(canvas, processing, check_cancel=check_cancel, working_ceiling=working_ceiling)
+    return canvas if in_memory else _save_jpeg(canvas)
 
 
-def _spread_with_margin(blob):
+def _spread_with_margin(blob, processing=None, in_memory=False, check_cancel=None, working_ceiling=None):
     """Fit an existing spread into the same fixed Kobo canvas without cropping."""
-    with Image.open(BytesIO(blob)) as src:
-        spread = _to_rgb(src.copy())
-    return _save_jpeg(_kobo_landscape_canvas(spread))
+    if isinstance(blob, Image.Image):
+        spread = _to_rgb(blob)
+    else:
+        with Image.open(BytesIO(blob)) as src:
+            spread = _to_rgb(src.copy())
+    canvas = _kobo_landscape_canvas(spread)
+    if processing is not None: canvas = apply_processing(canvas, processing, check_cancel=check_cancel, working_ceiling=working_ceiling)
+    return canvas if in_memory else _save_jpeg(canvas)
 
 
-def build_landscape_pages(records, direction='rtl', log=None, detailed=False):
+def build_landscape_pages(records, direction='rtl', log=None, detailed=False, processing=None, in_memory=False, check_cancel=None, plan_only=False):
     """Create book-style landscape pages while using genuine source spreads as parity anchors.
 
     Landscape dimensions make an image a spread candidate, not proof of a spread.
@@ -667,7 +695,7 @@ def build_landscape_pages(records, direction='rtl', log=None, detailed=False):
     def add_output(ext, blob, kind, source_records):
         output.append((ext, blob, kind) if detailed else (ext, blob))
         if detailed and log:
-            final_size = _image_size(blob)
+            final_size = blob.size if in_memory else _image_size(blob)
             sources = ' + '.join(trace_record(record) for record in source_records)
             trace_kind = kind.replace(' ', '_')
             composition = {
@@ -681,17 +709,25 @@ def build_landscape_pages(records, direction='rtl', log=None, detailed=False):
             )
 
     def emit_single(rec):
-        add_output('generated.jpg', _landscape_canvas_for_single(rec['blob']), 'ISOLATED', [rec])
+        if check_cancel: check_cancel()
+        if plan_only: output.append({'kind':'ISOLATED', 'records':(rec,)})
+        else: add_output('generated.jpg', _landscape_canvas_for_single(rec.get('image') or rec['blob'], processing, in_memory, check_cancel), 'ISOLATED', [rec])
         stats['isolated'] += 1
 
     def emit_pair(earlier, later):
+        if check_cancel: check_cancel()
         if direction == 'rtl':
             left, right = later, earlier
         else:
             left, right = earlier, later
+        if plan_only:
+            output.append({'kind':'PAIRED', 'records':(left, right)})
+            stats['pairs'] += 1
+            return
         paired = _paired_canvas(
-            left['blob'], right['blob'],
+            left.get('image') or left['blob'], right.get('image') or right['blob'],
             left_record=left, right_record=right, log=log if detailed else None,
+            processing=processing, in_memory=in_memory, check_cancel=check_cancel,
         )
         add_output('generated.jpg', paired, 'PAIRED', [earlier, later])
         stats['pairs'] += 1
@@ -714,7 +750,11 @@ def build_landscape_pages(records, direction='rtl', log=None, detailed=False):
         run=records[cursor:anchor_i]
         emit_run(run, backwards=(anchor_i == first_spread and cursor == 0))
         if spread_flags[anchor_i]:
-            add_output('generated.jpg', _spread_with_margin(records[anchor_i]['blob']), 'ORIGINAL SPREAD', [records[anchor_i]]); stats['spreads'] += 1
+            if check_cancel: check_cancel()
+            rec = records[anchor_i]
+            if plan_only: output.append({'kind':'ORIGINAL SPREAD', 'records':(rec,)})
+            else: add_output('generated.jpg', _spread_with_margin(rec.get('image') or rec['blob'], processing, in_memory, check_cancel), 'ORIGINAL SPREAD', [rec])
+            stats['spreads'] += 1
         else:
             emit_single(records[anchor_i])
         cursor=anchor_i+1
@@ -724,7 +764,41 @@ def build_landscape_pages(records, direction='rtl', log=None, detailed=False):
     return output, stats
 
 
-def _validate_cbz_output(path, page_layout):
+def output_page_jobs(records, layout, direction, check_cancel=None, log=None):
+    if layout == 'paired_landscape':
+        return build_landscape_pages(records, direction, log=log, plan_only=True, check_cancel=check_cancel)
+    return [{'kind':'INDIVIDUAL','records':(record,)} for record in records], {'individuals':len(records)}
+
+
+def output_job_size(job, processing):
+    record = job['records'][0]
+    size = ((record['image'].size if record.get('image') is not None else record['size'])
+            if job['kind'] == 'INDIVIDUAL' else (1680,1264))
+    return size
+
+
+def render_output_page(job, processing, check_cancel=None, in_memory=False, overview=False):
+    """One already-defined page; no acquisition or pairing decisions here."""
+    if check_cancel: check_cancel()
+    kind, records = job['kind'], job['records']
+    record = records[0]
+    ceiling = (720,540) if overview else None
+    if kind == 'INDIVIDUAL':
+        if not in_memory:
+            return record['ext'], process_page_blob(record['blob'], record['ext'], processing, check_cancel), kind
+        image = record.get('image')
+        if image is None:
+            with Image.open(BytesIO(record['blob'])) as source: image = source.copy()
+        return record['ext'], apply_processing(image, processing, check_cancel=check_cancel, working_ceiling=ceiling), kind
+    values = [r.get('image') or r['blob'] for r in records]
+    kwargs = dict(processing=processing, in_memory=in_memory, check_cancel=check_cancel, working_ceiling=ceiling)
+    if kind == 'PAIRED': image = _paired_canvas(*values, **kwargs)
+    elif kind == 'ORIGINAL SPREAD': image = _spread_with_margin(values[0], **kwargs)
+    else: image = _landscape_canvas_for_single(values[0], **kwargs)
+    return '.jpg', image, kind
+
+
+def _validate_cbz_output(path, page_layout, processing=None):
     """Final sanity check before a generated book is handed to calibre."""
     with zipfile.ZipFile(path, 'r') as zf:
         names = zf.namelist()
@@ -748,8 +822,9 @@ def _validate_cbz_output(path, page_layout):
                     im.verify()
                 if page_layout == 'paired_landscape':
                     with Image.open(BytesIO(blob)) as im:
-                        if im.size != (1680, 1264):
-                            raise RuntimeError(f'CBZ validation failed: {name} is {im.size[0]}x{im.size[1]}, expected 1680x1264.')
+                        expected = (1680, 1264)
+                        if im.size != expected:
+                            raise RuntimeError(f'CBZ validation failed: {name} is {im.size[0]}x{im.size[1]}, expected {expected[0]}x{expected[1]}.')
             except RuntimeError:
                 raise
             except Exception as e:
@@ -1094,6 +1169,33 @@ class ImageBatchWorker(QThread):
         self.batch_done.emit({'batch_id':self.batch_id})
 
 
+class CoverPreviewWorker(QThread):
+    """Use the final compositor off the GUI thread for one selected cover."""
+    ready = pyqtSignal(object)
+    failed = pyqtSignal(str)
+
+    def __init__(self, source, cover_url, options):
+        super().__init__()
+        self.source, self.cover_url, self.options = source, cover_url, dict(options)
+
+    def run(self):
+        try:
+            if self.isInterruptionRequested(): return
+            original = None
+            if self.cover_url and self.options['mode'] != 'generate':
+                original = self.source.fetch_binary(self.cover_url, timeout=14, retries=2)
+            if self.isInterruptionRequested(): return
+            blob = render_cover(original, **self.options)
+            if blob:
+                with Image.open(BytesIO(blob)) as image:
+                    thumbnail = ImageOps.exif_transpose(image).convert('RGB')
+                    thumbnail.thumbnail((220, 300), getattr(Image, 'Resampling', Image).LANCZOS)
+                    buffer = BytesIO(); thumbnail.save(buffer, 'PNG'); blob = buffer.getvalue()
+            if not self.isInterruptionRequested(): self.ready.emit(blob)
+        except Exception as exc:
+            if not self.isInterruptionRequested(): self.failed.emit(str(exc))
+
+
 class DownloadWorker(QThread):
     log = pyqtSignal(str)
     progress = pyqtSignal(int, str)
@@ -1102,7 +1204,7 @@ class DownloadWorker(QThread):
     failed = pyqtSignal(str)
     cancelled_ok = pyqtSignal()
 
-    def __init__(self, source, url, title, author, series, language, start, end, covers, zero_pad, existing_volumes, selected_volumes=None, include_bonus=True, page_layout='original_pages', reading_direction='rtl', main_cover_url='', volume_covers=None, chapter_jobs=None, chapter_output_groups=None):
+    def __init__(self, source, url, title, author, series, language, start, end, covers, zero_pad, existing_volumes, selected_volumes=None, include_bonus=True, page_layout='original_pages', reading_direction='rtl', main_cover_url='', volume_covers=None, chapter_jobs=None, chapter_output_groups=None, processing=None, cover_mode='keep'):
         super().__init__()
         self.source = source
         self.source_name = source.display_name
@@ -1112,11 +1214,15 @@ class DownloadWorker(QThread):
         self.language = language
         self.start_volume, self.end_volume = start, end
         self.covers, self.zero_pad = covers, zero_pad
+        self.cover_mode = cover_mode
+        if cover_mode != 'keep':
+            self.covers = cover_mode == 'stamp'
         self.existing = set(existing_volumes)
         self.selected_volumes = None if selected_volumes is None else set(selected_volumes)
         self.include_bonus = bool(include_bonus)
         self.page_layout = page_layout
         self.reading_direction = reading_direction
+        self.processing = processing or ProcessingSettings()
         self.cancelled = False
         self.chapter_jobs=tuple(chapter_jobs or ())
         if chapter_output_groups is None and self.chapter_jobs:
@@ -1156,6 +1262,7 @@ class DownloadWorker(QThread):
 
     def _download_group(self, group, output_path, final_title, volume, cover_url,
                         state, job_index, job_total, volume_pages_total, chapter_number=None):
+        acquisition_started = time.perf_counter()
         cover_blob = None
         cover_ext = '.jpg'
         if self.covers and cover_url:
@@ -1196,25 +1303,70 @@ class DownloadWorker(QThread):
                 eta=(elapsed/state['pages_done'])*(total-state['pages_done']) if state['pages_done']>=3 and total>state['pages_done'] else None
                 self.stats.emit({'job_index':job_index,'job_total':job_total,'volume':volume,'volume_pages_done':state['volume_done'],'volume_pages_total':max(volume_pages_total,state['volume_done']),'pages_done':state['pages_done'],'pages_total':total,'percent':pct,'bytes_per_second':bps,'eta_seconds':eta})
 
+        self._check_cancel()
+        if self.cover_mode != 'keep':
+            try:
+                rendered = render_cover(
+                    cover_blob, mode=self.cover_mode, title=self.title, series=self.series,
+                    output_kind='volume' if volume is not None else ('chapter' if chapter_number is not None else 'standalone'),
+                    volume=volume, chapter_number=chapter_number, zero_pad=self.zero_pad)
+                cover_blob = rendered
+                cover_ext = '.png'
+                if not rendered:
+                    self.log.emit('Stamp Existing Cover: no source artwork available; cover omitted.')
+            except Exception as exc:
+                self.log.emit(f'Warning: {self.cover_mode} cover could not be rendered; retaining available source cover: {exc}')
+        self._check_cancel()
         cover_path = None
         if cover_blob:
             cover_path = str(Path(output_path).with_suffix('')) + '_cover' + cover_ext
             Path(cover_path).write_bytes(cover_blob)
             self.log.emit('Portrait cover assigned to Calibre metadata; excluded from CBZ reading pages.')
 
-        with zipfile.ZipFile(output_path, 'w', compression=zipfile.ZIP_STORED) as zf:
-            page_index=1
-            if self.page_layout == 'paired_landscape':
-                self.log.emit(f'Analyzing {final_title} for landscape paired-page layout...')
-                pages, layout_stats = build_landscape_pages(records, self.reading_direction, self.log.emit)
-                for ext, blob in pages:
-                    out_ext = ext if ext.startswith('.') else '.jpg'
-                    zf.writestr(f'{page_index:05d}{out_ext}', blob); page_index += 1
-                self.log.emit('Landscape layout complete. Every reading page uses the fixed Kobo landscape canvas.')
-            else:
-                for rec in records:
-                    zf.writestr(f'{page_index:05d}{rec["ext"]}', rec['blob']); page_index += 1
-            zf.writestr('ComicInfo.xml', self._comicinfo_xml(final_title, volume, chapter_number))
+        acquisition_seconds = time.perf_counter()-acquisition_started
+        self.log.emit(f'Download complete in {acquisition_seconds:.2f}s.')
+        jobs, _layout_stats = output_page_jobs(records, self.page_layout, self.reading_direction, self._check_cancel, self.log.emit)
+        workers = final_workers(self.processing)
+        backend = 'native acceleration' if (self.processing.output_depth and self.processing.dithering != 'off'
+                    and self.processing.dither_strength > 0 and native_dithering.backend_status() == 'native') else 'serial processing'
+        total = len(jobs); milestones = set(); metrics = {}; write_seconds = 0.0
+        self.log.emit(f'Processing {total} pages using {backend} ({workers} worker(s))...')
+        self.progress.emit(0, f'Processing 0 / {total} pages with {backend}...')
+        def completed(count):
+            nonlocal backend
+            if backend == 'native acceleration' and native_dithering.backend_status() != 'native':
+                backend = 'serialized portable fallback'
+                self.log.emit('Native acceleration became unavailable; portable rendering is serialized safely.')
+            pct = int(count*100/max(1,total))
+            self.progress.emit(pct, f'Processing {count} / {total} pages with {backend}...')
+            for milestone in (25,50,75):
+                if pct >= milestone and milestone not in milestones:
+                    milestones.add(milestone); self.log.emit(f'Processing: {milestone}% complete.')
+        partial = Path(str(output_path)+'.part')
+        iterator = ordered_render(jobs, lambda job, check: render_output_page(job, self.processing, check),
+                                  workers, self._check_cancel, completed, metrics,
+                                  fallback_active=lambda: native_dithering.backend_status() != 'native')
+        try:
+            with zipfile.ZipFile(partial, 'w', compression=zipfile.ZIP_STORED) as zf:
+                for index, (ext, blob, _kind) in iterator:
+                    self._check_cancel()
+                    started = time.perf_counter()
+                    zf.writestr(f'{index+1:05d}{ext}', blob)
+                    write_seconds += time.perf_counter()-started
+                self.progress.emit(100, 'Writing CBZ metadata and finalizing...')
+                self.log.emit(f'Rendered and encoded {total} pages in {metrics["render_seconds"]:.2f}s using {backend} ({workers} worker(s)).')
+                self.log.emit('Writing CBZ metadata and finalizing...')
+                started = time.perf_counter()
+                zf.writestr('ComicInfo.xml', self._comicinfo_xml(final_title, volume, chapter_number))
+            write_seconds += time.perf_counter()-started
+            self._check_cancel()
+            os.replace(partial, output_path)
+        finally:
+            iterator.close()
+            partial.unlink(missing_ok=True)
+        self.log.emit(f'CBZ finalized; serial ZIP I/O {write_seconds:.2f}s. Output preparation total {time.perf_counter()-acquisition_started:.2f}s.')
+        state.setdefault('phase_timings', []).append(dict(acquisition_seconds=acquisition_seconds,
+                    write_seconds=write_seconds, **metrics))
         return cover_path
 
     def run(self):
@@ -1288,7 +1440,7 @@ class DownloadWorker(QThread):
                 before_bytes = state['bytes']
                 try:
                     cover_path = self._download_group(group, output, final_title, vol, cover_url, state, idx, len(jobs), volume_pages_total)
-                    validated_pages = _validate_cbz_output(output, self.page_layout)
+                    validated_pages = _validate_cbz_output(output, self.page_layout, self.processing)
                     self.log.emit(f'Validated {label}: {validated_pages} reading page(s), CBZ structure OK.')
                     outputs.append({'path': str(output), 'volume': vol, 'title': final_title, 'cover_path': cover_path})
                     self.log.emit(f'{label} prepared for calibre.')
@@ -1371,7 +1523,7 @@ class DownloadWorker(QThread):
                                                  cover_url, state, index, len(jobs),
                                                  sum(int(row.get('pages') or 0) for row in group),
                                                  chapter_number=group[0].get('chapter') if kind == 'chapter' else None)
-                _validate_cbz_output(output, self.page_layout)
+                _validate_cbz_output(output, self.page_layout, self.processing)
                 output_index=(volume if kind == 'volume' else
                               (chapter_series_index(group[0]) if kind == 'chapter' else None))
                 outputs.append({'path':str(output),'volume':output_index,
@@ -1587,7 +1739,7 @@ class PairingPreviewWorker(QThread):
         self.cancelled = True
 
     def _check_cancel(self):
-        if self.cancelled:
+        if self.cancelled or self.isInterruptionRequested():
             raise InterruptedError()
 
     def _fetch_preview_page(self, source, saver_url, full_url, page_number):
@@ -1637,10 +1789,11 @@ class PairingPreviewWorker(QThread):
 
             target=min(base_limit, len(page_refs))
             records=[]; bytes_done=0; fallback_count=0; recent=[]; last_bucket=-1
+            decoded_bytes=0
             announced_chapter=None
 
             def fetch_until(target_count):
-                nonlocal bytes_done, fallback_count, last_bucket, announced_chapter
+                nonlocal bytes_done, fallback_count, last_bucket, announced_chapter, decoded_bytes
                 while len(records) < target_count:
                     self._check_cancel()
                     chap_num, ch_label, ch_title, page_in_chapter, chapter_pages, saver_url, full_url, chapter_source = page_refs[len(records)]
@@ -1697,7 +1850,13 @@ class PairingPreviewWorker(QThread):
                                 f'data saver {saver_size[0]}x{saver_size[1]} EXIF {saver_exif} | '
                                 f'full quality EXIF {full_exif} | confirmed landscape spread'
                             )
-                    records.append({'blob':blob,'ext':ext,'size':size,'chapter_index':chap_num,
+                    # One decoded, EXIF-normalized bounded sample. Never cache a manga.
+                    decoded_bytes += size[0] * size[1] * 4
+                    if decoded_bytes > 128 * 1024 * 1024:
+                        raise RuntimeError('Preview sample exceeds the 128 MiB decoded-image limit. Final output remains available.')
+                    with Image.open(BytesIO(blob)) as src:
+                        normalized_image = src.copy()
+                    records.append({'image':normalized_image,'ext':ext,'size':size,'chapter_index':chap_num,
                                     'chapter_label':ch_label,'chapter_title':ch_title,
                                     'page_in_chapter':page_in_chapter,
                                     'chapter_pages':chapter_pages,'original_size':original_size,
@@ -1717,16 +1876,16 @@ class PairingPreviewWorker(QThread):
 
             fetch_until(target)
             if self.layout == 'paired_landscape':
-                pages,stats=build_landscape_pages(records,self.direction,log=self.log.emit,detailed=True)
+                pages,stats=build_landscape_pages(records,self.direction,log=self.log.emit,detailed=True,in_memory=True,check_cancel=self._check_cancel,plan_only=True)
                 # Extend only when a bounded landscape sample would otherwise end
                 # on an artificial incomplete pair.
-                while pages and pages[-1][2] == 'ISOLATED' and len(records) < min(hard_limit,len(page_refs)):
+                while pages and pages[-1]['kind'] == 'ISOLATED' and len(records) < min(hard_limit,len(page_refs)):
                     target=len(records)+1
                     self.log.emit('Preview sample ended on an incomplete pair; sampling one additional source page.')
                     fetch_until(target)
-                    pages,stats=build_landscape_pages(records,self.direction,log=self.log.emit,detailed=True)
+                    pages,stats=build_landscape_pages(records,self.direction,log=self.log.emit,detailed=True,in_memory=True,check_cancel=self._check_cancel,plan_only=True)
             else:
-                pages=[(record['ext'],record['blob'],'INDIVIDUAL') for record in records]
+                pages=[(record['ext'],record['image'],'INDIVIDUAL') for record in records]
                 stats={'individuals':len(pages),'spreads':0,'pairs':0,'isolated':0}
 
             self._check_cancel()
@@ -1740,26 +1899,316 @@ class PairingPreviewWorker(QThread):
                 self.log.emit(f"Preview layout: {stats.get('spreads',0)} original spreads, {stats.get('pairs',0)} paired pages, {stats.get('isolated',0)} isolated pages.")
             else:
                 self.log.emit(f"Preview layout: {len(pages)} individual portrait pages.")
-            thumbs=[]; total_out=len(pages)
-            for i,(_ext,blob,kind) in enumerate(pages,1):
-                self._check_cancel()
-                with Image.open(BytesIO(blob)) as im:
-                    im=_to_rgb(im.copy()); im.thumbnail((360,270),Image.Resampling.LANCZOS)
-                    out=BytesIO(); im.save(out,'JPEG',quality=78)
-                    thumbs.append((i,out.getvalue(),kind))
-                    self.log.emit(f'Preview trace: Output page {i} thumbnail {im.width}x{im.height} supplied to the preview widget.')
-                pct=88+int(i*12/max(1,total_out)); self.progress.emit(min(100,pct),f'Building preview thumbnails... {i}/{total_out}')
+            total_out=len(pages)
+            del pages
             elapsed=time.monotonic()-started
             layout_label='landscape pages' if self.layout == 'paired_landscape' else 'portrait pages'
-            self.log.emit(f'Live Preview ready. {len(records)} source pages → {total_out} {layout_label}. Completed in {elapsed:.1f}s.')
+            self.log.emit(f'Preview sample acquired. {len(records)} source pages → {total_out} {layout_label}. Completed in {elapsed:.1f}s. Rendering locally...')
             label=self.sample_label or ('Selected Chapters' if self.volume is None else f'Volume {self.volume:g}')
             self.ready.emit({'volume':self.volume,'label':label,'layout':self.layout,
-                             'thumbs':thumbs,'stats':stats,'source_pages':len(records),
+                             'records':tuple(records),'stats':stats,'source_pages':len(records),
                              'output_pages':total_out})
         except InterruptedError:
             self.cancelled_ok.emit()
         except Exception as e:
             self.failed.emit(str(e))
+        finally:
+            self._orientation_verification_cache.clear()
+
+
+class ProcessingPreviewWorker(QThread):
+    """CPU-only worker: no source adapter, page manifest, or HTTP capability."""
+    ready = pyqtSignal(object)
+    failed = pyqtSignal(str)
+
+    def __init__(self, sample, direction, processing, detail_page=None,
+                 screen_emulation_id='none'):
+        super().__init__()
+        self.sample, self.direction, self.processing = sample, direction, processing
+        self.detail_page = detail_page
+        self.screen_emulation_id = str(screen_emulation_id or NONE_PROFILE_ID)
+
+    def _check_cancel(self):
+        if self.isInterruptionRequested(): raise InterruptedError()
+
+    def run(self):
+        try:
+            started = time.perf_counter()
+            self._check_cancel()
+            records = self.sample['records']
+            jobs, stats = output_page_jobs(records, self.sample['layout'], self.direction, self._check_cancel)
+            dimensions = {i:output_job_size(job, self.processing) for i,job in enumerate(jobs,1)}
+            selected = list(enumerate(jobs,1))
+            if self.detail_page is not None:
+                if not 1 <= self.detail_page <= len(jobs): raise ValueError('Invalid detail output page')
+                selected = [(self.detail_page, jobs[self.detail_page-1])]
+            thumbs = []; detail = None; detail_error = ''; provisional = {}
+            emulation_metadata = None; emulation_error = ''; emulation_seconds = 0.0
+            for i, job in selected:
+                self._check_cancel()
+                _ext, image, kind = render_output_page(job, self.processing, self._check_cancel,
+                                            in_memory=True, overview=self.detail_page is None)
+                if i == self.detail_page:
+                    if self.screen_emulation_id != NONE_PROFILE_ID:
+                        try:
+                            emulation_started = time.perf_counter()
+                            result = render_emulated_detail(
+                                image, self.screen_emulation_id, self.sample['layout'],
+                                check_cancel=self._check_cancel,
+                            )
+                            image = result.image
+                            emulation_seconds = time.perf_counter() - emulation_started
+                            emulation_metadata = {
+                                'profile_id': result.profile_id,
+                                'display_name': result.display_name,
+                                'screen_size': result.screen_size,
+                                'layout': result.layout,
+                            }
+                        except InterruptedError:
+                            raise
+                        except Exception as exc:
+                            emulation_error = str(exc)
+                    try:
+                        raw = detail_rgba(image)
+                        # Decode/convert in this CPU worker. QImage owns its copy;
+                        # the GUI paints it without decoding or making zoom bitmaps.
+                        detail = QImage(raw, image.width, image.height, image.width * 4,
+                                        QImage.Format.Format_RGBA8888).copy()
+                        del raw
+                        if detail.isNull(): raise ValueError('Could not allocate detail image.')
+                        detail.setDevicePixelRatio(1.0)
+                    except ValueError as exc:
+                        detail = None; detail_error = str(exc)
+                    continue  # Hidden overview is never regenerated by detail work.
+                # A copy is essential: thumbnail mutates and neutral processing
+                # intentionally returns the original cached source image.
+                thumbnail = _to_rgb(image.copy())
+                thumbnail.thumbnail((360, 270), Image.Resampling.LANCZOS)
+                raw = thumbnail.convert('RGBA').tobytes()
+                provisional[i] = QImage(raw, thumbnail.width, thumbnail.height, thumbnail.width*4,
+                                        QImage.Format.Format_RGBA8888).copy()
+                provisional[i].setDevicePixelRatio(1.0)
+                out = BytesIO(); thumbnail.save(out, 'JPEG', quality=78)
+                thumbs.append((i, out.getvalue(), kind))
+            self._check_cancel()
+            self.ready.emit({'thumbs':thumbs, 'stats':stats, 'processing':self.processing,
+                             'dimensions':dimensions, 'detail_page':self.detail_page,
+                             'detail_image':detail, 'detail_error':detail_error,
+                             'emulation_metadata':emulation_metadata,
+                             'emulation_error':emulation_error,
+                             'emulation_seconds':emulation_seconds,
+                             'provisional_images':provisional, 'output_count':len(jobs),
+                             'render_seconds':time.perf_counter()-started})
+        except InterruptedError:
+            pass
+        except Exception as exc:
+            self.failed.emit(str(exc))
+        finally:
+            self.sample = None
+
+
+class AspectRatioHost(QWidget):
+    """Center one child at a requested aspect without resizing its outer host."""
+
+    def __init__(self, child, parent=None):
+        super().__init__(parent)
+        self.child = child
+        self.child.setParent(self)
+        self.child.show()
+        self._aspect_ratio = None
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet('background:#121416;')
+
+    def set_aspect_ratio(self, ratio=None):
+        self._aspect_ratio = float(ratio) if ratio else None
+        self._place_child()
+
+    def _place_child(self):
+        area = self.contentsRect()
+        width, height = area.width(), area.height()
+        if self._aspect_ratio and width > 0 and height > 0:
+            child_width = min(width, round(height * self._aspect_ratio))
+            child_height = min(height, round(child_width / self._aspect_ratio))
+            if child_height > height:
+                child_height = height
+                child_width = min(width, round(child_height * self._aspect_ratio))
+            x = area.x() + (width - child_width) // 2
+            y = area.y() + (height - child_height) // 2
+            self.child.setGeometry(x, y, max(1, child_width), max(1, child_height))
+        else:
+            self.child.setGeometry(area)
+
+    def resizeEvent(self, event):
+        self._place_child()
+        super().resizeEvent(event)
+
+
+class DetailImageSurface(QWidget):
+    """Paint one QImage at the requested logical-pixel size; no scaled cache."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.image = None
+        self.emulated = False
+        self.zoom_factor = None
+
+    def smooth_scaling(self):
+        return (self.image is not None and self.size() != self.image.size() and
+                (not self.emulated or self.zoom_factor is None or self.zoom_factor < 1.0))
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor('#121416') if self.emulated else Qt.GlobalColor.white)
+        if self.image is not None:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, self.smooth_scaling())
+            painter.drawImage(self.rect(), self.image)
+
+
+class PreviewDetailWidget(QWidget):
+    page_requested = pyqtSignal(int)
+    back_requested = pyqtSignal()
+
+    def __init__(self, parent, page, page_count):
+        super().__init__(parent)
+        self.setObjectName('previewDetail')
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._drag = None
+        self._emulation_id = NONE_PROFILE_ID
+        self._emulation_layout = 'original_pages'
+        layout = QVBoxLayout(self)
+        bar = QHBoxLayout()
+        self.back = QPushButton('Back to Overview')
+        self.back.clicked.connect(self.back_requested.emit)
+        bar.addWidget(self.back)
+        self.pages = QComboBox(); self.pages.setAccessibleName('Output page')
+        for number in range(1, page_count+1): self.pages.addItem(f'Output Page {number}', number)
+        self.pages.setCurrentIndex(page-1)
+        self.pages.currentIndexChanged.connect(self._page_changed)
+        bar.addWidget(self.pages); bar.addStretch(1); bar.addWidget(QLabel('Zoom:'))
+        self.zoom = QComboBox(); self.zoom.setAccessibleName('Preview zoom')
+        for factor in ZOOM_FACTORS:
+            self.zoom.addItem('Fit to Preview' if factor is None else f'{factor:.0%}', factor)
+        self.zoom.currentIndexChanged.connect(self._apply_zoom)
+        bar.addWidget(self.zoom); layout.addLayout(bar)
+        self.dimensions = QLabel('Rendering selected page locally…'); self.dimensions.setWordWrap(True)
+        layout.addWidget(self.dimensions)
+        self.scroll = QScrollArea(); self.scroll.setWidgetResizable(False)
+        self.scroll.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.surface = DetailImageSurface(); self.surface.resize(1, 1)
+        self.scroll.setWidget(self.surface)
+        self.aspect_host = AspectRatioHost(self.scroll)
+        layout.addWidget(self.aspect_host, 1)
+        self.scroll.viewport().installEventFilter(self)
+        self.surface.installEventFilter(self)
+        self.surface.setCursor(Qt.CursorShape.OpenHandCursor)
+
+    def _page_changed(self, *_args):
+        self.dimensions.setText('Rendering selected page locally…')
+        self.page_requested.emit(self.pages.currentData())
+
+    def set_emulation(self, profile_id=NONE_PROFILE_ID, output_layout='original_pages'):
+        self._emulation_id = str(profile_id or NONE_PROFILE_ID)
+        self._emulation_layout = output_layout
+        active = self._emulation_id != NONE_PROFILE_ID
+        self.surface.emulated = active
+        # Screen simulation changes pixels, not the logical preview rectangle.
+        self.aspect_host.set_aspect_ratio(None)
+        for index, factor in enumerate(ZOOM_FACTORS):
+            if factor == 1.0:
+                self.zoom.setItemText(index, '100% Device Pixels' if active else '100%')
+                break
+        self.surface.update()
+
+    def clear_image(self, profile_id=NONE_PROFILE_ID, output_layout='original_pages',
+                    message='Rendering selected page locally…'):
+        self.set_emulation(profile_id, output_layout)
+        self.surface.image = None
+        self.surface.resize(1, 1)
+        self._provisional = False
+        self.dimensions.setText(message)
+        self.surface.update()
+
+    def set_image(self, image, actual_size=None, provisional=False, emulation_metadata=None):
+        center = self.view_center()
+        if emulation_metadata:
+            self.set_emulation(emulation_metadata['profile_id'], emulation_metadata['layout'])
+        else:
+            self.set_emulation(NONE_PROFILE_ID, self._emulation_layout)
+        self.surface.image = image
+        self._actual_size = actual_size or (image.width(), image.height())
+        self._provisional = provisional
+        self.dimensions.setText(f'{self._actual_size[0]} × {self._actual_size[1]} px' +
+                               (' — provisional overview; refining full quality…' if provisional else ''))
+        self._apply_zoom()
+        self.restore_center(center)
+
+    def view_center(self):
+        viewport = self.scroll.viewport()
+        return tuple((bar.value()+extent/2)/size if size > extent else .5
+                     for bar, extent, size in (
+                         (self.scroll.horizontalScrollBar(), viewport.width(), self.surface.width()),
+                         (self.scroll.verticalScrollBar(), viewport.height(), self.surface.height())))
+
+    def restore_center(self, center):
+        viewport = self.scroll.viewport()
+        for coordinate, bar, extent, size in zip(center,
+                (self.scroll.horizontalScrollBar(), self.scroll.verticalScrollBar()),
+                (viewport.width(), viewport.height()), (self.surface.width(), self.surface.height())):
+            bar.setValue(round(coordinate*size-extent/2))
+
+    def _apply_zoom(self, *_args):
+        image = self.surface.image
+        if image is None: return
+        center = self.view_center()
+        viewport = self.scroll.viewport().size()
+        factor = self.zoom.currentData()
+        size = zoom_dimensions(self._actual_size, (viewport.width(), viewport.height()), factor)
+        self.surface.zoom_factor = factor
+        self.surface.resize(*size)
+        self.surface.update()
+        self.restore_center(center)
+
+    def step_zoom(self, direction):
+        self.zoom.setCurrentIndex(max(0, min(self.zoom.count()-1, self.zoom.currentIndex()+direction)))
+
+    def zoom_menu(self):
+        menu = QMenu(self)
+        for index, factor in enumerate(ZOOM_FACTORS):
+            if index == 1: menu.addSeparator()
+            label = 'Fit to Preview' if factor is None else (
+                ('100% Device Pixels' if self._emulation_id != NONE_PROFILE_ID else '100% Actual Pixels')
+                if factor == 1 else f'{factor:.0%}')
+            action = menu.addAction(label); action.setCheckable(True)
+            action.setChecked(index == self.zoom.currentIndex())
+            action.triggered.connect(lambda _checked=False, i=index: self.zoom.setCurrentIndex(i))
+        menu.addSeparator()
+        menu.addAction('Zoom In').triggered.connect(lambda: self.step_zoom(1))
+        menu.addAction('Zoom Out').triggered.connect(lambda: self.step_zoom(-1))
+        menu.aboutToHide.connect(menu.deleteLater)
+        return menu
+
+    def eventFilter(self, watched, event):
+        if watched is self.scroll.viewport() and event.type() == QEvent.Type.Resize:
+            self._apply_zoom()
+        if event.type() == QEvent.Type.ContextMenu:
+            self.zoom_menu().popup(event.globalPos())
+            return True
+        if event.type() == QEvent.Type.Wheel and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            if event.angleDelta().y(): self.step_zoom(1 if event.angleDelta().y() > 0 else -1)
+            return True
+        if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+            self._drag = (event.globalPosition().toPoint(), self.scroll.horizontalScrollBar().value(), self.scroll.verticalScrollBar().value())
+            self.surface.setCursor(Qt.CursorShape.ClosedHandCursor)
+            return True
+        if event.type() == QEvent.Type.MouseMove and self._drag is not None:
+            origin, x, y = self._drag
+            delta = event.globalPosition().toPoint()-origin
+            self.scroll.horizontalScrollBar().setValue(x-delta.x())
+            self.scroll.verticalScrollBar().setValue(y-delta.y())
+            return True
+        if event.type() == QEvent.Type.MouseButtonRelease:
+            self._drag = None
+            self.surface.setCursor(Qt.CursorShape.OpenHandCursor)
+        return super().eventFilter(watched, event)
 
 
 class PreferencesDialog(QDialog):
@@ -1999,6 +2448,54 @@ class FocusClearingFrame(QFrame):
     def mousePressEvent(self,event):
         self.setFocus(Qt.FocusReason.MouseFocusReason)
         super().mousePressEvent(event)
+
+
+class LeftShiftIconButton(QPushButton):
+    """QPushButton whose icon can move left without moving its text."""
+
+    def __init__(self, *args, icon_left_shift=0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._icon_left_shift = max(0, int(icon_left_shift))
+
+    def paintEvent(self, event):
+        if not self._icon_left_shift or self.icon().isNull():
+            super().paintEvent(event)
+            return
+
+        option = QStyleOptionButton()
+        self.initStyleOption(option)
+
+        painter = QPainter(self)
+        style = self.style()
+        style.drawControl(
+            QStyle.ControlElement.CE_PushButtonBevel,
+            option,
+            painter,
+            self,
+        )
+
+        shift = self._icon_left_shift
+        icon_size = option.iconSize
+        source = option.icon.pixmap(icon_size)
+        padded = QPixmap(icon_size.width() + shift, icon_size.height())
+        padded.fill(Qt.GlobalColor.transparent)
+
+        icon_painter = QPainter(padded)
+        icon_painter.drawPixmap(0, 0, source)
+        icon_painter.end()
+
+        option.icon = QIcon(padded)
+        option.iconSize = QSize(icon_size.width() + shift, icon_size.height())
+
+        painter.save()
+        painter.translate(-shift / 2.0, 0)
+        style.drawControl(
+            QStyle.ControlElement.CE_PushButtonLabel,
+            option,
+            painter,
+            self,
+        )
+        painter.restore()
 
 
 class VolumeRowWidget(QFrame):
@@ -2467,6 +2964,17 @@ class MangaNanaDialog(QDialog):
         self._preview_workers = []
         self.pairing_preview_worker = None
         self._live_preview_samples = {}
+        self.processing = ProcessingSettings()
+        self._user_processing_presets=load_user_presets(prefs['processing_presets'])
+        self._render_ownership = RenderOwnership()
+        self._processing_worker = None
+        self._processing_pending = False
+        self._detail_viewer = None
+        self._detail_page = None
+        self._screen_emulation_id = NONE_PROFILE_ID
+        self._screen_emulation_logged_errors = set()
+        self._overview_images = {}; self._overview_dimensions = {}; self._overview_dirty = False
+        self._processed_page_count = 0
         self._active_preview_sample_key = None
         self._review_focus_row = 0
         self._live_preview_stale = False
@@ -2601,9 +3109,14 @@ class MangaNanaDialog(QDialog):
         self._plan_workers = []
         self.setWindowTitle(f'{DISPLAY_VERSION} for calibre')
         self.setWindowIcon(icon)
-        self.resize(int(prefs.get('window_w', 1500) or 1500), int(prefs.get('window_h', 950) or 950))
-        self.setMinimumSize(1200, 760)
+        self._saved_opening_size = (prefs.get('window_w'), prefs.get('window_h'))
+        self._opening_size_applied = False
+        self._apply_opening_size()
         self.build_ui()
+        self._processing_timer = QTimer(self)
+        self._processing_timer.setSingleShot(True)
+        self._processing_timer.setInterval(160)
+        self._processing_timer.timeout.connect(self._start_processing_render)
         self._search_status_timer=QTimer(self); self._search_status_timer.setInterval(1000)
         self._search_status_timer.timeout.connect(self._update_search_status)
         self._cover_pulse_timer=QTimer(self); self._cover_pulse_timer.setInterval(170)
@@ -2611,6 +3124,399 @@ class MangaNanaDialog(QDialog):
         self._cover_pulse_timer.start()
         self._install_diagnostic_hook()
         self._restore_session()
+
+    def _apply_opening_size(self):
+        if self._closing: return
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None: return
+        available = screen.availableGeometry()
+        frame, client = self.frameGeometry(), self.geometry()
+        extra = (max(0, frame.width()-client.width()), max(0, frame.height()-client.height()))
+        size = choose_window_size(self._saved_opening_size, (available.width(), available.height()), extra)
+        self._constrained_opening = any(size[i] < MINIMUM_WINDOW_CLIENT[i] for i in (0, 1))
+        self.setMinimumSize(min(MINIMUM_WINDOW_CLIENT[0], size[0]), min(MINIMUM_WINDOW_CLIENT[1], size[1]))
+        self.resize(*size)
+        self.move(available.center() - self.frameGeometry().center() + self.pos())
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._opening_size_applied:
+            self._opening_size_applied = True
+            # Window-manager decoration extents are available after first show.
+            QTimer.singleShot(0, self._apply_opening_size)
+
+    def _update_processing_labels(self):
+        for name, (slider, label) in self._processing_controls.items():
+            factor = slider.value() / 100
+            label.setText(f'{factor:.2f}' if name == 'gamma' else f'{factor:.0%}')
+
+    def _processing_changed(self, *_args):
+        self._update_processing_labels()
+        self._update_depth_choices()
+        depth = self.output_depth.currentData()
+        algorithm = self.dithering.currentData() if depth else 'off'
+        self.dither_strength_value.setText(f'{self.dither_strength.value()}%')
+        self.dithering.setEnabled(bool(depth) and not self._download_in_progress)
+        self.dither_strength.setEnabled(bool(depth) and algorithm != 'off' and not self._download_in_progress)
+        # The displayed Gamma factor reaches the shared reciprocal LUT unchanged.
+        settings = ProcessingSettings(
+            **{name: slider.value()/100 for name, (slider, _label) in self._processing_controls.items()},
+            grayscale=self.grayscale_on.isChecked(),
+            output_depth=depth, dithering=algorithm,
+            dither_strength=self.dither_strength.value()/100 if algorithm != 'off' else 1.0,
+        )
+        self._processing_controls['saturation'][0].setEnabled(not settings.grayscale and not self._download_in_progress)
+        self._sync_processing_preset(settings)
+        if settings == self.processing: return
+        self.processing = settings
+        self._overview_dirty = True
+        self.invalidate_preview()
+        self._schedule_processing_render()
+
+    def _update_depth_choices(self):
+        grayscale = self.grayscale_on.isChecked()
+        if self._depth_grayscale == grayscale: return
+        selected = self.output_depth.currentData()
+        previous = self.output_depth.blockSignals(True)
+        self.output_depth.clear()
+        self.output_depth.addItem('Original', 0)
+        for levels in ((16, 8, 4, 2) if grayscale else (16, 8, 4)):
+            self.output_depth.addItem(f'{levels} Gray Levels' if grayscale else f'{levels**3} Colors', levels)
+        self.output_depth.setCurrentIndex(max(0, self.output_depth.findData(selected)))
+        self.output_depth.blockSignals(previous)
+        self._depth_grayscale = grayscale
+
+    def _reset_processing(self):
+        self._apply_processing_preset(BUILTIN_PRESETS_BY_ID['original'])
+
+    def current_processing_settings(self):
+        """Canonical immutable snapshot for Preview, final, presets and future display simulation."""
+        return self.processing
+
+    def _all_processing_presets(self):
+        return (*BUILTIN_PRESETS,*self._user_processing_presets)
+
+    def _refresh_processing_presets(self):
+        if not hasattr(self,'processing_preset'):
+            return
+        previous=self.processing_preset.blockSignals(True)
+        self.processing_preset.clear()
+        for preset in BUILTIN_PRESETS:
+            self.processing_preset.addItem(preset.name,preset.preset_id)
+        if self._user_processing_presets:
+            self.processing_preset.addItem('MY PRESETS',None)
+            item=self.processing_preset.model().item(self.processing_preset.count()-1)
+            if item is not None: item.setEnabled(False)
+            for preset in self._user_processing_presets:
+                self.processing_preset.addItem(preset.name,preset.preset_id)
+        self.processing_preset.addItem('Custom',CUSTOM_PRESET_ID)
+        self.processing_preset.blockSignals(previous)
+        self._sync_processing_preset(self.processing)
+
+    def _sync_processing_preset(self, settings=None):
+        if not hasattr(self,'processing_preset'):
+            return
+        preset=matching_preset(settings or self.processing,self._user_processing_presets)
+        wanted=preset.preset_id if preset else CUSTOM_PRESET_ID
+        index=self.processing_preset.findData(wanted)
+        if index >= 0 and index != self.processing_preset.currentIndex():
+            previous=self.processing_preset.blockSignals(True)
+            self.processing_preset.setCurrentIndex(index)
+            self.processing_preset.blockSignals(previous)
+
+    def _selected_processing_preset(self):
+        preset_id=self.processing_preset.currentData()
+        return next((row for row in self._all_processing_presets() if row.preset_id==preset_id),None)
+
+    def _processing_preset_selected(self, *_args):
+        preset=self._selected_processing_preset()
+        if preset is not None:
+            self._apply_processing_preset(preset)
+
+    def _apply_processing_preset(self, preset):
+        settings=preset.settings
+        controls=[slider for slider,_label in self._processing_controls.values()]
+        controls += [self.grayscale_off,self.grayscale_on,self.output_depth,self.dithering,self.dither_strength]
+        states=[control.blockSignals(True) for control in controls]
+        try:
+            for name,(slider,_label) in self._processing_controls.items():
+                slider.setValue(round(getattr(settings,name)*100))
+            self.grayscale_off.setChecked(not settings.grayscale)
+            self.grayscale_on.setChecked(settings.grayscale)
+            self._depth_grayscale=None
+            self._update_depth_choices()
+            self.output_depth.setCurrentIndex(max(0,self.output_depth.findData(settings.output_depth)))
+            algorithm=settings.dithering if settings.output_depth else 'off'
+            self.dithering.setCurrentIndex(max(0,self.dithering.findData(algorithm)))
+            self.dither_strength.setValue(round(settings.dither_strength*100))
+        finally:
+            for control,state in zip(controls,states): control.blockSignals(state)
+        self._processing_changed()
+
+    def _persist_processing_presets(self):
+        prefs['processing_presets']=user_presets_payload(self._user_processing_presets)
+        prefs.commit()
+        self._refresh_processing_presets()
+
+    def _prompt_processing_preset_name(self, title, initial=''):
+        value,ok=QInputDialog.getText(self,title,'Preset name:',text=initial)
+        return str(value) if ok else None
+
+    def _save_processing_preset(self):
+        name=self._prompt_processing_preset_name('Save Processing Preset')
+        if name is None: return
+        try:
+            self._user_processing_presets=save_user_preset(
+                self._user_processing_presets,name,self.current_processing_settings())
+            self._persist_processing_presets()
+        except ValueError as exc:
+            error_dialog(self,'Cannot save preset',str(exc),show=True)
+
+    def _rename_processing_preset(self, name):
+        updated=self._prompt_processing_preset_name('Rename Processing Preset',name)
+        if updated is None: return
+        try:
+            existing=next(row for row in self._user_processing_presets if row.name==name)
+            self._user_processing_presets=save_user_preset(
+                self._user_processing_presets,updated,existing.settings,current_name=name)
+            self._persist_processing_presets()
+        except (StopIteration,ValueError) as exc:
+            error_dialog(self,'Cannot rename preset',str(exc),show=True)
+
+    def _update_processing_preset(self, name):
+        try:
+            self._user_processing_presets=save_user_preset(
+                self._user_processing_presets,name,self.current_processing_settings(),current_name=name)
+            self._persist_processing_presets()
+        except ValueError as exc:
+            error_dialog(self,'Cannot update preset',str(exc),show=True)
+
+    def _delete_processing_preset(self, name):
+        answer=QMessageBox.question(self,'Delete Processing Preset',f'Delete “{name}”?')
+        if answer != QMessageBox.StandardButton.Yes: return
+        try:
+            self._user_processing_presets=delete_user_preset(self._user_processing_presets,name)
+            self._persist_processing_presets()
+        except ValueError as exc:
+            error_dialog(self,'Cannot delete preset',str(exc),show=True)
+
+    def _rebuild_processing_preset_menu(self):
+        self.processing_preset_menu.clear()
+        if not self._user_processing_presets:
+            action=self.processing_preset_menu.addAction('No saved presets')
+            action.setEnabled(False); return
+        for preset in self._user_processing_presets:
+            submenu=self.processing_preset_menu.addMenu(preset.name)
+            submenu.addAction('Rename…',lambda _checked=False,n=preset.name:self._rename_processing_preset(n))
+            submenu.addAction('Update from Current',lambda _checked=False,n=preset.name:self._update_processing_preset(n))
+            submenu.addAction('Delete',lambda _checked=False,n=preset.name:self._delete_processing_preset(n))
+
+    def _choose_grayscale(self, enabled):
+        for button, checked in ((self.grayscale_off, not enabled), (self.grayscale_on, enabled)):
+            previous = button.blockSignals(True)
+            button.setChecked(checked)
+            button.blockSignals(previous)
+        self._processing_changed()
+
+    def _set_screen_emulation_off(self, message=None):
+        self._screen_emulation_id = NONE_PROFILE_ID
+        if hasattr(self, 'screen_emulation'):
+            previous = self.screen_emulation.blockSignals(True)
+            self.screen_emulation.setCurrentIndex(max(0, self.screen_emulation.findData(NONE_PROFILE_ID)))
+            self.screen_emulation.blockSignals(previous)
+        if message:
+            if message not in self._screen_emulation_logged_errors:
+                self._screen_emulation_logged_errors.add(message)
+                self.add_log(f'eReader Sim disabled: {message}')
+            if hasattr(self, 'live_preview_status'):
+                self.live_preview_status.setText('eReader simulation unavailable; normal Detail Preview remains available.')
+
+    def _screen_emulation_changed(self, *_args):
+        selected = self.screen_emulation.currentData() or NONE_PROFILE_ID
+        if selected == self._screen_emulation_id:
+            return
+        self._screen_emulation_id = selected
+        if self._detail_viewer is not None and self._detail_page is not None:
+            layout = self._live_preview_samples.get(self._active_preview_sample_key, {}).get(
+                'layout', self.page_layout.currentData())
+            self._detail_viewer.clear_image(
+                selected, layout,
+                'Rendering selected page with eReader simulation…'
+                if selected != NONE_PROFILE_ID else 'Rendering selected page locally…',
+            )
+            self._schedule_processing_render(immediate=True)
+        else:
+            self._update_live_preview_action()
+
+    def _invalidate_processing_render(self):
+        self._render_ownership.advance()
+        self._processing_pending = False
+        if hasattr(self, '_processing_timer'): self._processing_timer.stop()
+        if self._processing_worker is not None:
+            self._processing_worker.requestInterruption()
+
+    def _schedule_processing_render(self, immediate=False):
+        self._invalidate_processing_render()
+        key = self._active_preview_sample_key
+        if (self._closing or self._live_preview_stale or key != self._live_preview_signature_value()
+                or key not in self._live_preview_samples):
+            return
+        self._processing_pending = True
+        self.live_preview_status.setText(f'Rendering full-quality Output Page {self._detail_page}…' if self._detail_page else 'Updating overview preview…')
+        if self._detail_viewer is not None:
+            image = self._detail_viewer.surface.image
+            size = getattr(self._detail_viewer, '_actual_size', (image.width(), image.height()) if image is not None else (0,0))
+            prefix = f'{size[0]} × {size[1]} px — ' if image is not None else ''
+            message = ('Provisional overview; refining full quality…' if getattr(self._detail_viewer, '_provisional', False)
+                       else 'Updating locally; previous completed render shown.')
+            self._detail_viewer.dimensions.setText(prefix + message if image is not None else 'Rendering selected page locally…')
+        if immediate: self._start_processing_render()
+        else: self._processing_timer.start()
+
+    def _flush_processing_render(self):
+        if self._processing_pending:
+            self._processing_timer.stop()
+            self._start_processing_render()
+
+    def _start_processing_render(self):
+        # One worker only. Completion starts at most the newest pending intent.
+        if self._closing or not self._processing_pending or self._processing_worker is not None:
+            return
+        key = self._active_preview_sample_key
+        sample = self._live_preview_samples.get(key)
+        if sample is None or key != self._live_preview_signature_value():
+            self._processing_pending = False
+            return
+        self._processing_pending = False
+        token = self._render_ownership.generation
+        worker = ProcessingPreviewWorker(sample, self.reading_direction.currentData(), self.processing,
+                                         detail_page=self._detail_page,
+                                         screen_emulation_id=self._screen_emulation_id)
+        self._processing_worker = worker
+        worker.ready.connect(lambda data, t=token, k=key: self._on_processing_ready(data, t, k))
+        worker.failed.connect(lambda msg, t=token, k=key: self._on_processing_failed(msg, t, k))
+        worker.finished.connect(lambda w=worker: self._processing_finished(w))
+        self._retain_async_worker(worker)
+        worker.start()
+
+    def _processing_result_current(self, token, key):
+        return (not self._closing and self._render_ownership.accepts(token)
+                and not self._live_preview_stale and key == self._active_preview_sample_key
+                and key == self._live_preview_signature_value())
+
+    def _on_processing_ready(self, data, token, key):
+        if not self._processing_result_current(token, key): return
+        self.workflow_state.mark_preview_ready()
+        self._processed_page_count = data.get('output_count', len(data.get('thumbs') or ()))
+        if data.get('detail_page') is None:
+            self._overview_images = data.get('provisional_images', {})
+            self._overview_dimensions = data.get('dimensions', {})
+            self._overview_dirty = False
+            self._render_live_preview(data)
+        if self._detail_viewer is not None and data.get('detail_page') == self._detail_page:
+            if data.get('emulation_error'):
+                self._set_screen_emulation_off(data['emulation_error'])
+            if data.get('detail_image') is not None:
+                self._detail_viewer.set_image(
+                    data['detail_image'], emulation_metadata=data.get('emulation_metadata'))
+            elif data.get('detail_error'):
+                self._detail_viewer.dimensions.setText(data['detail_error'])
+        self._update_live_preview_action()
+        active_emulation = bool(data.get('emulation_metadata'))
+        if self._detail_page:
+            self.live_preview_status.setText('Inspect at 100% Device Pixels; Back returns to Overview.'
+                                             if active_emulation else
+                                             'Inspect at 100% for actual pixels; Back returns to Overview.')
+        elif self._screen_emulation_id != NONE_PROFILE_ID:
+            self.live_preview_status.setText(
+                'Kobo Libra Colour is selected; simulation appears in single-page Detail Preview.')
+        else:
+            self.live_preview_status.setText(
+                'Click a page for full-quality inspection. Overview is a reduced-resolution representation.')
+        self.progress_text.setText('Live Preview ready.')
+        settings = data['processing']
+        emulation_timing = (f' eReader simulation {data.get("emulation_seconds",0):.2f}s.'
+                            if active_emulation else '')
+        self.add_log(f'{"Detail" if self._detail_page else "Overview"} preview updated in {data.get("render_seconds",0):.2f}s: Brightness {settings.brightness:.0%}, Contrast {settings.contrast:.0%}, Gamma {settings.gamma:.2f}, Saturation {settings.saturation:.0%}, Sharpness {settings.sharpness:.0%}, Grayscale {"On" if settings.grayscale else "Off"}.{emulation_timing}')
+
+    def _on_processing_failed(self, message, token, key):
+        if not self._processing_result_current(token, key): return
+        self.live_preview_status.setText('Local preview update failed. Existing preview retained; output remains available.')
+        if self._detail_viewer is not None:
+            self._detail_viewer.dimensions.setText('Local update failed; previous completed image retained.')
+        self.add_log(f'Local processing preview failed: {message}')
+
+    def _processing_finished(self, worker):
+        if self._processing_worker is worker:
+            self._processing_worker = None
+        if not self._closing and self._processing_pending and not self._processing_timer.isActive():
+            self._start_processing_render()
+
+    def _open_preview_detail(self, page):
+        key = self._active_preview_sample_key
+        if (self._closing or self._live_preview_stale or key not in self._live_preview_samples
+                or key != self._live_preview_signature_value() or not 1 <= page <= self._processed_page_count):
+            return
+        if self._detail_viewer is None:
+            viewer = PreviewDetailWidget(self.live_preview_stack, page, self._processed_page_count)
+            self._detail_viewer = viewer
+            viewer.page_requested.connect(self._select_detail_page)
+            viewer.back_requested.connect(lambda v=viewer: self._detail_closed(v))
+            self.live_preview_stack.addWidget(viewer)
+        else:
+            viewer = self._detail_viewer
+            previous = viewer.pages.blockSignals(True)
+            viewer.pages.setCurrentIndex(page-1)
+            viewer.pages.blockSignals(previous)
+        self.live_preview_stack.setCurrentWidget(viewer)
+        self._select_detail_page(page)
+
+    def _select_detail_page(self, page):
+        if not 1 <= page <= self._processed_page_count: return
+        self._detail_page = page
+        if self._detail_viewer is not None:
+            if self._screen_emulation_id != NONE_PROFILE_ID:
+                if self._detail_viewer.surface.image is None:
+                    layout = self._live_preview_samples.get(self._active_preview_sample_key, {}).get(
+                        'layout', self.page_layout.currentData())
+                    self._detail_viewer.clear_image(
+                        self._screen_emulation_id, layout,
+                        'Rendering selected page with eReader simulation…')
+                else:
+                    self._detail_viewer.dimensions.setText(
+                        'Rendering selected page; previous device preview retained…')
+            else:
+                provisional = self._overview_images.get(page)
+                if provisional is not None:
+                    self._detail_viewer.set_image(provisional, self._overview_dimensions.get(page), provisional=True)
+                else:
+                    self._detail_viewer.dimensions.setText('Rendering selected page locally; previous image retained…')
+        self._schedule_processing_render(immediate=True)
+
+    def _detail_closed(self, viewer):
+        viewer.surface.image = None
+        self.live_preview_stack.setCurrentIndex(0)
+        self.live_preview_stack.removeWidget(viewer)
+        if self._detail_viewer is viewer:
+            self._detail_viewer = None; self._detail_page = None
+            self._invalidate_processing_render()
+            if self._overview_dirty: self._schedule_processing_render()
+            elif self._screen_emulation_id != NONE_PROFILE_ID:
+                self.live_preview_status.setText(
+                    'Kobo Libra Colour is selected; simulation appears in single-page Detail Preview.')
+            else:
+                self.live_preview_status.setText('Click a page for full-quality inspection.')
+        viewer.deleteLater()
+
+    def _clear_detail_preview(self):
+        viewer = self._detail_viewer
+        self._detail_viewer = None; self._detail_page = None; self._processed_page_count = 0
+        self._overview_images = {}; self._overview_dimensions = {}; self._overview_dirty = False
+        if viewer is not None:
+            viewer.surface.image = None
+            self.live_preview_stack.setCurrentIndex(0)
+            self.live_preview_stack.removeWidget(viewer)
+            viewer.deleteLater()
 
     def heading(self, text):
         l = QLabel(text)
@@ -3137,7 +4043,9 @@ class MangaNanaDialog(QDialog):
                 except (TypeError,ValueError):
                     continue
         self._reference_volume_covers=reference_covers
-        self._loaded_covers.update(reference_covers)
+        # Exact acquisition-provider artwork wins; references fill its gaps.
+        for volume, cover_url in reference_covers.items():
+            self._loaded_covers.setdefault(volume, cover_url)
         edition_art=manifest.display.edition_artwork
         if edition_art:
             self._main_cover_url=str(edition_art.url); self._selected_cover_url=self._main_cover_url
@@ -3321,8 +4229,9 @@ class MangaNanaDialog(QDialog):
             QPushButton:hover {{ background:#22262A; border:1px solid {ORANGE}; color:#FF8A6B; }}
             QPushButton:pressed {{ background:#2B211E; border:1px solid #FF8A6B; }}
             QPushButton:disabled {{ background:#17191B; color:#686868; border:1px solid #33373A; }}
-            QPushButton#layoutChoice {{ min-width:118px; min-height:68px; max-height:74px; font-size:12px; padding:6px 7px; }}
+            QPushButton#layoutChoice {{ min-width:118px; min-height:62px; max-height:62px; font-size:12px; padding:5px 7px; }}
             QPushButton#layoutChoice:checked {{ background:#3A211B; color:#FFFFFF; border:2px solid {ORANGE}; }}
+            QPushButton#processingChoice:checked {{ background:#3A211B; color:#FFFFFF; border:1px solid {ORANGE}; }}
             QPushButton#secondaryAction {{ min-height:18px; padding:9px 18px; border:1px solid {ORANGE}; background:#1B1E21; color:{ORANGE}; }}
             QPushButton#primaryAction {{ min-height:18px; padding:9px 20px; border:1px solid {ORANGE}; background:{ORANGE}; color:#17191B; font-weight:800; }}
             QPushButton#primaryAction:hover {{ background:#FF7B5A; color:#111315; border:1px solid #FF8A6B; }}
@@ -3373,23 +4282,38 @@ class MangaNanaDialog(QDialog):
         return gutter
 
     def _layout_icon(self, landscape=False):
+        if landscape:
+            try:
+                raw=get_resources('images/tabler-book.svg')
+            except NameError:
+                raw=(Path(__file__).resolve().parent/'images'/'tabler-book.svg').read_bytes()
+            pm=QPixmap()
+            if not pm.loadFromData(raw,'SVG'):
+                raise RuntimeError('Could not load the packaged Tabler BOOK icon.')
+            return QIcon(pm)
         pm=QPixmap(46,32)
         pm.fill(Qt.GlobalColor.transparent)
         painter=QPainter(pm)
         pen=QPen(QColor(ORANGE)); pen.setWidth(2); painter.setPen(pen)
-        if landscape:
-            painter.drawRoundedRect(3,5,18,23,2,2)
-            painter.drawRoundedRect(25,5,18,23,2,2)
-            painter.drawLine(23,6,23,27)
-        else:
-            painter.drawRoundedRect(13,3,20,27,2,2)
-            painter.drawLine(17,8,29,8)
+        painter.drawRoundedRect(13,3,20,27,2,2)
+        painter.drawLine(17,8,29,8)
         painter.end()
         return QIcon(pm)
 
     def build_ui(self):
         self._apply_manganana_theme()
-        shell = QVBoxLayout(self)
+        if self._constrained_opening:
+            # A desktop smaller than the usable layout gets scroll access to
+            # the whole dialog, not off-screen controls or an oversized frame.
+            outer = QVBoxLayout(self); outer.setContentsMargins(0, 0, 0, 0)
+            scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.Shape.NoFrame)
+            content = QWidget(); content.setObjectName('mangananaShell')
+            content.setStyleSheet('QWidget#mangananaShell { background:#101214; }')
+            content.setMinimumSize(*MINIMUM_WINDOW_CLIENT)
+            scroll.setWidget(content); outer.addWidget(scroll)
+            shell = QVBoxLayout(content)
+        else:
+            shell = QVBoxLayout(self)
         shell.setContentsMargins(16, 12, 16, 14)
         shell.setSpacing(10)
 
@@ -3568,13 +4492,13 @@ class MangaNanaDialog(QDialog):
 
         # BOOK CUSTOMIZATION: reading/layout choices and explicit inline preview.
         center=QWidget(); output_pages=QHBoxLayout(center); output_pages.setContentsMargins(0,0,0,0); output_pages.setSpacing(10)
-        settings_left=self._card(); cv=QVBoxLayout(settings_left); cv.setContentsMargins(18,16,18,16); cv.setSpacing(10)
+        settings_left=self._card(); cv=QVBoxLayout(settings_left); cv.setContentsMargins(18,12,18,12); cv.setSpacing(7)
         cv.addWidget(self.heading('Reading & Layout'))
         cv.addWidget(QLabel('Output Layout'))
         choices=QHBoxLayout(); choices.setSpacing(7)
         self.portrait_btn=QPushButton('PORTRAIT\nIndividual Pages'); self.portrait_btn.setObjectName('layoutChoice'); self.portrait_btn.setCheckable(True)
-        self.landscape_btn=QPushButton('LANDSCAPE\nPaired Pages'); self.landscape_btn.setObjectName('layoutChoice'); self.landscape_btn.setCheckable(True)
-        self.portrait_btn.setIcon(self._layout_icon(False)); self.landscape_btn.setIcon(self._layout_icon(True)); self.portrait_btn.setIconSize(QSize(38,28)); self.landscape_btn.setIconSize(QSize(38,28))
+        self.landscape_btn=LeftShiftIconButton('LANDSCAPE\nPaired Pages',icon_left_shift=5); self.landscape_btn.setObjectName('layoutChoice'); self.landscape_btn.setCheckable(True)
+        self.portrait_btn.setIcon(self._layout_icon(False)); self.landscape_btn.setIcon(self._layout_icon(True)); self.portrait_btn.setIconSize(QSize(38,28)); self.landscape_btn.setIconSize(QSize(36,36))
         choices.addWidget(self.portrait_btn,1); choices.addWidget(self.landscape_btn,1); cv.addLayout(choices)
         self.page_layout=QComboBox(); self.page_layout.addItem('Portrait (Individual Pages)','original_pages'); self.page_layout.addItem('Landscape (Paired Pages)','paired_landscape')
         pli=self.page_layout.findData(prefs['page_layout']); self.page_layout.setCurrentIndex(max(0,pli)); self.page_layout.hide()
@@ -3584,10 +4508,92 @@ class MangaNanaDialog(QDialog):
         self.reading_direction_label=QLabel('Reading Direction')
         self.reading_direction=QComboBox(); self.reading_direction.addItem('Right to Left (Manga)','rtl'); self.reading_direction.addItem('Left to Right','ltr')
         rdi=self.reading_direction.findData(prefs['reading_direction']); self.reading_direction.setCurrentIndex(max(0,rdi))
-        cv.addWidget(self.reading_direction_label); cv.addWidget(self.reading_direction); cv.addStretch(1)
+        cv.addWidget(self.reading_direction_label); cv.addWidget(self.reading_direction)
+        adjustment_header = QHBoxLayout()
+        adjustment_header.addWidget(QLabel('Image Adjustments')); adjustment_header.addStretch(1)
+        self.processing_reset = QPushButton('Reset'); self.processing_reset.setObjectName('tertiaryAction')
+        self.processing_reset.clicked.connect(self._reset_processing)
+        adjustment_header.addWidget(self.processing_reset); cv.addLayout(adjustment_header)
+        preset_row=QHBoxLayout(); preset_row.setSpacing(7)
+        preset_label=QLabel('Preset')
+        self.processing_preset=QComboBox(); self.processing_preset.setAccessibleName('Processing Preset')
+        preset_label.setBuddy(self.processing_preset)
+        self.save_processing_preset=QPushButton('Save Preset…'); self.save_processing_preset.setObjectName('tertiaryAction')
+        self.manage_processing_presets=QPushButton('Manage'); self.manage_processing_presets.setObjectName('tertiaryAction')
+        self.processing_preset_menu=QMenu(self.manage_processing_presets)
+        self.manage_processing_presets.setMenu(self.processing_preset_menu)
+        self.processing_preset_menu.aboutToShow.connect(self._rebuild_processing_preset_menu)
+        self.save_processing_preset.clicked.connect(self._save_processing_preset)
+        self.processing_preset.currentIndexChanged.connect(self._processing_preset_selected)
+        preset_row.addWidget(preset_label); preset_row.addWidget(self.processing_preset,1)
+        preset_row.addWidget(self.save_processing_preset); preset_row.addWidget(self.manage_processing_presets)
+        cv.addLayout(preset_row)
+        self._processing_controls = {}
+        for name, title, minimum, maximum in (('brightness', 'Brightness', 25, 200),
+                                              ('contrast', 'Contrast', 50, 200),
+                                              ('gamma', 'Gamma', 50, 250),
+                                              ('saturation', 'Saturation', 20, 300),
+                                              ('sharpness', 'Sharpness', 0, 200)):
+            label = QLabel(title)
+            slider = QSlider(Qt.Orientation.Horizontal); slider.setRange(minimum, maximum)
+            slider.setSingleStep(5); slider.setPageStep(5); slider.setValue(100)
+            slider.setAccessibleName(title); label.setBuddy(slider)
+            slider.setStyleSheet('QSlider::sub-page:horizontal {background:#FF6740;} QSlider::handle:horizontal {background:#FF6740; border-radius:5px; width:12px;}')
+            value = QLabel(); value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            widest = '2.50' if name == 'gamma' else ('300%' if name == 'saturation' else '200%')
+            value.setMinimumWidth(value.fontMetrics().horizontalAdvance(widest))
+            row = QHBoxLayout(); row.addWidget(slider, 1); row.addWidget(value)
+            cv.addWidget(label); cv.addLayout(row)
+            self._processing_controls[name] = (slider, value)
+            slider.valueChanged.connect(self._processing_changed)
+            slider.sliderReleased.connect(self._flush_processing_render)
+        self._update_processing_labels()
+        cv.addWidget(QLabel('Grayscale'))
+        grayscale_row = QHBoxLayout()
+        self.grayscale_off = QPushButton('Off'); self.grayscale_on = QPushButton('On')
+        for button in (self.grayscale_off, self.grayscale_on):
+            button.setCheckable(True); button.setObjectName('processingChoice')
+            button.setAccessibleName('Grayscale ' + button.text())
+            grayscale_row.addWidget(button)
+        self.grayscale_off.setChecked(True)
+        self.grayscale_off.clicked.connect(lambda: self._choose_grayscale(False))
+        self.grayscale_on.clicked.connect(lambda: self._choose_grayscale(True))
+        cv.addLayout(grayscale_row)
+        self.output_depth = QComboBox(); self.output_depth.setAccessibleName('Output Depth')
+        self._depth_grayscale = None
+        self._update_depth_choices()
+        self.dithering = QComboBox(); self.dithering.setAccessibleName('Dithering')
+        for label, algorithm in (('Off', 'off'), ('Floyd-Steinberg', 'floyd-steinberg'), ('Atkinson', 'atkinson'), ('Sierra-Lite', 'sierra-lite')):
+            self.dithering.addItem(label, algorithm)
+        for title, control in (('Output Depth', self.output_depth), ('Dithering', self.dithering)):
+            label = QLabel(title); label.setBuddy(control)
+            cv.addWidget(label); cv.addWidget(control)
+            control.currentIndexChanged.connect(self._processing_changed)
+        self.dither_strength = QSlider(Qt.Orientation.Horizontal)
+        self.dither_strength.setAccessibleName('Dither Strength')
+        self.dither_strength.setRange(0, 200); self.dither_strength.setSingleStep(5); self.dither_strength.setPageStep(5)
+        self.dither_strength.setValue(100)
+        self.dither_strength.setStyleSheet(self._processing_controls['contrast'][0].styleSheet())
+        self.dither_strength_value = QLabel('100%')
+        cv.addWidget(QLabel('Dither Strength'))
+        strength_row = QHBoxLayout(); strength_row.addWidget(self.dither_strength, 1); strength_row.addWidget(self.dither_strength_value)
+        cv.addLayout(strength_row)
+        self.dither_strength.valueChanged.connect(self._processing_changed)
+        self.dither_strength.sliderReleased.connect(self._flush_processing_render)
+        self.dithering.setEnabled(False); self.dither_strength.setEnabled(False)
+        self._refresh_processing_presets()
+        cv.addStretch(1)
 
         live_right=self._card(); live_layout=QVBoxLayout(live_right); live_layout.setContentsMargins(22,18,22,18); live_layout.setSpacing(10)
         live_layout.addWidget(self.heading('Live eReader Preview'))
+        simulator_row=QHBoxLayout(); simulator_row.setContentsMargins(0,0,0,0)
+        simulator_row.addWidget(QLabel('eReader Sim'))
+        self.screen_emulation=QComboBox(); self.screen_emulation.setAccessibleName('eReader Sim')
+        self.screen_emulation.addItem('Off',NONE_PROFILE_ID)
+        self.screen_emulation.addItem('Kobo Libra Colour',KOBO_LIBRA_COLOUR_PROFILE_ID)
+        simulator_row.addWidget(self.screen_emulation,1)
+        live_layout.addLayout(simulator_row)
+        self.screen_emulation.currentIndexChanged.connect(self._screen_emulation_changed)
         self.live_preview_status=QLabel('Preview is optional and off. Enable it to download a small bounded sample.')
         self.live_preview_status.setWordWrap(True); self.live_preview_status.setStyleSheet('color:#B8B8B8; font-size:12px;')
         live_layout.addWidget(self.live_preview_status)
@@ -3596,10 +4602,16 @@ class MangaNanaDialog(QDialog):
         self.live_preview_empty=QLabel('No preview sample loaded.\n\nPreview is never required to continue.')
         self.live_preview_empty.setAlignment(Qt.AlignmentFlag.AlignCenter); self.live_preview_empty.setWordWrap(True)
         self.live_preview_empty.setMinimumHeight(220); self.live_preview_empty.setStyleSheet('background:#121416; color:#777; border:1px solid #34393E; border-radius:7px;')
-        live_layout.addWidget(self.live_preview_empty,1)
+        self.live_preview_stack = QStackedWidget()
+        self.live_preview_stack.setStyleSheet('QStackedWidget, QWidget#previewOverview, QWidget#previewDetail, QWidget#previewBody {background:#191D1F;} QScrollArea {background:#121416;}')
+        overview = QWidget(); overview_layout = QVBoxLayout(overview); overview_layout.setContentsMargins(0,0,0,0)
+        overview.setObjectName('previewOverview'); overview.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.live_preview_stack.addWidget(overview); live_layout.addWidget(self.live_preview_stack,1)
+        overview_layout.addWidget(self.live_preview_empty,1)
         self.live_preview_scroll=QScrollArea(); self.live_preview_scroll.setWidgetResizable(True); self.live_preview_scroll.setVisible(False)
         self.live_preview_body=QWidget(); self.live_preview_grid=QGridLayout(self.live_preview_body); self.live_preview_grid.setContentsMargins(8,8,8,8); self.live_preview_grid.setSpacing(8)
-        self.live_preview_scroll.setWidget(self.live_preview_body); live_layout.addWidget(self.live_preview_scroll,1)
+        self.live_preview_body.setObjectName('previewBody')
+        self.live_preview_scroll.setWidget(self.live_preview_body); overview_layout.addWidget(self.live_preview_scroll,1)
         # Compatibility name retained for state/status helpers; this is an inline
         # Stage 2 surface, not a separate preview window.
         self.live_preview_surface=self.live_preview_empty
@@ -3644,6 +4656,23 @@ class MangaNanaDialog(QDialog):
         metadata_actions.addWidget(self.apply_metadata_btn); metadata_actions.addWidget(self.metadata_pending_label); metadata_actions.addStretch(1)
         bcv.addLayout(metadata_actions)
         bcv.addWidget(self.alt_titles_btn); bcv.addWidget(self.covers); bcv.addWidget(self.pad)
+        cover_row=QHBoxLayout()
+        cover_row.addWidget(QLabel('Cover mode'))
+        self.cover_mode=QComboBox()
+        for label, value in COVER_MODES: self.cover_mode.addItem(label,value)
+        self.cover_mode.setCurrentIndex(max(0,self.cover_mode.findData(prefs.get('cover_mode','keep'))))
+        self.cover_mode.setAccessibleDescription('Calibre metadata cover only. Manga pages are unchanged.')
+        cover_row.addWidget(self.cover_mode,1)
+        self.cover_preview_btn=QPushButton('Preview Cover'); self.cover_preview_btn.setObjectName('secondaryAction')
+        self.cover_preview_btn.setAccessibleDescription('Preview the selected row in Final Outputs.')
+        self.cover_preview_btn.clicked.connect(self._show_cover_preview)
+        cover_row.addWidget(self.cover_preview_btn)
+        bcv.addLayout(cover_row)
+        self.cover_mode_note=QLabel(); self.cover_mode_note.setWordWrap(True)
+        self.cover_mode_note.setStyleSheet('color:#A8A8A8; font-size:11px;')
+        bcv.addWidget(self.cover_mode_note)
+        self._sync_cover_mode_controls()
+        self.cover_mode.currentIndexChanged.connect(self._cover_mode_changed)
         dest=QLabel(f'Calibre library\n{getattr(self.gui.current_db,"library_path","Current calibre library")}')
         dest.setWordWrap(True); dest.setStyleSheet('color:#A8A8A8; padding-top:4px;')
         bcv.addWidget(QLabel('Destination')); bcv.addWidget(dest)
@@ -5551,7 +6580,8 @@ class MangaNanaDialog(QDialog):
         if request_id != self._volume_plan_request_id or language != self.language.currentData():
             return
         self._loaded_covers=dict(data.get('covers') or {})
-        self._loaded_covers.update(self._reference_volume_covers)
+        for volume, cover_url in self._reference_volume_covers.items():
+            self._loaded_covers.setdefault(volume, cover_url)
         if data.get('cover_error'):
             self.add_log('Volume-cover metadata unavailable: '+str(data.get('cover_error')))
         if self.workflow_mode == 'chapter':
@@ -6109,7 +7139,8 @@ class MangaNanaDialog(QDialog):
             tuple(sorted(self._selected_chapter_ids)),
             self._chapter_output_mode.value,
             tuple(sorted((str(key),str(value)) for key,value in self._manual_volume_assignments.items())),
-            self.covers.isChecked(), self.pad.isChecked(), self.page_layout.currentData(), self.reading_direction.currentData()
+            self.covers.isChecked(), self.pad.isChecked(), self.page_layout.currentData(), self.reading_direction.currentData(), self.current_processing_settings(),
+            self.cover_mode.currentData() if hasattr(self,'cover_mode') else 'keep'
         )
 
     def _clear_preview_state(self, summary=None, keep_rows=False):
@@ -6132,6 +7163,9 @@ class MangaNanaDialog(QDialog):
                 self.reading_direction.currentData())
 
     def _reset_live_preview(self, message='Preview is optional and off.'):
+        self._clear_detail_preview()
+        self._invalidate_processing_render()
+        self._live_preview_samples.clear()
         self._live_preview_request_id += 1
         if self.pairing_preview_worker and self.pairing_preview_worker.isRunning():
             self.pairing_preview_worker.cancel()
@@ -6148,6 +7182,9 @@ class MangaNanaDialog(QDialog):
     def _mark_live_preview_stale(self):
         if self.workflow_state.preview_state == 'off' and not self._active_preview_sample_key:
             return
+        self._clear_detail_preview()
+        self._invalidate_processing_render()
+        self._live_preview_samples.clear()
         self._live_preview_request_id += 1
         if self.pairing_preview_worker and self.pairing_preview_worker.isRunning():
             self.pairing_preview_worker.cancel()
@@ -6206,6 +7243,8 @@ class MangaNanaDialog(QDialog):
         self._set_applied_metadata(base,author,series,sync_fields=False)
         rows=self.preview_data.get('rows') or []
         for index,row in enumerate(rows):
+            row.pop('cover_thumbnail',None)
+            self.preview_table.setCellWidget(index,1,self._final_output_cover_widget(row))
             if row.get('kind') == 'chapter' and row.get('chapter'):
                 row['title']=chapter_output_title(base,row['chapter'],self.pad.isChecked())
             elif row.get('volume') is not None:
@@ -6805,6 +7844,7 @@ class MangaNanaDialog(QDialog):
         try:
             prefs['session_search']=''; prefs['session_url']=''; prefs['session_layout']=self.page_layout.currentData()
             prefs['include_volume_covers']=self.covers.isChecked(); prefs['zero_pad']=self.pad.isChecked(); prefs['reading_direction']=self.reading_direction.currentData()
+            prefs['cover_mode']=self.cover_mode.currentData()
             prefs['window_w']=self.width(); prefs['window_h']=self.height(); prefs.commit()
         except Exception:
             pass
@@ -6820,6 +7860,9 @@ class MangaNanaDialog(QDialog):
 
     def closeEvent(self, event):
         self._closing=True
+        self._clear_detail_preview()
+        self._invalidate_processing_render()
+        self._live_preview_samples.clear()
         self._interrupt_async_workers()
         for worker in self.search_workers.values():
             if worker.isRunning(): worker.requestInterruption()
@@ -6838,6 +7881,9 @@ class MangaNanaDialog(QDialog):
 
     def reject(self):
         self._closing=True
+        self._clear_detail_preview()
+        self._invalidate_processing_render()
+        self._live_preview_samples.clear()
         self._interrupt_async_workers()
         for worker in self.search_workers.values():
             if worker.isRunning(): worker.requestInterruption()
@@ -7014,9 +8060,69 @@ class MangaNanaDialog(QDialog):
         self.progress.setDeterminateValue(percent)
         self.progress_text.setText(text)
 
+    def _sync_cover_mode_controls(self):
+        mode=self.cover_mode.currentData()
+        self.covers.setEnabled(mode == 'keep' and not getattr(self,'_download_in_progress',False))
+        self.cover_mode_note.setText({
+            'keep':'Use the source cover checkbox above to include the unchanged artwork.',
+            'stamp':'Uses source artwork with the MangaAnkā stamp. Missing artwork leaves the cover unset.',
+            'generate':'Creates a cover from the applied Title (Series fallback). No source artwork needed.',
+        }[mode] + ' Covers are separate from manga pages.')
+
+    def _cover_mode_changed(self, *_args):
+        self._sync_cover_mode_controls()
+        self.invalidate_preview()
+
+    def _show_cover_preview(self):
+        if not self.preview_data or self.preview_signature != self.current_signature():
+            info_dialog(self,'Preview Cover','Refresh Final Outputs before previewing a cover.',show=True)
+            return
+        rows=self.preview_data.get('rows') or []
+        index=getattr(self,'_review_focus_row',0)
+        if not 0 <= index < len(rows): return
+        row=rows[index]; signature=self.current_signature()
+        title, _author, series=self._applied_metadata_values()
+        kind=row.get('kind') or ('volume' if row.get('volume') is not None else 'standalone')
+        options=dict(mode=self.cover_mode.currentData(),title=title,series=series,
+                     output_kind=kind,volume=row.get('volume'),
+                     chapter_number=(row.get('chapter') or {}).get('chapter') if kind == 'chapter' else None,
+                     zero_pad=self.pad.isChecked())
+        dialog=QDialog(self); dialog.setWindowTitle('Cover Preview')
+        layout=QVBoxLayout(dialog)
+        heading=QLabel(row['title']); heading.setWordWrap(True); layout.addWidget(heading)
+        cover=QLabel('Preparing cover…'); cover.setFixedSize(220,300)
+        cover.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(cover,0,Qt.AlignmentFlag.AlignHCenter)
+        status=QLabel('Calibre metadata cover'); status.setWordWrap(True); layout.addWidget(status)
+        buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
+        worker=self._retain_async_worker(CoverPreviewWorker(
+            self.current_source,self._planned_output_cover_url(row),options))
+        active=[True]
+        def ready(blob):
+            if not active[0] or not dialog.isVisible(): return
+            if signature != self.current_signature():
+                cover.setText('Settings changed. Reopen preview.'); return
+            if not blob:
+                cover.setText('No source cover available' if options['mode'] == 'stamp' else 'No cover selected')
+                return
+            pixmap=QPixmap(); pixmap.loadFromData(blob); cover.setPixmap(pixmap)
+            # Reuse the worker-rendered thumbnail in the existing fixed-size cell.
+            if self.preview_data and signature == self.preview_signature:
+                row['cover_thumbnail']=blob
+                self.preview_table.setCellWidget(index,1,self._final_output_cover_widget(row))
+        def failed(message):
+            if active[0] and dialog.isVisible(): cover.setText('Cover preview unavailable'); status.setText(message)
+        worker.ready.connect(ready); worker.failed.connect(failed)
+        dialog.finished.connect(lambda _result: worker.requestInterruption() if worker in self._async_workers else None)
+        worker.start(); dialog.exec()
+        active[0]=False
+        dialog.deleteLater()
+
     def _planned_output_cover_url(self,row):
         """Mirror the downloader's already-resolved cover choice without fetching."""
-        if not self.covers.isChecked():
+        mode=self.cover_mode.currentData() if hasattr(self,'cover_mode') else 'keep'
+        if mode == 'generate' or (mode == 'keep' and not self.covers.isChecked()):
             return ''
         if row.get('kind') == 'volume' or row.get('volume') is not None:
             try:
@@ -7035,6 +8141,18 @@ class MangaNanaDialog(QDialog):
         host=QWidget(); layout=QHBoxLayout(host); layout.setContentsMargins(4,4,4,4); layout.setSpacing(0)
         cover=QLabel('—'); cover.setAlignment(Qt.AlignmentFlag.AlignCenter); cover.setFixedSize(44,62)
         cover.setStyleSheet('background:#121416; color:#72777C; border:1px solid #34393E; border-radius:4px; font-size:10px;')
+        thumbnail=row.get('cover_thumbnail')
+        if thumbnail:
+            pixmap=QPixmap(); pixmap.loadFromData(thumbnail)
+            cover.setPixmap(pixmap.scaled(44,62,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation))
+            layout.addStretch(1); layout.addWidget(cover); layout.addStretch(1)
+            return host
+        mode=self.cover_mode.currentData()
+        if mode != 'keep':
+            cover.setText('Stamp' if mode == 'stamp' else 'New')
+            cover.setAccessibleDescription('Select this row, then Preview Cover.')
+            layout.addStretch(1); layout.addWidget(cover); layout.addStretch(1)
+            return host
         cover_url=row.get('cover_url') or ''
         raw=self._image_cache.get(cover_url) if cover_url else None
         if raw:
@@ -7251,9 +8369,21 @@ class MangaNanaDialog(QDialog):
             return {'volume':None,'label':'Selected Chapters','chapters':chapters} if chapters else None
         if self._selected_volumes:
             volume=min(self._selected_volumes)
-            return {'volume':volume,'label':f'Volume {volume:g}','chapters':()}
+            # Reuse Finalization's exact acquisition membership, including for
+            # derived volumes whose provider has no native volume assignments.
+            groups=selected_unified_volume_groups(
+                self._current_plan, selected_volumes=(volume,), include_standalone=False
+            )
+            group=next((row for row in groups if row.get('kind') == 'volume'),None)
+            chapters=tuple(dict(row) for row in (group or {}).get('chapters') or ())
+            return {'volume':volume,'label':f'Volume {volume:g}','chapters':chapters}
         if self._standalone_selected:
-            return {'volume':None,'label':'Standalone Chapters','chapters':()}
+            groups=selected_unified_volume_groups(
+                self._current_plan, selected_volumes=(), include_standalone=True
+            )
+            group=next((row for row in groups if row.get('kind') == 'standalone'),None)
+            chapters=tuple(dict(row) for row in (group or {}).get('chapters') or ())
+            return {'volume':None,'label':'Standalone Chapters','chapters':chapters}
         return None
 
     def _preview_sample_key(self, _item=None):
@@ -7279,7 +8409,10 @@ class MangaNanaDialog(QDialog):
             self.live_preview_status.setText('Preview settings or content changed. Refresh explicitly when you want a new sample.')
         elif key in self._live_preview_samples and self.workflow_state.preview_state == 'ready':
             self.pairing_preview_btn.setText('Refresh Preview')
-            self.live_preview_status.setText('A bounded preview sample is shown below. Refresh only when you want to download it again.')
+            if self._detail_page is None and self._screen_emulation_id != NONE_PROFILE_ID:
+                self.live_preview_status.setText('Kobo Libra Colour is selected; simulation appears in single-page Detail Preview.')
+            else:
+                self.live_preview_status.setText('Adjustments update this preview automatically. Refresh only when you want to download the source sample again.')
         else:
             self.pairing_preview_btn.setText('Enable Live Preview')
             self.live_preview_status.setText('Preview is optional and off. Enable it to download a small bounded sample.')
@@ -7298,6 +8431,9 @@ class MangaNanaDialog(QDialog):
         if not target:
             self.live_preview_status.setText('Select manga content on Choose Manga before enabling preview.')
             return
+        self._clear_detail_preview()
+        self._invalidate_processing_render()
+        self._live_preview_samples.clear()
         sample_key=self._preview_sample_key(); volume=target['volume']; label=target['label']
         planned_chapters=tuple(target.get('chapters') or ())
         self._live_preview_request_id += 1; request_id=self._live_preview_request_id
@@ -7318,10 +8454,17 @@ class MangaNanaDialog(QDialog):
         self.pairing_preview_worker.progress.connect(lambda pct,text,rid=request_id,key=sample_key:self.on_pairing_preview_progress(pct,text,rid,key))
         self.pairing_preview_worker.log.connect(self.add_log)
         self.pairing_preview_worker.cancelled_ok.connect(lambda rid=request_id:self.on_pairing_preview_cancelled(rid))
+        self._retain_async_worker(self.pairing_preview_worker)
+        self.pairing_preview_worker.finished.connect(lambda w=self.pairing_preview_worker:self._preview_acquisition_finished(w))
         self.pairing_preview_worker.start()
 
+    def _preview_acquisition_finished(self, worker):
+        if self.pairing_preview_worker is worker:
+            self.pairing_preview_worker = None
+            if not self._closing: self._update_live_preview_action()
+
     def on_pairing_preview_progress(self, pct, text, request_id=None, sample_key=None):
-        if (request_id != self._live_preview_request_id or sample_key != self._live_preview_signature_value() or
+        if (self._closing or request_id != self._live_preview_request_id or sample_key != self._live_preview_signature_value() or
                 self.workflow_state.stage != 'book_customization'):
             return
         self.progress.setValue(pct)
@@ -7336,28 +8479,32 @@ class MangaNanaDialog(QDialog):
             if widget is not None: widget.deleteLater()
         for index,(number,blob,_kind) in enumerate(data.get('thumbs') or ()):
             cell=QFrame(); layout=QVBoxLayout(cell); layout.setContentsMargins(4,4,4,4)
-            pic=QLabel(); pic.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            pixmap=QPixmap(); pixmap.loadFromData(blob); pic.setPixmap(pixmap)
-            caption=QLabel(f'Output page {number}'); caption.setAlignment(Qt.AlignmentFlag.AlignCenter); caption.setStyleSheet('color:#AEB3B8; font-size:10px;')
-            layout.addWidget(pic); layout.addWidget(caption)
+            pic=QToolButton(); pic.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+            pixmap=QPixmap(); pixmap.loadFromData(blob); pic.setIcon(QIcon(pixmap)); pic.setIconSize(pixmap.size())
+            width, height = data['dimensions'][number]
+            pic.setText(f'Output page {number}\n{width} × {height}')
+            pic.setAccessibleName(f'Open detail for output page {number}, {width} by {height} pixels')
+            pic.clicked.connect(lambda _checked=False, n=number: self._open_preview_detail(n))
+            layout.addWidget(pic)
             self.live_preview_grid.addWidget(cell,index//2,index%2)
         self.live_preview_empty.setVisible(False); self.live_preview_scroll.setVisible(True)
 
     def on_pairing_preview_ready(self, data, request_id=None, sample_key=None):
-        if (request_id != self._live_preview_request_id or sample_key != self._live_preview_signature_value() or
+        if (self._closing or request_id != self._live_preview_request_id or sample_key != self._live_preview_signature_value() or
                 self.workflow_state.stage != 'book_customization'):
             return
+        self._live_preview_samples.clear()
         self._live_preview_samples[sample_key]=data
         self._active_preview_sample_key=sample_key
         self._live_preview_stale=False
         self.workflow_state.mark_preview_ready()
-        self._render_live_preview(data)
+        self._schedule_processing_render(immediate=True)
         self._reset_pairing_preview_button()
-        self.progress_text.setText('Live Preview ready.')
+        self.progress_text.setText('Preview sample acquired. Rendering locally…')
         self._set_work_progress_visible(False)
 
     def on_pairing_preview_cancelled(self, request_id=None):
-        if request_id != self._live_preview_request_id:
+        if self._closing or request_id != self._live_preview_request_id:
             return
         self._reset_pairing_preview_button()
         self.progress.setValue(0)
@@ -7366,7 +8513,7 @@ class MangaNanaDialog(QDialog):
         self.add_log('Live Preview cancelled. Temporary preview images were discarded.')
 
     def on_pairing_preview_failed(self, msg, request_id=None, sample_key=None):
-        if request_id != self._live_preview_request_id or sample_key != self._live_preview_signature_value():
+        if self._closing or request_id != self._live_preview_request_id or sample_key != self._live_preview_signature_value():
             return
         self.workflow_state.mark_preview_failed()
         self.live_preview_status.setText('Preview sample could not be loaded. Retry when convenient; Finalization remains available.')
@@ -7403,11 +8550,21 @@ class MangaNanaDialog(QDialog):
     def _set_download_ui_locked(self, locked):
         """Keep the visible configuration synchronized with the active job."""
         self._download_in_progress = bool(locked)
+        self.processing_reset.setEnabled(not locked)
+        self.processing_preset.setEnabled(not locked)
+        self.save_processing_preset.setEnabled(not locked)
+        self.manage_processing_presets.setEnabled(not locked)
+        for name, (slider, _label) in self._processing_controls.items():
+            slider.setEnabled(not locked and not (name == 'saturation' and self.processing.grayscale))
+        for control in (self.grayscale_off, self.grayscale_on, self.output_depth):
+            control.setEnabled(not locked)
+        self.dithering.setEnabled(not locked and bool(self.output_depth.currentData()))
+        self.dither_strength.setEnabled(not locked and bool(self.output_depth.currentData()) and self.dithering.currentData() != 'off')
         controls = [
             self.search_box, self.prefer_colored, self.search_btn, self.url, self.load_btn,
             self.search_results, self.show_more_btn, self.alt_titles_btn, self.volume_list, self.select_all_btn, self.clear_volume_btn,
             self.portrait_btn, self.landscape_btn, self.language, self.reading_direction,
-            self.start, self.end, self.covers, self.pad, self.pairing_preview_btn,
+            self.start, self.end, self.covers, self.cover_mode, self.cover_preview_btn, self.pad, self.pairing_preview_btn, self.screen_emulation,
             self.chapter_output_combo, self.title, self.series, self.author, self.apply_metadata_btn,
             self.preferences_btn, self.sources_btn, self.about_btn,
         ]
@@ -7422,7 +8579,7 @@ class MangaNanaDialog(QDialog):
         else:
             for control in (
                 self.search_box, self.prefer_colored, self.search_btn, self.url, self.load_btn,
-                self.search_results, self.portrait_btn, self.landscape_btn, self.covers,
+                self.search_results, self.portrait_btn, self.landscape_btn, self.covers, self.cover_mode, self.cover_preview_btn, self.screen_emulation,
                 self.pad, self.chapter_output_combo, self.title, self.series, self.author,
                 self.preferences_btn, self.sources_btn, self.about_btn,
             ):
@@ -7430,6 +8587,7 @@ class MangaNanaDialog(QDialog):
                 except Exception: pass
             try: self.show_more_btn.setEnabled(self.show_more_btn.isVisible())
             except Exception: pass
+            self._sync_cover_mode_controls()
             try: self.alt_titles_btn.setEnabled(bool(self.loaded_metadata and self.loaded_metadata.get('titles')))
             except Exception: pass
             try: self.volume_list.setEnabled(bool(self._download_language_valid))
@@ -7500,6 +8658,8 @@ class MangaNanaDialog(QDialog):
                                           reading_direction=self.reading_direction.currentData(),
                                           main_cover_url=self._main_cover_url,
                                           volume_covers=self._loaded_covers,
+                                          processing=self.processing,
+                                          cover_mode=self.cover_mode.currentData(),
                                           chapter_output_groups=[row.get('group') for row in (self.preview_data.get('rows') or [])
                                                                  if row.get('selected') and row.get('group')] or None)
             self.worker.log.connect(self.add_log); self.worker.progress.connect(self.on_progress); self.worker.stats.connect(self.on_stats)
@@ -7679,6 +8839,7 @@ class MangaNanaDialog(QDialog):
             self.retry_failed(failures, failed_bonus)
 
     def on_downloaded(self, result):
+        import_started = time.perf_counter()
         try:
             added = 0; duplicates = 0; added_ids = []; import_anomalies = []
             _title,applied_author,applied_series=self._applied_metadata_values()
@@ -7742,6 +8903,7 @@ class MangaNanaDialog(QDialog):
             else:
                 self.progress_text.setText(f'Complete. Added {added} book(s), skipped {skipped}.')
             self.add_log(f'Added or updated {added} book(s) in Calibre. Existing volumes skipped: {skipped}.')
+            self.add_log(f'Calibre import completed in {time.perf_counter()-import_started:.2f}s. Total operation: {float(result.get("elapsed") or 0)+time.perf_counter()-import_started:.2f}s.')
             if import_anomalies:
                 self.add_log('Calibre import outcome requires investigation for: ' + ', '.join(import_anomalies))
             final_size_s = f'{final_bytes/(1024**3):.2f} GB' if final_bytes >= 1024**3 else f'{final_bytes/(1024**2):.1f} MB'

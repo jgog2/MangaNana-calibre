@@ -1,0 +1,96 @@
+{
+  "schema_version": 2,
+  "profile_id": "kobo_libra_colour_100_frontlight",
+  "name": "Kobo Libra Colour - 100% Frontlight",
+  "native_portrait": [
+    1264,
+    1680
+  ],
+  "native_landscape": [
+    1680,
+    1264
+  ],
+  "bw_ppi": 300,
+  "color_ppi": 150,
+  "target_condition": {
+    "frontlight_percent": 100,
+    "comfortlight_warmth": 0
+  },
+  "frame": {
+    "asset": "KoboBoarder.png",
+    "landscape_size": [
+      1926,
+      1725
+    ],
+    "landscape_screen_rect": {
+      "x": 127,
+      "y": 123,
+      "width": 1680,
+      "height": 1264
+    },
+    "portrait_rotation": "counterclockwise_90"
+  },
+  "tone": {
+    "black_floor": 60,
+    "white_ceiling": 228,
+    "gamma": 1.02
+  },
+  "color": {
+    "saturation": 0.29,
+    "red_gain": 1.08,
+    "green_gain": 1.0,
+    "blue_gain": 0.92
+  },
+  "spatial": {
+    "chroma_resolution_percent": 50,
+    "softness_radius": 0.09
+  },
+  "hue_corrections": {
+    "enabled": true,
+    "saturation_gate_percent": 0.0,
+    "anchors": {
+      "red": {
+        "hue_degrees": 0,
+        "lightness_percent": 9.3,
+        "saturation_percent": 35.0
+      },
+      "orange": {
+        "hue_degrees": 30,
+        "lightness_percent": -3.1,
+        "saturation_percent": 50.0
+      },
+      "yellow": {
+        "hue_degrees": 60,
+        "lightness_percent": -18.8,
+        "saturation_percent": -22.9
+      },
+      "green": {
+        "hue_degrees": 120,
+        "lightness_percent": -30.0,
+        "saturation_percent": -35.0
+      },
+      "cyan": {
+        "hue_degrees": 180,
+        "lightness_percent": -26.6,
+        "saturation_percent": -28.5
+      },
+      "blue": {
+        "hue_degrees": 240,
+        "lightness_percent": 3.0,
+        "saturation_percent": 0.0
+      },
+      "purple": {
+        "hue_degrees": 270,
+        "lightness_percent": 30.0,
+        "saturation_percent": -50.0
+      },
+      "magenta": {
+        "hue_degrees": 300,
+        "lightness_percent": 30.0,
+        "saturation_percent": -50.0
+      }
+    }
+  },
+  "provisional": false,
+  "notes": "Baseline global values are the exact values used during the user's close visual match. Hue corrections default to zero so the baseline appearance is preserved."
+}

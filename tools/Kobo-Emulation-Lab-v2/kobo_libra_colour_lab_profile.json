@@ -1,0 +1,106 @@
+{
+  "schema_version": 3,
+  "profile_id": "kobo_libra_colour_100_frontlight",
+  "name": "Kobo Libra Colour - 100% Frontlight",
+  "native_portrait": [
+    1264,
+    1680
+  ],
+  "native_landscape": [
+    1680,
+    1264
+  ],
+  "bw_ppi": 300,
+  "color_ppi": 150,
+  "target_condition": {
+    "frontlight_percent": 100,
+    "comfortlight_warmth": 0
+  },
+  "frame": {
+    "asset": "KoboBoarder.png",
+    "landscape_size": [
+      1926,
+      1725
+    ],
+    "landscape_screen_rect": {
+      "x": 127,
+      "y": 123,
+      "width": 1680,
+      "height": 1264
+    },
+    "portrait_rotation": "counterclockwise_90"
+  },
+  "tone": {
+    "black_floor": 62,
+    "white_ceiling": 232,
+    "gamma": 1.05
+  },
+  "color": {
+    "saturation": 0.22,
+    "red_gain": 1.03,
+    "green_gain": 1.0,
+    "blue_gain": 0.92
+  },
+  "spatial": {
+    "chroma_resolution_percent": 50,
+    "softness_radius": 0.41000000000000003
+  },
+  "hue_corrections": {
+    "enabled": false,
+    "saturation_gate_percent": 25,
+    "anchors": {
+      "red": {
+        "hue_degrees": 0,
+        "lightness_percent": 0.0,
+        "saturation_percent": 0.0
+      },
+      "orange": {
+        "hue_degrees": 30,
+        "lightness_percent": 0.0,
+        "saturation_percent": 0.0
+      },
+      "yellow": {
+        "hue_degrees": 60,
+        "lightness_percent": 0.0,
+        "saturation_percent": 0.0
+      },
+      "green": {
+        "hue_degrees": 120,
+        "lightness_percent": 0.0,
+        "saturation_percent": 0.0
+      },
+      "cyan": {
+        "hue_degrees": 180,
+        "lightness_percent": 0.0,
+        "saturation_percent": 0.0
+      },
+      "blue": {
+        "hue_degrees": 240,
+        "lightness_percent": 0.0,
+        "saturation_percent": 0.0
+      },
+      "purple": {
+        "hue_degrees": 270,
+        "lightness_percent": 0.0,
+        "saturation_percent": 0.0
+      },
+      "magenta": {
+        "hue_degrees": 300,
+        "lightness_percent": 0.0,
+        "saturation_percent": 0.0
+      }
+    }
+  },
+  "kaleido_surface": {
+    "cfa_enabled": false,
+    "cfa_strength": 0.0,
+    "mirror_cfa_horizontal": false,
+    "micro_grain_enabled": false,
+    "grain_strength": 0.0
+  },
+  "lab_state": {
+    "device_orientation": "portrait"
+  },
+  "provisional": true,
+  "notes": "Baseline global values are the exact values used during the user's close visual match. Hue corrections default to zero so the baseline appearance is preserved."
+}

@@ -21,6 +21,18 @@ MANIFEST_SCHEMA_VERSION = 'publication-manifest-v2'
 _PLACEHOLDER_TITLES = frozenset({'', 'fallback', 'unknown', 'none', 'null', 'n/a', 'untitled'})
 _EXPLICIT_CHAPTER_RANGE = re.compile(r'^\s*(\d+)\s*[-\u2013\u2014]\s*(\d+)\s*$')
 _MAX_EXPLICIT_CHAPTER_RANGE_SPAN = 200
+_BOOKWALKER_RIMG_COVER = re.compile(r'^https://rimg\.bookwalker\.jp/([^/?#]+)/[^/?#]+(?:\?[^#]*)?$', re.I)
+
+
+def _bookwalker_metadata_cover_url(value):
+    """Choose the public metadata rendition of a known rimg thumbnail URL.
+
+    Normalize cached references at manifest construction, without refetching the
+    catalog or changing its cache contract. Unknown URL forms remain unchanged.
+    """
+    url=str(value or '').strip()
+    match=_BOOKWALKER_RIMG_COVER.fullmatch(url)
+    return f'https://c.bookwalker.jp/{match.group(1)}/t_700x780.jpg' if match else url
 
 
 def normalize_publication_number(value):
@@ -509,9 +521,12 @@ class PublicationManifestBuilder:
                     cover.get('confidence') != 'exact' or
                     str(cover.get('edition_id') or '') != edition_id or not cover.get('url')):
                 continue
+            raw_cover_url=str(cover['url'])
+            metadata_cover_url=_bookwalker_metadata_cover_url(raw_cover_url)
             artwork = ManifestArtwork(
-                str(cover['url']), 'bookwalker', 'exact_volume', 'exact', publication_id,
+                metadata_cover_url, 'bookwalker', 'exact_volume', 'exact', publication_id,
                 edition_id, str(cover.get('volume_id') or ''), volume_key,
+                preview_url=raw_cover_url, source_url=metadata_cover_url,
             )
             current = self.volumes.get(volume_key) or ManifestVolume(volume_key, volume_key)
             self.volumes[volume_key] = replace(current, cover=artwork,
@@ -523,10 +538,13 @@ class PublicationManifestBuilder:
                             if item.get('artwork_type') == 'edition' and item.get('url') and
                             str(item.get('edition_id') or '') == edition_id), None)
         if edition_art:
+            raw_cover_url=str(edition_art['url'])
+            metadata_cover_url=_bookwalker_metadata_cover_url(raw_cover_url)
             self.edition_artwork = ManifestArtwork(
-                str(edition_art['url']), 'bookwalker', 'edition',
+                metadata_cover_url, 'bookwalker', 'edition',
                 str(edition_art.get('confidence') or 'exact'), publication_id, edition_id,
                 str(edition_art.get('volume_id') or ''),
+                preview_url=raw_cover_url, source_url=metadata_cover_url,
             )
         self.add_description(row.get('description'), 'bookwalker', 'trusted',
                              str(row.get('description_language') or ''), publication_id)
