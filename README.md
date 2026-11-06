@@ -1,4 +1,6 @@
-<h1 align="center">MangaAnkā</h1>
+<p align="center">
+  <img src="assets/covers/header.png" width="1200" alt="MangaAnkā — Discover, customize, and read manga">
+</p>
 
 <p align="center">
   <strong>Discover, customize, and add manga to calibre.</strong>
@@ -9,9 +11,18 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jgog2/MangaNana-calibre/releases">Download from GitHub Releases</a>
-  ·
-  <a href="https://github.com/jgog2/MangaNana-calibre/issues">Report an issue</a>
+  <a href="https://github.com/jgog2/MangaNana-calibre/releases">
+    <img src="https://img.shields.io/badge/Download-Plugin-66B7A8?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;labelColor=182825" alt="Download the calibre plugin">
+  </a>
+  <a href="#install">
+    <img src="https://img.shields.io/badge/Installation-Guide-36574F?style=for-the-badge&amp;labelColor=182825" alt="Installation guide">
+  </a>
+  <a href="https://github.com/jgog2/MangaNana-calibre">
+    <img src="https://img.shields.io/badge/Source-Code-36574F?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;labelColor=182825" alt="View source code">
+  </a>
+  <a href="https://github.com/jgog2/MangaNana-calibre/issues">
+    <img src="https://img.shields.io/badge/Report-Issue-36574F?style=for-the-badge&amp;labelColor=182825" alt="Report an issue">
+  </a>
 </p>
 
 ## Volume search & downloading
