@@ -1,0 +1,2685 @@
+{
+  "contract": "publication-identity-bridge-v1",
+  "revision": "berserk-reviewed-2026-10-12-r1",
+  "producer": "Codex bounded content review; exact-ID opt-in sidecar",
+  "scope": {
+    "canonical_work": "anilist:30002|kitsu:8",
+    "edition": "original",
+    "layout": "japanese-tankobon",
+    "language": "en"
+  },
+  "evidence": [
+    {
+      "id": "sequence",
+      "source_url": "https://mangapill.com/manga/1/berserk",
+      "revision": "captured-2026-10-11",
+      "locator": "BERSERK_EARLY_VOLUME_AUDIT.md and early-identity-ledger.json; WC Prologue order and MP separate numbering groups",
+      "inspected_at": "2026-10-12",
+      "authority": "provider_metadata"
+    },
+    {
+      "id": "publication",
+      "source_url": "https://berserk.fandom.com/wiki/Releases_(Manga)",
+      "revision": "indexed-audit-2026-10-11",
+      "locator": "early collected-volume table; English MangaDex IDs in publication-evidence.json; publisher episode TOC not retrieved",
+      "inspected_at": "2026-10-12",
+      "authority": "secondary_index"
+    },
+    {
+      "id": "content-00",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGM40RGYRWJVNER2B9X",
+      "revision": "8b5cd4d0d46f6b29ff05110f37ed951010d87019ecd39aaa92370f9f6dcbccfa",
+      "locator": "Reader manifest SHA256 8b5cd4d0d46f6b29ff05110f37ed951010d87019ecd39aaa92370f9f6dcbccfa; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 0",
+      "inspected_at": "2026-10-12T19:33:31.944908+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-01",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGM1AWMAEVE4GE5FQAZ",
+      "revision": "63704502f38b67531029e3d16de62277bda15a5befc78ef38ed4d4fdfed7b7db",
+      "locator": "Reader manifest SHA256 63704502f38b67531029e3d16de62277bda15a5befc78ef38ed4d4fdfed7b7db; title sample page 7; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 1",
+      "inspected_at": "2026-10-12T19:33:32.406161+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-02",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGMXAYXEGZHQHANZCK4",
+      "revision": "8a8535d7281221674ed2caccb01d1591df46b62e0c5c658656de953ad66a05b9",
+      "locator": "Reader manifest SHA256 8a8535d7281221674ed2caccb01d1591df46b62e0c5c658656de953ad66a05b9; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 2",
+      "inspected_at": "2026-10-12T19:33:33.786718+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-03",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGM9FV02R0B7F9SBJDN",
+      "revision": "c848ad8bd467a3e0802a3ddfc0a809640364d3092a4496cfbb9e22981be2d17e",
+      "locator": "Reader manifest SHA256 c848ad8bd467a3e0802a3ddfc0a809640364d3092a4496cfbb9e22981be2d17e; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 3",
+      "inspected_at": "2026-10-12T19:33:34.377158+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-04",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGMNDTSESYYPVJ3NNDT",
+      "revision": "eb4b1eaa7b8a98662127c568694c2d711397208515a18d5deeb55ba63f5d5a35",
+      "locator": "Reader manifest SHA256 eb4b1eaa7b8a98662127c568694c2d711397208515a18d5deeb55ba63f5d5a35; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 4",
+      "inspected_at": "2026-10-12T19:33:35.391993+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-05",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGMTPPC7WGMT5560NM2",
+      "revision": "c3e29e690948b6270c89aa3f97bec246f096ddfe44aa2dbe22c9a3bdcef7403f",
+      "locator": "Reader manifest SHA256 c3e29e690948b6270c89aa3f97bec246f096ddfe44aa2dbe22c9a3bdcef7403f; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 5",
+      "inspected_at": "2026-10-12T19:33:36.401685+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-06",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGM2F6AJSMREBHC915D",
+      "revision": "d1b8ba511ede7ef6bb9df2c0b442090746f045e812f5f645ab9ccaca54c904a7",
+      "locator": "Reader manifest SHA256 d1b8ba511ede7ef6bb9df2c0b442090746f045e812f5f645ab9ccaca54c904a7; title sample page 7; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 6",
+      "inspected_at": "2026-10-12T19:33:37.399644+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-07",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGMKBDAJJC7T60WGWMC",
+      "revision": "762907a9d84390ea3505e7c2a5d39e6b43ad9d0a14841a79a2e768cc712c9ac0",
+      "locator": "Reader manifest SHA256 762907a9d84390ea3505e7c2a5d39e6b43ad9d0a14841a79a2e768cc712c9ac0; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 7",
+      "inspected_at": "2026-10-12T19:33:38.408657+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-08",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGM2ZGS46TH4PFWBNEY",
+      "revision": "d559840f7d55b92314e3f454112cde66793f46a3a0acb9a840646516e50a38ce",
+      "locator": "Reader manifest SHA256 d559840f7d55b92314e3f454112cde66793f46a3a0acb9a840646516e50a38ce; title sample page 4; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 8",
+      "inspected_at": "2026-10-12T19:33:39.429691+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-09",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGMGYAB2SD0D2MWB1XZ",
+      "revision": "b9916883af4feac03ee10311350cca391b705feeef847d3709785653a473c605",
+      "locator": "Reader manifest SHA256 b9916883af4feac03ee10311350cca391b705feeef847d3709785653a473c605; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 9",
+      "inspected_at": "2026-10-12T19:33:40.255007+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-10",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGMDAAKWJ9NCJEB62A5",
+      "revision": "e2d7f9c927ca82f6b83089fa35cb0c3cddc82d94346ce95fac122c5d656bca9a",
+      "locator": "Reader manifest SHA256 e2d7f9c927ca82f6b83089fa35cb0c3cddc82d94346ce95fac122c5d656bca9a; title sample page 7; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 10",
+      "inspected_at": "2026-10-12T19:33:42.553644+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-11",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGMFKDHKFYGC48NYZ58",
+      "revision": "6cbc6851da9ada5ee171ea8657e9345bf3501c9b4f1521a1cf000d589130886c",
+      "locator": "Reader manifest SHA256 6cbc6851da9ada5ee171ea8657e9345bf3501c9b4f1521a1cf000d589130886c; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 11",
+      "inspected_at": "2026-10-12T19:33:44.068645+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-12",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGM4FAAVG23B6NEF343",
+      "revision": "4454ee0e1906a7f4ab9d1bc8456f586b639e78d7b8b55af575362c2da5057afe",
+      "locator": "Reader manifest SHA256 4454ee0e1906a7f4ab9d1bc8456f586b639e78d7b8b55af575362c2da5057afe; title sample page 7; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 12",
+      "inspected_at": "2026-10-12T19:33:45.093658+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-13",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGMQ6GTJ5KWH67JH7SC",
+      "revision": "4c6e5b8789d75178264da98aab9bedcdd3e81e72bdebba9f2b6fbb09697130ea",
+      "locator": "Reader manifest SHA256 4c6e5b8789d75178264da98aab9bedcdd3e81e72bdebba9f2b6fbb09697130ea; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 13",
+      "inspected_at": "2026-10-12T19:33:45.533509+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-14",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGM44F1A5HCBRXQ1YJD",
+      "revision": "cc2b02d08f216ca1ef5b279b9954f77b866b5abcb272f1fa49799682cb9f5919",
+      "locator": "Reader manifest SHA256 cc2b02d08f216ca1ef5b279b9954f77b866b5abcb272f1fa49799682cb9f5919; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 14",
+      "inspected_at": "2026-10-12T19:33:46.542513+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-15",
+      "source_url": "https://weebcentral.com/chapters/01J76XYYGMPHMDK8D9T38JQMBP",
+      "revision": "cd9ddb236a1d7656d00f6279d87a4f14a2443b80da646b0c1393a27c49b4c458",
+      "locator": "Reader manifest SHA256 cd9ddb236a1d7656d00f6279d87a4f14a2443b80da646b0c1393a27c49b4c458; title sample page 8; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 15",
+      "inspected_at": "2026-10-12T19:33:47.544583+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-16",
+      "source_url": "https://mangapill.com/chapters/1-20016000/berserk-chapter-16",
+      "revision": "e589aabe6257a654712b057490f45b4d096953751f0b89cb0bbb9a5d48751e2c",
+      "locator": "Reader manifest SHA256 e589aabe6257a654712b057490f45b4d096953751f0b89cb0bbb9a5d48751e2c; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 16",
+      "inspected_at": "2026-10-12T19:33:48.576525+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-17",
+      "source_url": "https://mangapill.com/chapters/1-20015000/berserk-chapter-15",
+      "revision": "16e3305446016289c18e4abb25d327754fdc066b2f247253b5f4c01a481c29cb",
+      "locator": "Reader manifest SHA256 16e3305446016289c18e4abb25d327754fdc066b2f247253b5f4c01a481c29cb; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 17",
+      "inspected_at": "2026-10-12T19:33:49.854649+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-18",
+      "source_url": "https://mangapill.com/chapters/1-20014000/berserk-chapter-14",
+      "revision": "5e70f94751c54608e68ebcf41479626082fea51d8aac6fd4ad5b7c14dac794f6",
+      "locator": "Reader manifest SHA256 5e70f94751c54608e68ebcf41479626082fea51d8aac6fd4ad5b7c14dac794f6; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 18",
+      "inspected_at": "2026-10-12T19:33:50.862656+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-19",
+      "source_url": "https://mangapill.com/chapters/1-20013000/berserk-chapter-13",
+      "revision": "90c87ac3b7535880e6d2575389b0e96b8063d4cf8499d44d7e8e6a2326961d9f",
+      "locator": "Reader manifest SHA256 90c87ac3b7535880e6d2575389b0e96b8063d4cf8499d44d7e8e6a2326961d9f; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 19",
+      "inspected_at": "2026-10-12T19:33:51.729710+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-20",
+      "source_url": "https://mangapill.com/chapters/1-20012000/berserk-chapter-12",
+      "revision": "d248c5f6c7e0c6bbf97214655da2346b7632c027884ee15a576f278dfcf79c4a",
+      "locator": "Reader manifest SHA256 d248c5f6c7e0c6bbf97214655da2346b7632c027884ee15a576f278dfcf79c4a; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 20",
+      "inspected_at": "2026-10-12T19:33:52.804713+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-21",
+      "source_url": "https://mangapill.com/chapters/1-20011000/berserk-chapter-11",
+      "revision": "5238dea47ffafe5f84e2dcb25595df5ce151c2b75bc1b6b02d844181aab476fe",
+      "locator": "Reader manifest SHA256 5238dea47ffafe5f84e2dcb25595df5ce151c2b75bc1b6b02d844181aab476fe; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 21",
+      "inspected_at": "2026-10-12T19:33:53.762070+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-22",
+      "source_url": "https://mangapill.com/chapters/1-20010000/berserk-chapter-10",
+      "revision": "3464baff3910b42cfae4a78a5b370006e95f6a99076966e6c1cdef8157f41aa5",
+      "locator": "Reader manifest SHA256 3464baff3910b42cfae4a78a5b370006e95f6a99076966e6c1cdef8157f41aa5; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 22",
+      "inspected_at": "2026-10-12T19:33:54.830779+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-23",
+      "source_url": "https://mangapill.com/chapters/1-20009000/berserk-chapter-9",
+      "revision": "49bed5c053aff66911d68f76eff7da67971189d64283e3a3ad8ea84f020495ea",
+      "locator": "Reader manifest SHA256 49bed5c053aff66911d68f76eff7da67971189d64283e3a3ad8ea84f020495ea; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 23",
+      "inspected_at": "2026-10-12T19:33:55.809897+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-24",
+      "source_url": "https://mangapill.com/chapters/1-20008000/berserk-chapter-8",
+      "revision": "0761f4c37dd832ceec87aec8fa74081ea866511ca6d9052dfafdb4c1a3d7a197",
+      "locator": "Reader manifest SHA256 0761f4c37dd832ceec87aec8fa74081ea866511ca6d9052dfafdb4c1a3d7a197; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 24",
+      "inspected_at": "2026-10-12T19:33:56.822159+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-25",
+      "source_url": "https://mangapill.com/chapters/1-20007000/berserk-chapter-7",
+      "revision": "fdd63cba5a33c2e994b7d77b877ce702d34da23b8b49eb8f294425d7b7327200",
+      "locator": "Reader manifest SHA256 fdd63cba5a33c2e994b7d77b877ce702d34da23b8b49eb8f294425d7b7327200; title sample page 7; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 25",
+      "inspected_at": "2026-10-12T19:33:57.855661+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-26",
+      "source_url": "https://mangapill.com/chapters/1-20006000/berserk-chapter-6",
+      "revision": "cbda0fd750a3290ee73c951066998bd00dd7f0f957f1bc457e87a24f58488076",
+      "locator": "Reader manifest SHA256 cbda0fd750a3290ee73c951066998bd00dd7f0f957f1bc457e87a24f58488076; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 26",
+      "inspected_at": "2026-10-12T19:33:58.869834+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-27",
+      "source_url": "https://mangapill.com/chapters/1-20005000/berserk-chapter-5",
+      "revision": "21e4c525290dc9626c6896231b6f99ef2f50a75658ad7f9092505138d7b08089",
+      "locator": "Reader manifest SHA256 21e4c525290dc9626c6896231b6f99ef2f50a75658ad7f9092505138d7b08089; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 27",
+      "inspected_at": "2026-10-12T19:33:59.857452+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-28",
+      "source_url": "https://mangapill.com/chapters/1-20004000/berserk-chapter-4",
+      "revision": "84a7a04c738c1e702fd5414149e50ba83a855d3d5e0e64940ffa56a35501a23f",
+      "locator": "Reader manifest SHA256 84a7a04c738c1e702fd5414149e50ba83a855d3d5e0e64940ffa56a35501a23f; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 28",
+      "inspected_at": "2026-10-12T19:34:00.889230+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-29",
+      "source_url": "https://mangapill.com/chapters/1-20003000/berserk-chapter-3",
+      "revision": "8bedac512c7c2f03b063d3070e11cc94074df7cb0e8f20de9d9b8d661749c923",
+      "locator": "Reader manifest SHA256 8bedac512c7c2f03b063d3070e11cc94074df7cb0e8f20de9d9b8d661749c923; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 29",
+      "inspected_at": "2026-10-12T19:34:01.893900+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-30",
+      "source_url": "https://mangapill.com/chapters/1-20002000/berserk-chapter-2",
+      "revision": "f8841eeccac6be5700397ccb5dc8928ecb753ccb759cbc33ae1b62f5acae7732",
+      "locator": "Reader manifest SHA256 f8841eeccac6be5700397ccb5dc8928ecb753ccb759cbc33ae1b62f5acae7732; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 30",
+      "inspected_at": "2026-10-12T19:34:02.862643+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-31",
+      "source_url": "https://mangapill.com/chapters/1-20001000/berserk-chapter-1",
+      "revision": "e9a16ac605e93ac84ac2679193cb857bd5110dc8887fcf841442c285ad19b07d",
+      "locator": "Reader manifest SHA256 e9a16ac605e93ac84ac2679193cb857bd5110dc8887fcf841442c285ad19b07d; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 31",
+      "inspected_at": "2026-10-12T19:34:03.913305+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-32",
+      "source_url": "https://mangapill.com/chapters/1-10016000/berserk-chapter-16",
+      "revision": "dcfdbc1a1ab8555f2dc677ef4652e0e013b1f85d7ce0406ffee0eb6fb7f86c29",
+      "locator": "Reader manifest SHA256 dcfdbc1a1ab8555f2dc677ef4652e0e013b1f85d7ce0406ffee0eb6fb7f86c29; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 32",
+      "inspected_at": "2026-10-12T19:34:04.947463+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-33",
+      "source_url": "https://mangapill.com/chapters/1-10015000/berserk-chapter-15",
+      "revision": "9f8d364ba79fae6258b1eec7e218a6a168f6c3a1f2c3a91a5a947a61764a501e",
+      "locator": "Reader manifest SHA256 9f8d364ba79fae6258b1eec7e218a6a168f6c3a1f2c3a91a5a947a61764a501e; title sample page 7; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 33",
+      "inspected_at": "2026-10-12T19:34:05.938196+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-34",
+      "source_url": "https://mangapill.com/chapters/1-10014000/berserk-chapter-14",
+      "revision": "d88c719c19919c067573507dbeb2360c09bf3578855d9a8d978d84030a8a2231",
+      "locator": "Reader manifest SHA256 d88c719c19919c067573507dbeb2360c09bf3578855d9a8d978d84030a8a2231; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 34",
+      "inspected_at": "2026-10-12T19:34:06.944605+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-35",
+      "source_url": "https://mangapill.com/chapters/1-10013000/berserk-chapter-13",
+      "revision": "d61131a8f7db977e29434a25cf38142209c375869e185c8e3d20b84e4c329b98",
+      "locator": "Reader manifest SHA256 d61131a8f7db977e29434a25cf38142209c375869e185c8e3d20b84e4c329b98; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 35",
+      "inspected_at": "2026-10-12T19:34:07.955672+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-36",
+      "source_url": "https://mangapill.com/chapters/1-10012000/berserk-chapter-12",
+      "revision": "e1112b19679a1ea45d3936e2534930a228ff8a6bd7e43b6c0fd3b03c8bf51a9f",
+      "locator": "Reader manifest SHA256 e1112b19679a1ea45d3936e2534930a228ff8a6bd7e43b6c0fd3b03c8bf51a9f; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 36",
+      "inspected_at": "2026-10-12T19:34:08.987391+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-37",
+      "source_url": "https://mangapill.com/chapters/1-10011000/berserk-chapter-11",
+      "revision": "ef43d2c2e311f17f62dbc39a30802d0826419fa4e1dd479e67dde57ea1ab67df",
+      "locator": "Reader manifest SHA256 ef43d2c2e311f17f62dbc39a30802d0826419fa4e1dd479e67dde57ea1ab67df; title sample page 1; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 37",
+      "inspected_at": "2026-10-12T19:34:10.039162+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-38",
+      "source_url": "https://mangapill.com/chapters/1-10010000/berserk-chapter-10",
+      "revision": "8798a9f0b5a73e551ae7164f6545b1bd211ab568d1a45038b9df9db7cbd67bff",
+      "locator": "Reader manifest SHA256 8798a9f0b5a73e551ae7164f6545b1bd211ab568d1a45038b9df9db7cbd67bff; title sample page 7; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 38",
+      "inspected_at": "2026-10-12T19:34:11.004630+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-39",
+      "source_url": "https://mangapill.com/chapters/1-10009000/berserk-chapter-9",
+      "revision": "c4fdc6a197cb5fe7a2238bca10216c2e937cfea38878aae5204f66464ddb8a80",
+      "locator": "Reader manifest SHA256 c4fdc6a197cb5fe7a2238bca10216c2e937cfea38878aae5204f66464ddb8a80; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 39",
+      "inspected_at": "2026-10-12T19:34:11.992634+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-40",
+      "source_url": "https://mangapill.com/chapters/1-10008000/berserk-chapter-8",
+      "revision": "67b3c6aeaeb64226bdf5665e8552ef34e00fea5a49d7bc276d7052440b73d14b",
+      "locator": "Reader manifest SHA256 67b3c6aeaeb64226bdf5665e8552ef34e00fea5a49d7bc276d7052440b73d14b; title sample page 4; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 40",
+      "inspected_at": "2026-10-12T19:34:12.905651+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-41",
+      "source_url": "https://mangapill.com/chapters/1-10007000/berserk-chapter-7",
+      "revision": "55e118cf23ef56b6bc9fb8b8015e225fb1913d5683515efe1e7cc0da27196aca",
+      "locator": "Reader manifest SHA256 55e118cf23ef56b6bc9fb8b8015e225fb1913d5683515efe1e7cc0da27196aca; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 41",
+      "inspected_at": "2026-10-12T19:34:14.095150+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-42",
+      "source_url": "https://mangapill.com/chapters/1-10006000/berserk-chapter-6",
+      "revision": "6b5693bcc4cef729e8a884c2d81d27302010c381c74b05bf7f3c972c642c54e1",
+      "locator": "Reader manifest SHA256 6b5693bcc4cef729e8a884c2d81d27302010c381c74b05bf7f3c972c642c54e1; title sample page 7; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 42",
+      "inspected_at": "2026-10-12T19:34:15.106651+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-43",
+      "source_url": "https://mangapill.com/chapters/1-10005000/berserk-chapter-5",
+      "revision": "43755547cfade69c27538932de4751886ab72c0d964de1f457efbbd3238df4ff",
+      "locator": "Reader manifest SHA256 43755547cfade69c27538932de4751886ab72c0d964de1f457efbbd3238df4ff; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 43",
+      "inspected_at": "2026-10-12T19:34:16.073655+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-44",
+      "source_url": "https://mangapill.com/chapters/1-10004000/berserk-chapter-4",
+      "revision": "4dffda53a93e85907f912c2c01deb514ac7f349302fb037dfc1def8a7a896a02",
+      "locator": "Reader manifest SHA256 4dffda53a93e85907f912c2c01deb514ac7f349302fb037dfc1def8a7a896a02; title sample page 7; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 44",
+      "inspected_at": "2026-10-12T19:34:17.160385+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-45",
+      "source_url": "https://mangapill.com/chapters/1-10003000/berserk-chapter-3",
+      "revision": "10d788156521c1d480f9be5d34ac17d8bb68c029444283ab451e9a583ec4dc1c",
+      "locator": "Reader manifest SHA256 10d788156521c1d480f9be5d34ac17d8bb68c029444283ab451e9a583ec4dc1c; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 45",
+      "inspected_at": "2026-10-12T19:34:18.156035+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-46",
+      "source_url": "https://mangapill.com/chapters/1-10002000/berserk-chapter-2",
+      "revision": "7bcf943e09aff4407b0f76f746ce9f753612dfbbf9152692258ed40a1a770176",
+      "locator": "Reader manifest SHA256 7bcf943e09aff4407b0f76f746ce9f753612dfbbf9152692258ed40a1a770176; title sample page 2; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 46",
+      "inspected_at": "2026-10-12T19:34:19.154016+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "content-47",
+      "source_url": "https://mangapill.com/chapters/1-10001000/berserk-chapter-1",
+      "revision": "381a83a5f837e5f1565f044c420dafb43139d321ddb1a2deefd80a331228d114",
+      "locator": "Reader manifest SHA256 381a83a5f837e5f1565f044c420dafb43139d321ddb1a2deefd80a331228d114; title sample page 8; all inspected sample URLs/hashes and boundary findings in candidate-review-ledger.json row 47",
+      "inspected_at": "2026-10-12T19:34:20.113177+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "printed-toc-1",
+      "source_url": "https://cdn.readdetectiveconan.com/file/mangap/1/10001000/6.jpg",
+      "revision": "d34f7ef2544c1aaa31245d20e82225a1f6e968388a35a9bfd361f71665a35e23",
+      "locator": "Scanned standard Dark Horse volume 1: copyright page 4 and printed table of contents page 6; hosted by the exact reviewed acquisition, not fetched from the publisher website",
+      "inspected_at": "2026-10-12T19:40:06.898819+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "printed-toc-2",
+      "source_url": "https://cdn.readdetectiveconan.com/file/mangap/1/10004000/6.jpg",
+      "revision": "a35e57e984d80f7df0252388a75c5f3ff6f84b8bdcedde0b56fa1d54f385e463",
+      "locator": "Scanned standard Dark Horse volume 2: copyright page 4 and printed table of contents page 6; hosted by the exact reviewed acquisition, not fetched from the publisher website",
+      "inspected_at": "2026-10-12T19:39:59.066295+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "printed-toc-3",
+      "source_url": "https://cdn.readdetectiveconan.com/file/mangap/1/10006000/6.jpg",
+      "revision": "991af578ef47d42f2356f87ce2593d032e8c64cd89dbefeecb2494188e34ead9",
+      "locator": "Scanned standard Dark Horse volume 3: copyright page 4 and printed table of contents page 6; hosted by the exact reviewed acquisition, not fetched from the publisher website",
+      "inspected_at": "2026-10-12T19:39:46.030636+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "printed-toc-4",
+      "source_url": "https://cdn.readdetectiveconan.com/file/mangap/1/10010000/6.jpg",
+      "revision": "b6200e8f600ab141fe8f65408d618fbe6214f32f70d65e2967e50a3568e30f50",
+      "locator": "Scanned standard Dark Horse volume 4: copyright page 4 and printed table of contents page 6; hosted by the exact reviewed acquisition, not fetched from the publisher website",
+      "inspected_at": "2026-10-12T19:39:35.431138+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "printed-toc-5",
+      "source_url": "https://cdn.readdetectiveconan.com/file/mangap/1/10015000/6.jpg",
+      "revision": "da75e30a432c11d436187ced1872fab231d4be866f2454ab20a8190fdab86cee",
+      "locator": "Scanned standard Dark Horse volume 5: copyright page 4 and printed table of contents page 6; hosted by the exact reviewed acquisition, not fetched from the publisher website",
+      "inspected_at": "2026-10-12T19:39:27.336381+00:00",
+      "authority": "reviewed_content"
+    },
+    {
+      "id": "printed-toc-6",
+      "source_url": "https://cdn.readdetectiveconan.com/file/mangap/1/20007000/6.jpg",
+      "revision": "b3bc784c113fbaa04477dd1cea41e2bd42d06cfccb49e784ea69b70696cab5d2",
+      "locator": "Scanned standard Dark Horse volume 6: copyright page 4 and printed table of contents page 6; hosted by the exact reviewed acquisition, not fetched from the publisher website",
+      "inspected_at": "2026-10-12T19:41:50.114463+00:00",
+      "authority": "reviewed_content"
+    }
+  ],
+  "targets": [
+    {
+      "id": "0-01",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-01"
+      },
+      "volume": "1",
+      "title": "The Black Swordsman",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-15",
+        "content-47",
+        "printed-toc-1"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -16
+    },
+    {
+      "id": "0-02",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-02"
+      },
+      "volume": "1",
+      "title": "The Brand",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-14",
+        "content-46",
+        "printed-toc-1"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -15
+    },
+    {
+      "id": "0-03",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-03"
+      },
+      "volume": "1",
+      "title": "The Guardians of Desire (1)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-13",
+        "content-45",
+        "printed-toc-1"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -14
+    },
+    {
+      "id": "0-04",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-04"
+      },
+      "volume": "2",
+      "title": "The Guardians of Desire (2) (LQ)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-12",
+        "content-44",
+        "printed-toc-2"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -13
+    },
+    {
+      "id": "0-05",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-05"
+      },
+      "volume": "2",
+      "title": "The Guardians of Desire (3) (LQ)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-11",
+        "content-43",
+        "printed-toc-2"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -12
+    },
+    {
+      "id": "0-06",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-06"
+      },
+      "volume": "3",
+      "title": "The Guardians of Desire (4) (LQ)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-10",
+        "content-42",
+        "printed-toc-3"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -11
+    },
+    {
+      "id": "0-07",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-07"
+      },
+      "volume": "3",
+      "title": "The Guardians of Desire (5) (LQ)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-09",
+        "content-41",
+        "printed-toc-3"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -10
+    },
+    {
+      "id": "0-08",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-08"
+      },
+      "volume": "3",
+      "title": "The Guardians of Desire (6) (LQ)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-08",
+        "content-40",
+        "printed-toc-3"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -9
+    },
+    {
+      "id": "0-09",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-09"
+      },
+      "volume": "3",
+      "title": "The Golden Age (1) (LQ)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-07",
+        "content-39",
+        "printed-toc-3"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -8
+    },
+    {
+      "id": "0-10",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-10"
+      },
+      "volume": "4",
+      "title": "The Golden Age (2)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-06",
+        "content-38",
+        "printed-toc-4"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -7
+    },
+    {
+      "id": "0-11",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-11"
+      },
+      "volume": "4",
+      "title": "The Golden Age (3)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-05",
+        "content-37",
+        "printed-toc-4"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -6
+    },
+    {
+      "id": "0-12",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-12"
+      },
+      "volume": "4",
+      "title": "The Golden Age (4)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-04",
+        "content-36",
+        "printed-toc-4"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -5
+    },
+    {
+      "id": "0-13",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-13"
+      },
+      "volume": "4",
+      "title": "The Golden Age (5)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-03",
+        "content-35",
+        "printed-toc-4"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -4
+    },
+    {
+      "id": "0-14",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-14"
+      },
+      "volume": "4",
+      "title": "The Golden Age (6)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-02",
+        "content-34",
+        "printed-toc-4"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -3
+    },
+    {
+      "id": "0-15",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-15"
+      },
+      "volume": "5",
+      "title": "The Golden Age (7)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-01",
+        "content-33",
+        "printed-toc-5"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -2
+    },
+    {
+      "id": "0-16",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "pre_serial",
+        "episode_token": "0-16"
+      },
+      "volume": "5",
+      "title": "The Golden Age (8)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-00",
+        "content-32",
+        "printed-toc-5"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": -1
+    },
+    {
+      "id": "001",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "001"
+      },
+      "volume": "5",
+      "title": "Sword Wind",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-31",
+        "printed-toc-5"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 1
+    },
+    {
+      "id": "002",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "002"
+      },
+      "volume": "5",
+      "title": "Nosferatu Zodd (1)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-30",
+        "printed-toc-5"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 2
+    },
+    {
+      "id": "003",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "003"
+      },
+      "volume": "5",
+      "title": "Nosferatu Zodd (2)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-29",
+        "printed-toc-5"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 3
+    },
+    {
+      "id": "004",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "004"
+      },
+      "volume": "5",
+      "title": "Nosferatu Zodd (3)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-28",
+        "printed-toc-5"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 4
+    },
+    {
+      "id": "005",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "005"
+      },
+      "volume": "5",
+      "title": "Nosferatu Zodd (4)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-27",
+        "printed-toc-5"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 5
+    },
+    {
+      "id": "006",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "006"
+      },
+      "volume": "5",
+      "title": "Master of the Sword (1)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-26",
+        "printed-toc-5"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 6
+    },
+    {
+      "id": "007",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "007"
+      },
+      "volume": "6",
+      "title": "Master of the Sword (2)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-25",
+        "printed-toc-6"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 7
+    },
+    {
+      "id": "008",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "008"
+      },
+      "volume": "6",
+      "title": "Assassin (1)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-24",
+        "printed-toc-6"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 8
+    },
+    {
+      "id": "009",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "009"
+      },
+      "volume": "6",
+      "title": "Assassin (2)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-23",
+        "printed-toc-6"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 9
+    },
+    {
+      "id": "010",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "010"
+      },
+      "volume": "6",
+      "title": "Assassin (3)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-22",
+        "printed-toc-6"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 10
+    },
+    {
+      "id": "011",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "011"
+      },
+      "volume": "6",
+      "title": "Assassin (4)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-21",
+        "printed-toc-6"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 11
+    },
+    {
+      "id": "012",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "012"
+      },
+      "volume": "6",
+      "title": "Precious Thing",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-20",
+        "printed-toc-6"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 12
+    },
+    {
+      "id": "013",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "013"
+      },
+      "volume": "6",
+      "title": "Departure for the Front",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-19",
+        "printed-toc-6"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 13
+    },
+    {
+      "id": "014",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "014"
+      },
+      "volume": "6",
+      "title": "Engagement",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-18",
+        "printed-toc-6"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 14
+    },
+    {
+      "id": "015",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "015"
+      },
+      "volume": "6",
+      "title": "Casca (1)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-17",
+        "printed-toc-6"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 15
+    },
+    {
+      "id": "016",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "016"
+      },
+      "volume": "6",
+      "title": "Casca (2)",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "sequence",
+        "publication",
+        "content-16",
+        "printed-toc-6"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true,
+      "reading_order": 16
+    },
+    {
+      "id": "017",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "017"
+      },
+      "volume": "7",
+      "title": "Casca (3)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "018",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "018"
+      },
+      "volume": "7",
+      "title": "Prepared for Death (1)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "019",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "019"
+      },
+      "volume": "7",
+      "title": "Prepared for Death (2)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "020",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "020"
+      },
+      "volume": "7",
+      "title": "Prepared for Death (3)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "021",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "021"
+      },
+      "volume": "7",
+      "title": "Survival",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "022",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "022"
+      },
+      "volume": "7",
+      "title": "Campfire of Dreams",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "023",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "023"
+      },
+      "volume": "7",
+      "title": "The Battle for Doldrey (1)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "024",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "024"
+      },
+      "volume": "7",
+      "title": "The Battle for Doldrey (2)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "025",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "025"
+      },
+      "volume": "7",
+      "title": "The Battle for Doldrey (3)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "026",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "026"
+      },
+      "volume": "7",
+      "title": "The Battle for Doldrey (4)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "027",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "027"
+      },
+      "volume": "8",
+      "title": "The Battle for Doldrey (5)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "028",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "028"
+      },
+      "volume": "8",
+      "title": "The Battle for Doldrey (6)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "029",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "029"
+      },
+      "volume": "8",
+      "title": "Triumphant Return",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "030",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "030"
+      },
+      "volume": "8",
+      "title": "Moment of Glory",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "031",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "031"
+      },
+      "volume": "8",
+      "title": "Tombstone of Flame (1)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "032",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "032"
+      },
+      "volume": "8",
+      "title": "Tombstone of Flame (2)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "033",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "033"
+      },
+      "volume": "8",
+      "title": "One Snowy Night",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "034",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "034"
+      },
+      "volume": "8",
+      "title": "The Morning Departure (1)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "035",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "035"
+      },
+      "volume": "8",
+      "title": "The Morning Departure (2)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    },
+    {
+      "id": "036",
+      "identity": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "serialization_namespace": "regular",
+        "episode_token": "036"
+      },
+      "volume": "8",
+      "title": "The Morning Departure (3)",
+      "status": "pending",
+      "revision": "candidate-1",
+      "evidence_refs": [
+        "sequence",
+        "publication"
+      ],
+      "reason": "Sequence/title allocation is corroborative only; exact provider content, split/merge boundaries and identity are not verified."
+    }
+  ],
+  "bindings": [
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGM40RGYRWJVNER2B9X",
+        "url": "https://weebcentral.com/chapters/01J76XYYGM40RGYRWJVNER2B9X",
+        "raw_label": "Prologue 16",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-16",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-00"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGM1AWMAEVE4GE5FQAZ",
+        "url": "https://weebcentral.com/chapters/01J76XYYGM1AWMAEVE4GE5FQAZ",
+        "raw_label": "Prologue 15",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-15",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-01"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGMXAYXEGZHQHANZCK4",
+        "url": "https://weebcentral.com/chapters/01J76XYYGMXAYXEGZHQHANZCK4",
+        "raw_label": "Prologue 14",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-14",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-02"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGM9FV02R0B7F9SBJDN",
+        "url": "https://weebcentral.com/chapters/01J76XYYGM9FV02R0B7F9SBJDN",
+        "raw_label": "Prologue 13",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-13",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-03"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGMNDTSESYYPVJ3NNDT",
+        "url": "https://weebcentral.com/chapters/01J76XYYGMNDTSESYYPVJ3NNDT",
+        "raw_label": "Prologue 12",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-12",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-04"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGMTPPC7WGMT5560NM2",
+        "url": "https://weebcentral.com/chapters/01J76XYYGMTPPC7WGMT5560NM2",
+        "raw_label": "Prologue 11",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-11",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-05"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGM2F6AJSMREBHC915D",
+        "url": "https://weebcentral.com/chapters/01J76XYYGM2F6AJSMREBHC915D",
+        "raw_label": "Prologue 10",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-10",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-06"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGMKBDAJJC7T60WGWMC",
+        "url": "https://weebcentral.com/chapters/01J76XYYGMKBDAJJC7T60WGWMC",
+        "raw_label": "Prologue 9",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-09",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-07"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGM2ZGS46TH4PFWBNEY",
+        "url": "https://weebcentral.com/chapters/01J76XYYGM2ZGS46TH4PFWBNEY",
+        "raw_label": "Prologue 8",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-08",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-08"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGMGYAB2SD0D2MWB1XZ",
+        "url": "https://weebcentral.com/chapters/01J76XYYGMGYAB2SD0D2MWB1XZ",
+        "raw_label": "Prologue 7",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-07",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-09"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGMDAAKWJ9NCJEB62A5",
+        "url": "https://weebcentral.com/chapters/01J76XYYGMDAAKWJ9NCJEB62A5",
+        "raw_label": "Prologue 6",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-06",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-10"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGMFKDHKFYGC48NYZ58",
+        "url": "https://weebcentral.com/chapters/01J76XYYGMFKDHKFYGC48NYZ58",
+        "raw_label": "Prologue 5",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-05",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-11"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGM4FAAVG23B6NEF343",
+        "url": "https://weebcentral.com/chapters/01J76XYYGM4FAAVG23B6NEF343",
+        "raw_label": "Prologue 4",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-04",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-12"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGMQ6GTJ5KWH67JH7SC",
+        "url": "https://weebcentral.com/chapters/01J76XYYGMQ6GTJ5KWH67JH7SC",
+        "raw_label": "Prologue 3",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-03",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-13"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGM44F1A5HCBRXQ1YJD",
+        "url": "https://weebcentral.com/chapters/01J76XYYGM44F1A5HCBRXQ1YJD",
+        "raw_label": "Prologue 2",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-02",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-14"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "weebcentral",
+        "source_work": "https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/Berserk",
+        "record_id": "01J76XYYGMPHMDK8D9T38JQMBP",
+        "url": "https://weebcentral.com/chapters/01J76XYYGMPHMDK8D9T38JQMBP",
+        "raw_label": "Prologue 1",
+        "numbering_namespace": "prologue",
+        "language": "en"
+      },
+      "target_id": "0-01",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-15"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20016000/berserk-chapter-16",
+        "url": "https://mangapill.com/chapters/1-20016000/berserk-chapter-16",
+        "raw_label": "Group 2 Chapter 16",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "016",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-16"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20015000/berserk-chapter-15",
+        "url": "https://mangapill.com/chapters/1-20015000/berserk-chapter-15",
+        "raw_label": "Group 2 Chapter 15",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "015",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-17"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20014000/berserk-chapter-14",
+        "url": "https://mangapill.com/chapters/1-20014000/berserk-chapter-14",
+        "raw_label": "Group 2 Chapter 14",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "014",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-18"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20013000/berserk-chapter-13",
+        "url": "https://mangapill.com/chapters/1-20013000/berserk-chapter-13",
+        "raw_label": "Group 2 Chapter 13",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "013",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-19"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20012000/berserk-chapter-12",
+        "url": "https://mangapill.com/chapters/1-20012000/berserk-chapter-12",
+        "raw_label": "Group 2 Chapter 12",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "012",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-20"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20011000/berserk-chapter-11",
+        "url": "https://mangapill.com/chapters/1-20011000/berserk-chapter-11",
+        "raw_label": "Group 2 Chapter 11",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "011",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-21"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20010000/berserk-chapter-10",
+        "url": "https://mangapill.com/chapters/1-20010000/berserk-chapter-10",
+        "raw_label": "Group 2 Chapter 10",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "010",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-22"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20009000/berserk-chapter-9",
+        "url": "https://mangapill.com/chapters/1-20009000/berserk-chapter-9",
+        "raw_label": "Group 2 Chapter 9",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "009",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-23"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20008000/berserk-chapter-8",
+        "url": "https://mangapill.com/chapters/1-20008000/berserk-chapter-8",
+        "raw_label": "Group 2 Chapter 8",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "008",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-24"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20007000/berserk-chapter-7",
+        "url": "https://mangapill.com/chapters/1-20007000/berserk-chapter-7",
+        "raw_label": "Group 2 Chapter 7",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "007",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-25"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20006000/berserk-chapter-6",
+        "url": "https://mangapill.com/chapters/1-20006000/berserk-chapter-6",
+        "raw_label": "Group 2 Chapter 6",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "006",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-26"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20005000/berserk-chapter-5",
+        "url": "https://mangapill.com/chapters/1-20005000/berserk-chapter-5",
+        "raw_label": "Group 2 Chapter 5",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "005",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-27"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20004000/berserk-chapter-4",
+        "url": "https://mangapill.com/chapters/1-20004000/berserk-chapter-4",
+        "raw_label": "Group 2 Chapter 4",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "004",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-28"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20003000/berserk-chapter-3",
+        "url": "https://mangapill.com/chapters/1-20003000/berserk-chapter-3",
+        "raw_label": "Group 2 Chapter 3",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "003",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-29"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20002000/berserk-chapter-2",
+        "url": "https://mangapill.com/chapters/1-20002000/berserk-chapter-2",
+        "raw_label": "Group 2 Chapter 2",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "002",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-30"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-20001000/berserk-chapter-1",
+        "url": "https://mangapill.com/chapters/1-20001000/berserk-chapter-1",
+        "raw_label": "Group 2 Chapter 1",
+        "numbering_namespace": "2",
+        "language": "en"
+      },
+      "target_id": "001",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-31"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10016000/berserk-chapter-16",
+        "url": "https://mangapill.com/chapters/1-10016000/berserk-chapter-16",
+        "raw_label": "Chapter 16",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-16",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-32"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10015000/berserk-chapter-15",
+        "url": "https://mangapill.com/chapters/1-10015000/berserk-chapter-15",
+        "raw_label": "Chapter 15",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-15",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-33"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10014000/berserk-chapter-14",
+        "url": "https://mangapill.com/chapters/1-10014000/berserk-chapter-14",
+        "raw_label": "Chapter 14",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-14",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-34"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10013000/berserk-chapter-13",
+        "url": "https://mangapill.com/chapters/1-10013000/berserk-chapter-13",
+        "raw_label": "Chapter 13",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-13",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-35"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10012000/berserk-chapter-12",
+        "url": "https://mangapill.com/chapters/1-10012000/berserk-chapter-12",
+        "raw_label": "Chapter 12",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-12",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-36"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10011000/berserk-chapter-11",
+        "url": "https://mangapill.com/chapters/1-10011000/berserk-chapter-11",
+        "raw_label": "Chapter 11",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-11",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-37"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10010000/berserk-chapter-10",
+        "url": "https://mangapill.com/chapters/1-10010000/berserk-chapter-10",
+        "raw_label": "Chapter 10",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-10",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-38"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10009000/berserk-chapter-9",
+        "url": "https://mangapill.com/chapters/1-10009000/berserk-chapter-9",
+        "raw_label": "Chapter 9",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-09",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-39"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10008000/berserk-chapter-8",
+        "url": "https://mangapill.com/chapters/1-10008000/berserk-chapter-8",
+        "raw_label": "Chapter 8",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-08",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-40"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10007000/berserk-chapter-7",
+        "url": "https://mangapill.com/chapters/1-10007000/berserk-chapter-7",
+        "raw_label": "Chapter 7",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-07",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-41"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10006000/berserk-chapter-6",
+        "url": "https://mangapill.com/chapters/1-10006000/berserk-chapter-6",
+        "raw_label": "Chapter 6",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-06",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-42"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10005000/berserk-chapter-5",
+        "url": "https://mangapill.com/chapters/1-10005000/berserk-chapter-5",
+        "raw_label": "Chapter 5",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-05",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-43"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10004000/berserk-chapter-4",
+        "url": "https://mangapill.com/chapters/1-10004000/berserk-chapter-4",
+        "raw_label": "Chapter 4",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-04",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-44"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10003000/berserk-chapter-3",
+        "url": "https://mangapill.com/chapters/1-10003000/berserk-chapter-3",
+        "raw_label": "Chapter 3",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-03",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-45"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10002000/berserk-chapter-2",
+        "url": "https://mangapill.com/chapters/1-10002000/berserk-chapter-2",
+        "raw_label": "Chapter 2",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-02",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-46"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    },
+    {
+      "acquisition": {
+        "provider": "mangapill",
+        "source_work": "https://mangapill.com/manga/1/berserk",
+        "record_id": "https://mangapill.com/chapters/1-10001000/berserk-chapter-1",
+        "url": "https://mangapill.com/chapters/1-10001000/berserk-chapter-1",
+        "raw_label": "Chapter 1",
+        "numbering_namespace": "unlabelled",
+        "language": "en"
+      },
+      "target_id": "0-01",
+      "content_relation": "one_to_one",
+      "status": "approved",
+      "revision": "content-review-r1",
+      "evidence_refs": [
+        "publication",
+        "content-47"
+      ],
+      "reviewer": "Codex visual/source evidence review",
+      "reviewed_at": "2026-10-12",
+      "relationship_verified": true
+    }
+  ]
+}

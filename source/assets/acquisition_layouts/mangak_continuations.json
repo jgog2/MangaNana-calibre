@@ -1,0 +1,253 @@
+{
+  "version": 1,
+  "reviewed_readers": [
+    {
+      "provider_record_id": "D6jMm9xD",
+      "reader_url": "https://mangak.io/haikyu/chapter-2-1",
+      "review_basis": "Owner-approved Phase 9C complete target-fragment inspection; Phase 9D",
+      "evidence_sha256": "34d4365536015fdcce66433a1240b947996c8ab353aaba404885395de677e401",
+      "fragments": [
+        {
+          "url": "https://rx.qvzri.org/r/p/ad434674/56b05feb/96afaf7f06d3.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "e13ce67b06dc4f86b5c313e21822683bb8c51a3903493cadf791f25b37f5728d"
+        },
+        {
+          "url": "https://rx.qvzrk.org/r/p/ad434674/56b05feb/681dec6dfaaf.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "bae45ce6099950d3515df63e252ab3f15638bb1840c286be9609cbc18594f79b"
+        },
+        {
+          "url": "https://rx.qvzra.org/r/p/ad434674/56b05feb/534408c4cef2.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "10018a6c12f7efcb7e12353ed19c0ccc43d3865779bfb7c626cbf01644651656"
+        },
+        {
+          "url": "https://rx.qvzrb.org/r/p/ad434674/56b05feb/ae1d8e883851.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "2c9e9fe17f2c478429d150a3836dcab77f2519c8cdbd439d69cf9fdb34250556"
+        },
+        {
+          "url": "https://rx.qvzrc.org/r/p/ad434674/56b05feb/914e71d3a620.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "2239833046950d2ce9499a787f9d3fa70c566cab4b9fcf3690c68ca4ce4f76e1"
+        },
+        {
+          "url": "https://rx.qvzrd.org/r/p/ad434674/56b05feb/e57f2a1f32e1.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "c9c054e6fc0c0771815c886e2fc2101a4c4a99e7965333ce257876bade562d33"
+        },
+        {
+          "url": "https://rx.qvzre.org/r/p/ad434674/56b05feb/5559e6a1eab0.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "c9af8376f79861af2c60d74573006e56cc97e44a70846a34444f5e6e506f65d1"
+        },
+        {
+          "url": "https://rx.qvzrf.org/r/p/ad434674/56b05feb/f6123aa2fc02.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "9e7f618a07b3816cae1c8a9c0a7055a786f4da25d895a5d9af9354d8083ae88c"
+        },
+        {
+          "url": "https://rx.qvzrg.org/r/p/ad434674/56b05feb/9db880471f94.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "7bc7b52114a3ae4edfbbe5f6ce378f46cfb1aea691d662fa4217c967051eec42"
+        },
+        {
+          "url": "https://rx.qvzrh.org/r/p/ad434674/56b05feb/e35faa31bb0f.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "2ce59cf161157e8667bed85b496ba9f1f0f3093dfb212acb580d453c6cd4e790"
+        },
+        {
+          "url": "https://rx.qvzri.org/r/p/ad434674/56b05feb/2c80fce0972a.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "25110893798896685f2a33d12507328ff3d8aa97e7bcedf4c425aa98fe30dd0f"
+        },
+        {
+          "url": "https://rx.qvzrk.org/r/p/ad434674/56b05feb/85c19fb08fd2.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "f5e4946d12be163befdbeb041a74f880e4b9760259fa1b67212f6744d2d7dd1b"
+        },
+        {
+          "url": "https://rx.qvzra.org/r/p/ad434674/56b05feb/75cd12746b6f.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "17c114d05349dc42f999bf55f4c3241e19802bdfaff0c66f0397a076bcab485d"
+        },
+        {
+          "url": "https://rx.qvzrb.org/r/p/ad434674/56b05feb/9fb2afa22514.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "35a890b7d0e906c423d44739082bf6ebe8d35b147137da6f5fc60ea750b3a4a0"
+        },
+        {
+          "url": "https://rx.qvzrc.org/r/p/ad434674/56b05feb/42066e47791d.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "41d1ee654fa4b1750ea8259539137df9226166955a16b17c979433256f53f708"
+        },
+        {
+          "url": "https://rx.qvzrd.org/r/p/ad434674/56b05feb/b37e2c49ee4d.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "9a2a0bb9bd324fb9735f36cc092ef0fd5b38bafddf216d9b090ae4375b15c230"
+        },
+        {
+          "url": "https://rx.qvzre.org/r/p/ad434674/56b05feb/a0b380552fab.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "acedbba439c9d2550407fe43209138f82fd1fe813b3bb59f8009f9d647cab592"
+        },
+        {
+          "url": "https://rx.qvzrf.org/r/p/ad434674/56b05feb/615eb6a165a5.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "fd41c985fe08b0e6bb32eda7ae4e1bb229fc64671ce9db7581482c3872735439"
+        },
+        {
+          "url": "https://rx.qvzrg.org/r/p/ad434674/56b05feb/881a57303c5a.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "29256e607569ebd77fc1833aefe78acc9b75785c8cdebd3b0caf31eac59e2f50"
+        },
+        {
+          "url": "https://rx.qvzrh.org/r/p/ad434674/56b05feb/411fd6cd241c.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "de8d838e692642ace402446b717a9b7e090cd2021ef30bd400d61a1c899c63b3"
+        },
+        {
+          "url": "https://rx.qvzri.org/r/p/ad434674/56b05feb/e3beaa7c6041.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "0462935443b56593381812833b7c1d321564c506cae3e20a10c96566514f5dd3"
+        },
+        {
+          "url": "https://rx.qvzrk.org/r/p/ad434674/56b05feb/47aa4c412c06.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "eb2e2149134fb95e4a622e8cab986f074812b0a337922e0e5af6a786fc7981fb"
+        },
+        {
+          "url": "https://rx.qvzra.org/r/p/ad434674/56b05feb/7d723406ddb6.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "e9cc0321296459c1a93d3a3b8e6cf6cc52b8987865e0249f1316aae4c95f2530"
+        },
+        {
+          "url": "https://rx.qvzrb.org/r/p/ad434674/56b05feb/c047bd75d5f0.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "6c5fa98f724bacac3ef8c55568294482c0d902acc530e0b005f35e4735766122"
+        },
+        {
+          "url": "https://rx.qvzrc.org/r/p/ad434674/56b05feb/6d8dab38021e.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "48f5c795034cba669fc6596037783fb8937faa03288f4da8ceff1b61780f83ff"
+        },
+        {
+          "url": "https://rx.qvzrd.org/r/p/ad434674/56b05feb/32970a60ccf3.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "b9b588a0af837e00baa16edb7528384367e6c7c0146dbc57e90f9e35428c8e4e"
+        },
+        {
+          "url": "https://rx.qvzre.org/r/p/ad434674/56b05feb/0a78aba0d175.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "ca00ef238d674fd3368d855b331051f53d6ca151b71b9667fb91472f6987b855"
+        },
+        {
+          "url": "https://rx.qvzrf.org/r/p/ad434674/56b05feb/42536873e5d3.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "4ef42fb2325ed18928642e6043beb6a674e197d0eda9b72a06744e6142a8aa70"
+        },
+        {
+          "url": "https://rx.qvzrg.org/r/p/ad434674/56b05feb/020277bf1204.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "a3a9e69cc705adb7e6b0b24ea8adb3c7c379bea4db21a91a6e6c0caf2d88d5ba"
+        },
+        {
+          "url": "https://rx.qvzrh.org/r/p/ad434674/56b05feb/55360ea26e5a.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "97b7eb86d10d79f4f614c086abf09931d318d1ee4c49eb33d7f2c6238a7ca88d"
+        },
+        {
+          "url": "https://rx.qvzri.org/r/p/ad434674/56b05feb/da9646ed987a.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "132a25b615463eb5331dcba006edfa16c37509ee34ff43a70a500e15b661127a"
+        },
+        {
+          "url": "https://rx.qvzrk.org/r/p/ad434674/56b05feb/680b8deaae6c.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "57a8b30e2a7ef1a4b2828b6bda43bc64a4b3df976f7cfc04edeab09b99916241"
+        },
+        {
+          "url": "https://rx.qvzra.org/r/p/ad434674/56b05feb/c1b2804d4827.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "989a3bf23de25901f6000f9f7b9a69e72ba1c4d42c2258a0a0717038bf3c4a50"
+        },
+        {
+          "url": "https://rx.qvzrb.org/r/p/ad434674/56b05feb/aa8da3389aa1.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "1239d1046ebe460c4296080627b0eef364fe0be803f23ca20a221b9c24adc0b5"
+        },
+        {
+          "url": "https://rx.qvzrc.org/r/p/ad434674/56b05feb/51b405a403aa.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "c58f6159047c28e125b288c501da5e54f9e8fdbcca72bdba7ea1bbb839d2b9d5"
+        },
+        {
+          "url": "https://rx.qvzrd.org/r/p/ad434674/56b05feb/fa4ca608afea.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "f8f69443dfa6e15adb805510a91118ae516b9dcfc27d3aafdf01be764ff0ff6d"
+        },
+        {
+          "url": "https://rx.qvzre.org/r/p/ad434674/56b05feb/cb58f000c880.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "809e638e07476e57bbd4a755ae1094526eb3933ccf2870ebc628344bb446978c"
+        },
+        {
+          "url": "https://rx.qvzrf.org/r/p/ad434674/56b05feb/414d51dff6d3.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "76630d90abc138f727a6a1ed7c15fe3ad5ae1b5e8f21f656158483097cf23ff6"
+        },
+        {
+          "url": "https://rx.qvzrg.org/r/p/ad434674/56b05feb/396c046f5c61.webp",
+          "width": 1067,
+          "height": 1500,
+          "sha256": "98aede6e92db36d513ad966350ff5098f8b3a1fe56280699664c84cfa3592155"
+        },
+        {
+          "url": "https://rx.qvzrh.org/r/p/ad434674/56b05feb/6e0a699bcfec.webp",
+          "width": 1067,
+          "height": 100,
+          "sha256": "03fbde35a94e760ef7aba4ce19dc4c166f61e1e32017c822a540c44455219fdd"
+        }
+      ]
+    }
+  ]
+}

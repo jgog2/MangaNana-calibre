@@ -1,0 +1,15 @@
+# Reproducible Python source on Windows, macOS and Linux.
+* text=auto
+*.py text eol=lf
+*.md text eol=lf
+# Preserve exact runtime artwork, shaders, audio, fonts and reviewed data.
+source/assets/** -text
+source/images/** -text
+source/native/** -text
+source/docs/ui/** -text
+source/catalog_schema_v1.json -text
+source/publication_identity_bridge_schema_v1.json -text
+source/PUBLICATION_IDENTITY_BRIDGE_CONTRACT.md -text
+source/THIRD_PARTY_NOTICES.md -text
+source/LICENSE -text
+docs/readme/** -text

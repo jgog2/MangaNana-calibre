@@ -1,0 +1,45 @@
+# Generated Python/build products
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage*
+htmlcov/
+
+# Local environments, editors and credentials
+.venv/
+venv/
+.env
+.env.*
+.idea/
+.vscode/
+local_settings.py
+*api_key*.json
+*credentials*.json
+
+# User data/evidence belongs outside source control
+downloads/
+Test-Data/
+Test-Library/
+Test-Downloads/
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.log
+*.dmp
+*.cbz
+*.pdf
+*.bak
+*.tmp
+
+# Keep the curated native DLL and deterministic image/JSON fixtures tracked.
+# Do not ignore assets/, tests/fixtures/ or native/ as whole directories.
+
+# Local release packages and upload workspaces
+builds/
+*.zip
+Upload-1.0/

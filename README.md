@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/covers/header.png" width="1200" alt="MangaAnkā — Discover, customize, and read manga">
+  <img src="source/assets/covers/header.png" width="1200" alt="MangaAnkā — Discover, customize, and read manga">
 </p>
 
 <p align="center">
@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jgog2/MangaNana-calibre/releases">
+  <a href="https://github.com/jgog2/MangaNana-calibre/releases/download/v1.0.0/MangaAnka-v1.0.0.zip">
     <img src="https://img.shields.io/badge/Download-Plugin-66B7A8?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;labelColor=182825" alt="Download the calibre plugin">
   </a>
   <a href="#install">
@@ -81,13 +81,13 @@ Heart a specific manga entry from a specific provider to save it for later. Retu
 
 ## Install
 
-Download the **calibre plugin ZIP** from [Releases](https://github.com/jgog2/MangaNana-calibre/releases). In calibre, open **Preferences → Plugins → Load plugin from file**, select the ZIP, and restart calibre if prompted. **Do not extract the plugin ZIP.**
+Download **[MangaAnka-v1.0.0.zip](https://github.com/jgog2/MangaNana-calibre/releases/download/v1.0.0/MangaAnka-v1.0.0.zip)** for Calibre 9.13 or newer. Use the plugin ZIP rather than either source-code archive. In calibre, open **Preferences → Plugins → Load plugin from file**, select the ZIP, and restart calibre if prompted. **Do not extract the plugin ZIP.**
 
 MangaAnkā runs as a calibre plugin. Online access and available material depend on each provider. Some metadata integrations, including Google Books, are optional.
 
 ## Compatibility and feedback
 
-MangaAnkā 1.0.0 — The World is a release candidate. Windows testing uses Calibre 9.13.0; Linux/macOS remain unqualified. The package still declares Calibre 7.0+, but a prior Calibre 7.0 native-startup failure remains unresolved. See [COMPATIBILITY.md](COMPATIBILITY.md) for version, resource-growth and upgrade limitations. For problems, open a [GitHub issue](https://github.com/jgog2/MangaNana-calibre/issues) and include your calibre version, operating system, steps to reproduce, and relevant Activity Log output.
+MangaAnkā 1.0.0 — The World requires **Calibre 9.13 or newer**. Windows testing uses Calibre 9.13.0; Linux/macOS remain unqualified. Older Calibre versions are not supported by this release. See [COMPATIBILITY.md](source/COMPATIBILITY.md) for version, resource-growth and upgrade limitations. For problems, open a [GitHub issue](https://github.com/jgog2/MangaNana-calibre/issues) and include your calibre version, operating system, steps to reproduce, and relevant Activity Log output.
 
 ## License
 
@@ -95,11 +95,11 @@ See the [repository LICENSE](LICENSE) for terms. Third-party manga content and a
 
 ## Build and contribute
 
-This repository contains the organized plugin source. Build the installable ZIP with `python tools/build_plugin.py`; output goes to the neighboring `builds` directory. The source archive is not an installable Calibre plugin. Internal `MangaNana` storage/plugin names stay unchanged for upgrades.
+The repository root contains this README, the license and screenshot documentation. Application code, resources, tests and developer tools are organized under `source/`. Build the installable ZIP with `python source/tools/build_plugin.py`; output goes to the repository’s `builds/` directory. The source archive is not an installable Calibre plugin. Internal `MangaNana` storage/plugin names stay unchanged for upgrades.
 
-- [Building and isolated testing](BUILDING.md)
-- [Contributing](CONTRIBUTING.md)
-- [Adding a provider](PROVIDER_DEVELOPMENT.md)
-- [Architecture](ARCHITECTURE.md)
-- [Release checklist](RELEASE_CHECKLIST.md)
-- [Third-party notices](THIRD_PARTY_NOTICES.md) and [asset provenance](ASSET_PROVENANCE.md)
+- [Building and isolated testing](source/BUILDING.md)
+- [Contributing](source/CONTRIBUTING.md)
+- [Adding a provider](source/PROVIDER_DEVELOPMENT.md)
+- [Architecture](source/ARCHITECTURE.md)
+- [Release checklist](source/RELEASE_CHECKLIST.md)
+- [Third-party notices](source/THIRD_PARTY_NOTICES.md) and [asset provenance](source/ASSET_PROVENANCE.md)
