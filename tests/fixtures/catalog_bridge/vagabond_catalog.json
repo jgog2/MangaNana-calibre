@@ -1,0 +1,888 @@
+{
+  "catalog_schema_version": 1,
+  "catalog_revision": "phase8-vagabond-1",
+  "generated_at": "2026-10-08T23:04:57.645945+00:00",
+  "producer": "MangaAnka DDK 0.3.0 / controlled bridge v1",
+  "record": {
+    "work": {
+      "canonical_work_id": "anilist:30656|kitsu:1482",
+      "title": "Vagabond",
+      "edition": "original",
+      "acquisition_language": "en",
+      "external_ids": {
+        "anilist_id": "30656",
+        "mal_id": "656",
+        "kitsu_id": "1482",
+        "anilist": "30656|kitsu:1482"
+      }
+    },
+    "record_revision": "1",
+    "coverage": "partial",
+    "limitations": [
+      "Only volumes 1, 2, 3, 37 and uncollected 323–327 are in this integration scope.",
+      "Secondary-source-backed fixture; no independent publisher or image-content verification."
+    ],
+    "unresolved_publication_questions": [
+      "Intermediate volumes are outside the approved fixture; no mappings supplied."
+    ],
+    "supplementary_identity_status": "none_claimed",
+    "unresolved_acquisitions": [],
+    "volumes": [
+      {
+        "volume_id": "volume:1",
+        "number": "1",
+        "publication_id": "isbn:9784063286199",
+        "evidence_refs": [
+          "owner-expectations"
+        ]
+      },
+      {
+        "volume_id": "volume:2",
+        "number": "2",
+        "publication_id": "isbn:9784063286205",
+        "evidence_refs": [
+          "owner-expectations"
+        ]
+      },
+      {
+        "volume_id": "volume:3",
+        "number": "3",
+        "publication_id": "isbn:9784063286441",
+        "evidence_refs": [
+          "owner-expectations"
+        ]
+      },
+      {
+        "volume_id": "volume:37",
+        "number": "37",
+        "publication_id": "isbn:9784063883404",
+        "evidence_refs": [
+          "owner-expectations"
+        ]
+      }
+    ],
+    "memberships": [
+      {
+        "chapter_id": "1",
+        "kind": "main",
+        "volume_id": "volume:1",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "2",
+        "kind": "main",
+        "volume_id": "volume:1",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "3",
+        "kind": "main",
+        "volume_id": "volume:1",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "4",
+        "kind": "main",
+        "volume_id": "volume:1",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "5",
+        "kind": "main",
+        "volume_id": "volume:1",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "6",
+        "kind": "main",
+        "volume_id": "volume:1",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "7",
+        "kind": "main",
+        "volume_id": "volume:1",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "8",
+        "kind": "main",
+        "volume_id": "volume:1",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "9",
+        "kind": "main",
+        "volume_id": "volume:1",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "10",
+        "kind": "main",
+        "volume_id": "volume:1",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "11",
+        "kind": "main",
+        "volume_id": "volume:2",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "12",
+        "kind": "main",
+        "volume_id": "volume:2",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "13",
+        "kind": "main",
+        "volume_id": "volume:2",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "14",
+        "kind": "main",
+        "volume_id": "volume:2",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "15",
+        "kind": "main",
+        "volume_id": "volume:2",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "16",
+        "kind": "main",
+        "volume_id": "volume:2",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "17",
+        "kind": "main",
+        "volume_id": "volume:2",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "18",
+        "kind": "main",
+        "volume_id": "volume:2",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "19",
+        "kind": "main",
+        "volume_id": "volume:2",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "20",
+        "kind": "main",
+        "volume_id": "volume:2",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "21",
+        "kind": "main",
+        "volume_id": "volume:2",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "22",
+        "kind": "main",
+        "volume_id": "volume:3",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "23",
+        "kind": "main",
+        "volume_id": "volume:3",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "24",
+        "kind": "main",
+        "volume_id": "volume:3",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "25",
+        "kind": "main",
+        "volume_id": "volume:3",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "26",
+        "kind": "main",
+        "volume_id": "volume:3",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "27",
+        "kind": "main",
+        "volume_id": "volume:3",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "28",
+        "kind": "main",
+        "volume_id": "volume:3",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "29",
+        "kind": "main",
+        "volume_id": "volume:3",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "30",
+        "kind": "main",
+        "volume_id": "volume:3",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "31",
+        "kind": "main",
+        "volume_id": "volume:3",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "316",
+        "kind": "main",
+        "volume_id": "volume:37",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "317",
+        "kind": "main",
+        "volume_id": "volume:37",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "318",
+        "kind": "main",
+        "volume_id": "volume:37",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "319",
+        "kind": "main",
+        "volume_id": "volume:37",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "320",
+        "kind": "main",
+        "volume_id": "volume:37",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "321",
+        "kind": "main",
+        "volume_id": "volume:37",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "322",
+        "kind": "main",
+        "volume_id": "volume:37",
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      }
+    ],
+    "uncollected": [
+      {
+        "chapter_id": "323",
+        "kind": "main",
+        "volume_id": null,
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "324",
+        "kind": "main",
+        "volume_id": null,
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "325",
+        "kind": "main",
+        "volume_id": null,
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "326",
+        "kind": "main",
+        "volume_id": null,
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      },
+      {
+        "chapter_id": "327",
+        "kind": "main",
+        "volume_id": null,
+        "evidence_refs": [
+          "ddk-captured-mapping",
+          "owner-expectations"
+        ]
+      }
+    ],
+    "acquisitions": [
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/pwYUIUVm",
+        "provider_chapter": "1",
+        "chapter_id": "1",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/ehBCTC8u",
+        "provider_chapter": "2",
+        "chapter_id": "2",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/UlsKGBrq",
+        "provider_chapter": "3",
+        "chapter_id": "3",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/5hUmBuo3",
+        "provider_chapter": "4",
+        "chapter_id": "4",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/m3y8Hpnz",
+        "provider_chapter": "5",
+        "chapter_id": "5",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/qmd964W0",
+        "provider_chapter": "6",
+        "chapter_id": "6",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/LYw3ayYr",
+        "provider_chapter": "7",
+        "chapter_id": "7",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/Dmfbcwsd",
+        "provider_chapter": "8",
+        "chapter_id": "8",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/7Mk0beA5",
+        "provider_chapter": "9",
+        "chapter_id": "9",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/zii766EY",
+        "provider_chapter": "10",
+        "chapter_id": "10",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/LnNSPztQ",
+        "provider_chapter": "11",
+        "chapter_id": "11",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/dEKgOpaB",
+        "provider_chapter": "12",
+        "chapter_id": "12",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/Fmt74xb4",
+        "provider_chapter": "13",
+        "chapter_id": "13",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/jmfIudvc",
+        "provider_chapter": "14",
+        "chapter_id": "14",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/h2OGPlaT",
+        "provider_chapter": "15",
+        "chapter_id": "15",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/AEm6y4c7",
+        "provider_chapter": "16",
+        "chapter_id": "16",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/YKkFwBDF",
+        "provider_chapter": "17",
+        "chapter_id": "17",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/ZDQU5CUZ",
+        "provider_chapter": "18",
+        "chapter_id": "18",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/bkyQGCy8",
+        "provider_chapter": "19",
+        "chapter_id": "19",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/7gl9ddn5",
+        "provider_chapter": "20",
+        "chapter_id": "20",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/2Eue1azP",
+        "provider_chapter": "21",
+        "chapter_id": "21",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/OmX8sacZ",
+        "provider_chapter": "22",
+        "chapter_id": "22",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/NonNCyQU",
+        "provider_chapter": "23",
+        "chapter_id": "23",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/k6UKLZPD",
+        "provider_chapter": "24",
+        "chapter_id": "24",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/ZCfJFS1O",
+        "provider_chapter": "25",
+        "chapter_id": "25",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/vUJP4e5g",
+        "provider_chapter": "26",
+        "chapter_id": "26",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/OYhA6alC",
+        "provider_chapter": "27",
+        "chapter_id": "27",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/cigdr4vG",
+        "provider_chapter": "28",
+        "chapter_id": "28",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/6GI3NoIP",
+        "provider_chapter": "29",
+        "chapter_id": "29",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/Ip9llH3v",
+        "provider_chapter": "30",
+        "chapter_id": "30",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/AayQudQs",
+        "provider_chapter": "31",
+        "chapter_id": "31",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/u9YHsVOC",
+        "provider_chapter": "316",
+        "chapter_id": "316",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/CfZwUZKJ",
+        "provider_chapter": "317",
+        "chapter_id": "317",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/qyYYoXzI",
+        "provider_chapter": "318",
+        "chapter_id": "318",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/WZlcLbF2",
+        "provider_chapter": "319",
+        "chapter_id": "319",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/FLfpQ5Ik",
+        "provider_chapter": "320",
+        "chapter_id": "320",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/5VPAkSyc",
+        "provider_chapter": "321",
+        "chapter_id": "321",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/POnGaJu5",
+        "provider_chapter": "322",
+        "chapter_id": "322",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/VHEqjRVn",
+        "provider_chapter": "323",
+        "chapter_id": "323",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/pDCWDuKi",
+        "provider_chapter": "324",
+        "chapter_id": "324",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/6ad6HEyj",
+        "provider_chapter": "325",
+        "chapter_id": "325",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/S4LD30F5",
+        "provider_chapter": "326",
+        "chapter_id": "326",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      },
+      {
+        "provider": "atsu",
+        "acquisition_id": "https://atsu.moe/read/1y53s/tjNBAdoG",
+        "provider_chapter": "327",
+        "chapter_id": "327",
+        "evidence_refs": [
+          "captured-provider-bindings"
+        ]
+      }
+    ],
+    "evidence_refs": [
+      "owner-expectations",
+      "ddk-captured-mapping",
+      "captured-provider-bindings"
+    ],
+    "layout": {
+      "layout_id": "vagabond:jp:kodansha:tankobon:single-volume",
+      "label": "Kodansha original Japanese tankobon single-volume arrangement",
+      "publisher": "Kodansha",
+      "market_relation": "original",
+      "publication_language": "ja",
+      "format": "single-volume tankobon",
+      "evidence_status": "owner_approved_secondary_source_fixture",
+      "evidence_refs": [
+        "owner-expectations"
+      ]
+    },
+    "qualification": "provisional",
+    "qualification_rationale": "Owner-approved secondary-source integration fixture; no independent publisher verification.",
+    "evidence": [
+      {
+        "evidence_id": "owner-expectations",
+        "source_url": "https://en.wikipedia.org/wiki/List_of_Vagabond_chapters",
+        "inspected_at": "2026-10-08",
+        "locator": "Owner-approved fixture owner-approved-1: four explicit volume lists and uncollected section",
+        "evidence_type": "owner_approved_secondary_source_test_expectations"
+      },
+      {
+        "evidence_id": "ddk-captured-mapping",
+        "source_url": "file:///C:/MangaAnka%20DDK/build/phase6-pilot/runs/run-20261008T091548Z-87a6753d-c7a3-4f6d-82d4-58187a2d4aa4/frozen/run/title-02-initial.json",
+        "inspected_at": "2026-10-08",
+        "locator": "audit publication_json projection selected explicit subset; SHA256 779d3f5deb792cd03edbeca38cb983267dcb08c26d5b540bb36089208b579a5f",
+        "evidence_type": "frozen_ddk_output_not_expected_truth"
+      },
+      {
+        "evidence_id": "captured-provider-bindings",
+        "source_url": "file:///C:/MangaAnka%20DDK/build/phase6-pilot/runs/run-20261008T091548Z-87a6753d-c7a3-4f6d-82d4-58187a2d4aa4/frozen/run/title-02-initial.json",
+        "inspected_at": "2026-10-08",
+        "locator": "Captured Atsu acquisition IDs and chapter labels; fixture binding only; official image contents not verified",
+        "evidence_type": "captured_provider_identity_binding_provisional"
+      }
+    ],
+    "verification": null
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "kitsu": {
+    "data": {
+      "id": "18812",
+      "attributes": {
+        "canonicalTitle": "JoJo's Bizarre Adventure Part 8: JoJolion",
+        "titles": {
+          "en": "JoJo's Bizarre Adventure Part 8: JoJolion",
+          "en_jp": "JoJo no Kimyou na Bouken Part 8: JoJolion",
+          "ja_jp": "ジョジョの奇妙な冒険 Part8 ジョジョリオン"
+        },
+        "abbreviatedTitles": [
+          "Jojorion",
+          "JoJo's Bizarre Adventure Part 8: Jojolion"
+        ],
+        "subtype": "manga"
+      }
+    }
+  },
+  "madb": {
+    "head": {
+      "vars": [
+        "series",
+        "property",
+        "value"
+      ]
+    },
+    "results": {
+      "bindings": [
+        {
+          "series": {
+            "type": "uri",
+            "value": "https://mediaarts-db.artmuseums.go.jp/id/C332620"
+          },
+          "property": {
+            "type": "uri",
+            "value": "https://schema.org/name"
+          },
+          "value": {
+            "type": "literal",
+            "value": "ジョジョリオン"
+          }
+        },
+        {
+          "series": {
+            "type": "uri",
+            "value": "https://mediaarts-db.artmuseums.go.jp/id/C332620"
+          },
+          "property": {
+            "type": "uri",
+            "value": "https://schema.org/name"
+          },
+          "value": {
+            "xml:lang": "ja-hrkt",
+            "type": "literal",
+            "value": "ジョジョリオン"
+          }
+        },
+        {
+          "series": {
+            "type": "uri",
+            "value": "https://mediaarts-db.artmuseums.go.jp/id/C332620"
+          },
+          "property": {
+            "type": "uri",
+            "value": "https://schema.org/alternateName"
+          },
+          "value": {
+            "xml:lang": "ja-hrkt",
+            "type": "literal",
+            "value": "ジョジョ ノ キミョウナ ボウケン"
+          }
+        },
+        {
+          "series": {
+            "type": "uri",
+            "value": "https://mediaarts-db.artmuseums.go.jp/id/C332620"
+          },
+          "property": {
+            "type": "uri",
+            "value": "https://schema.org/alternateName"
+          },
+          "value": {
+            "type": "literal",
+            "value": "ジョジョの奇妙な冒険 part 8"
+          }
+        },
+        {
+          "series": {
+            "type": "uri",
+            "value": "https://mediaarts-db.artmuseums.go.jp/id/C332620"
+          },
+          "property": {
+            "type": "uri",
+            "value": "http://www.w3.org/2000/01/rdf-schema#label"
+          },
+          "value": {
+            "type": "literal",
+            "value": "ジョジョリオン"
+          }
+        }
+      ]
+    }
+  }
+}

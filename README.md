@@ -1,158 +1,94 @@
-<p align="center">
-  <img src="images/icon.png" width="90" alt="MangaNana logo">
-</p>
-
-<h1 align="center">MangaNana</h1>
+<h1 align="center">MangaAnkā</h1>
 
 <p align="center">
- A calibre plugin to search MangaDex, download manga volumes, and create eReader-ready CBZ files with metadata, covers, and landscape paired-page support.
+  <strong>Discover, customize, and add manga to calibre.</strong>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-beta-orange">
-  <img src="https://img.shields.io/badge/Python-3.x-blue">
-  <img src="https://img.shields.io/badge/license-MIT-green">
+  Search multiple manga sources, download volumes or chapters, or prepare your own CBZ and PDF files. Preview the result and add finished books directly to your calibre library.
 </p>
 
 <p align="center">
-  <a href="https://github.com/jgog2/MangaNana-calibre/releases">
-    <img src="https://img.shields.io/badge/Download-Latest%20Beta-FF6740?style=for-the-badge&logo=github&logoColor=white">
-  </a>
+  <a href="https://github.com/jgog2/MangaNana-calibre/releases">Download from GitHub Releases</a>
+  ·
+  <a href="https://github.com/jgog2/MangaNana-calibre/issues">Report an issue</a>
 </p>
 
-## Overview
+## Volume search & downloading
 
-MangaNana is a calibre plugin designed to make finding, preparing, and adding manga from MangaDex easier.
+![MangaAnkā volume search, provider results, and selected volumes](docs/readme/01-volume-search.png)
 
-It combines MangaDex search, volume selection, metadata, covers, language handling, CBZ creation, and page-layout preparation into one workflow.
+Search across supported manga providers, browse publication volume groups, and select individual books or ranges. Volume covers, chapter coverage, and source information help you decide exactly what to add.
 
-<p align="center">
-Search → Select volumes → Choose your reading format → Download & Add
-</p>
+## Chapter mode
 
-![MangaNana main interface](images/main-ui.png)
+![MangaAnkā chapter selection and chapter artwork](docs/readme/02-chapter-mode.png)
 
-## Features
+Switch to individual chapters to collect specific entries, extras, or material outside a full volume. Chapter identities and available volume associations stay visible throughout selection.
 
-* Search MangaDex directly from calibre
-* Paste MangaDex title links manually
-* Select individual volumes or a continuous volume range
-* Support standalone chapters when MangaDex does not assign formal volume numbers
-* Automatic metadata and cover handling
-* Portrait page output
-* Landscape paired-page output
-* Pairing Preview for checking landscape page behavior
-* Review page counts and estimated file sizes before downloading
-* eReader-friendly CBZ preparation
-* Add completed manga directly to calibre
-* Activity Log with download progress and troubleshooting information
+## Import your own CBZ and PDF files
 
-## Review Before Downloading
+![MangaAnkā local CBZ and PDF import workspace](docs/readme/03-import-books.png)
 
-MangaNana provides a review step before the final download begins.
+Bring existing CBZ and PDF books into the same customization and calibre workflow. Review the selected files before preparing their metadata and output.
 
-![MangaNana review panel](images/review.png)
+## Page customization
 
-The Review panel can show:
+![MangaAnkā page layout, framing, image adjustments, and live preview](docs/readme/04-page-customization.png)
 
-* Selected volumes
-* Planned page count
-* Estimated file size
-* Output layout
-* Download language
-* Download status
+Adjust reading direction, paired pages, framing, brightness, contrast, gamma, and output quality. The live preview lets you inspect a sample before creating the finished book.
 
-Once the current selection has been reviewed, MangaNana enables **Download and Add to calibre**.
+## Dark page inversion
 
-## Pairing Preview
+![MangaAnkā dark-page inversion and grayscale customization](docs/readme/05-dark-page-inversion.png)
 
-![MangaNana pairing preview](images/pairing-preview.png)
+Preview dark-page inversion alongside grayscale and dithering settings. These options help tailor reading pages for different display preferences and eReaders.
 
-Landscape mode can combine individual manga pages into paired landscape pages.
+## eReader and eInk simulation
 
-The Pairing Preview downloads only a small sample from the beginning of a selected volume so you can inspect the resulting layout without downloading the entire book first.
+![MangaAnkā eReader simulation preview](docs/readme/06-ereader-simulation.png)
 
-This is especially useful for checking spreads, page order, and paired-page behavior before creating the final CBZ.
+Inspect your pages with device-oriented preview settings, including the Kobo Libra Colour simulator. Check readability and image treatment before exporting.
 
-## Volume Selection
+## Cover stamping & book metadata
 
-MangaNana supports several ways to choose what to download.
+![MangaAnkā Finalization and stamped volume cover preview](docs/readme/07-cover-stamping.png)
 
-You can:
+Edit titles, authors, series numbers, and covers before import. Optional cover stamping identifies the volume or chapter directly on the cover, making finished books easier to recognize in calibre.
 
-* Select individual volumes
-* Select multiple non-contiguous volumes
-* Enter an optional continuous volume range
-* Select the entire available series
-* Download standalone chapters when a MangaDex title does not use formal volume numbering
+## Provider tags & source settings
 
-Volume covers are used when available. If a volume does not have its own cover, MangaNana can fall back to the main manga cover.
+![MangaAnkā supported providers and source preferences](docs/readme/08-provider-settings.png)
 
-## Languages
+Use MangaDex, MangaPill, WeebCentral, MangaK, and Atsu, with identifiable source badges throughout browsing. Enable or disable providers from Settings while keeping publication-reference options separate from the download source.
 
-MangaNana checks which download languages are actually available for the selected title.
+## Bookmarks
 
-If your preferred language is unavailable, MangaNana can automatically switch to an available language instead of leaving the title unusable.
+![MangaAnkā provider-specific saved manga entries](docs/readme/09-bookmarks.png)
 
-Metadata title language and download language are handled separately.
+Heart a specific manga entry from a specific provider to save it for later. Return to your saved titles in the Bookmarks view without repeating a search.
 
-## Download
+## Install
 
-Download the latest beta from the **Releases** section of this repository.
+Download the **calibre plugin ZIP** from [Releases](https://github.com/jgog2/MangaNana-calibre/releases). In calibre, open **Preferences → Plugins → Load plugin from file**, select the ZIP, and restart calibre if prompted. **Do not extract the plugin ZIP.**
 
-Current public beta: **v0.9.8**
+MangaAnkā runs as a calibre plugin. Online access and available material depend on each provider. Some metadata integrations, including Google Books, are optional.
 
-> [!NOTE]
-> MangaNana is currently beta software. Testing across different operating systems, calibre versions, display scaling settings, eReaders, and MangaDex titles is appreciated.
+## Compatibility and feedback
 
-## Installation
-
-1. Download the latest MangaNana plugin ZIP from GitHub Releases.
-2. Open calibre.
-3. Go to **Preferences → Plugins**.
-4. Select **Load plugin from file**.
-5. Choose the MangaNana ZIP.
-6. Restart calibre when prompted.
-
-Do NOT extract the plugin ZIP before installing it through calibre.
-
-## Basic Workflow
-
-1. Open MangaNana from the calibre toolbar.
-2. Search MangaDex or paste a MangaDex title URL.
-3. Select a manga.
-4. Choose the download language and output layout.
-5. Select one or more volumes.
-6. Choose **Review**.
-7. Check the planned download in the Review panel.
-8. Choose **Download and Add to calibre**.
-9. MangaNana prepares the CBZ files and adds them to your calibre library.
-
-## Reporting Bugs
-
-Please use GitHub Issues when reporting unexpected behavior.
-
-Include as much of the following information as possible:
-
-* MangaNana version
-* calibre version
-* Operating system
-* Display scaling percentage, if the problem is visual
-* MangaDex title or URL
-* Download language
-* Portrait or Landscape mode
-* Steps needed to reproduce the problem
-* Activity Log output
-* Screenshot when relevant
-
-The Activity Log can be copied directly from MangaNana.
-
-## Current Scope
-
-MangaNana currently uses MangaDex as its manga source and calibre as its library integration.
-
-Possible future directions include support for additional manga sources, a standalone MangaNana application, local manga library management, and direct eReader transfer without requiring calibre.
+MangaAnkā 1.0.0 — The World is a release candidate. Windows testing uses Calibre 9.13.0; Linux/macOS remain unqualified. The package still declares Calibre 7.0+, but a prior Calibre 7.0 native-startup failure remains unresolved. See [COMPATIBILITY.md](COMPATIBILITY.md) for version, resource-growth and upgrade limitations. For problems, open a [GitHub issue](https://github.com/jgog2/MangaNana-calibre/issues) and include your calibre version, operating system, steps to reproduce, and relevant Activity Log output.
 
 ## License
 
-MangaNana is released under the MIT License.
+See the [repository LICENSE](LICENSE) for terms. Third-party manga content and artwork remain the property of their respective owners.
+
+## Build and contribute
+
+This repository contains the organized plugin source. Build the installable ZIP with `python tools/build_plugin.py`; output goes to the neighboring `builds` directory. The source archive is not an installable Calibre plugin. Internal `MangaNana` storage/plugin names stay unchanged for upgrades.
+
+- [Building and isolated testing](BUILDING.md)
+- [Contributing](CONTRIBUTING.md)
+- [Adding a provider](PROVIDER_DEVELOPMENT.md)
+- [Architecture](ARCHITECTURE.md)
+- [Release checklist](RELEASE_CHECKLIST.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md) and [asset provenance](ASSET_PROVENANCE.md)

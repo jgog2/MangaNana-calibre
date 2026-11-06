@@ -1,0 +1,108 @@
+{
+  "catalog_schema_version": 1,
+  "catalog_revision": "phase9d-haikyu-1",
+  "generated_at": "2026-10-09T03:54:20.784841+00:00",
+  "producer": "MangaAnka DDK 0.3.0 / controlled bridge v1",
+  "record": {
+    "work": {
+      "canonical_work_id": "anilist:65243|kitsu:12619",
+      "title": "Haikyu!!",
+      "edition": "original",
+      "acquisition_language": "en",
+      "external_ids": {
+        "anilist_id": "65243",
+        "kitsu_id": "12619"
+      }
+    },
+    "record_revision": "1",
+    "coverage": "partial",
+    "limitations": [
+      "One acquisition only, not a complete Volume 5; no other chapter memberships supplied",
+      "Reviewed acquisition identity, not complete publisher-copy equivalence.",
+      "English acquired pages; original Japanese publication arrangement only, no English print-layout claim.",
+      "Moniwa profile retained as attached material; exact publisher page and separate special identity not established."
+    ],
+    "unresolved_publication_questions": [
+      "All other memberships remain outside this fixture."
+    ],
+    "supplementary_identity_status": "none_claimed",
+    "unresolved_acquisitions": [],
+    "volumes": [
+      {
+        "volume_id": "volume:5",
+        "number": "5",
+        "publication_id": "isbn:9784088706313",
+        "evidence_refs": [
+          "shueisha-volume5-toc"
+        ]
+      }
+    ],
+    "memberships": [
+      {
+        "chapter_id": "41",
+        "kind": "main",
+        "volume_id": "volume:5",
+        "evidence_refs": [
+          "shueisha-volume5-toc"
+        ]
+      }
+    ],
+    "uncollected": [],
+    "acquisitions": [
+      {
+        "provider": "mangak",
+        "acquisition_id": "https://mangak.io/haikyu/chapter-2-1",
+        "provider_record_id": "D6jMm9xD",
+        "provider_chapter": "2.1",
+        "chapter_id": "41",
+        "evidence_refs": [
+          "phase9c-target-inspection",
+          "phase9d-owner-scope"
+        ]
+      }
+    ],
+    "evidence_refs": [
+      "phase9c-target-inspection",
+      "shueisha-volume5-toc",
+      "phase9d-owner-scope"
+    ],
+    "layout": {
+      "layout_id": "shueisha-jp-haikyu-standard-singles",
+      "label": "Haikyu!! — Shueisha original Japanese standard singles (one-chapter test subset)",
+      "publisher": "Shueisha",
+      "market_relation": "original_market",
+      "publication_language": "ja",
+      "format": "standard_single_volume",
+      "evidence_status": "supported",
+      "evidence_refs": [
+        "shueisha-volume5-toc"
+      ]
+    },
+    "qualification": "provisional",
+    "qualification_rationale": "Owner-approved limited identity test; retained content inspection plus separately captured publisher TOC, not independently verified catalog publication.",
+    "evidence": [
+      {
+        "evidence_id": "phase9c-target-inspection",
+        "source_url": "https://mangak.io/haikyu/chapter-2-1",
+        "inspected_at": "2026-10-09T03:30:27.966629+00:00",
+        "locator": "D6jMm9xD: all 40 fragments; chapter 41 narrative (1–38), attached Moniwa profile (39–40); evidence SHA256 34d4365536015fdcce66433a1240b947996c8ab353aaba404885395de677e401",
+        "evidence_type": "reviewed_acquisition_content"
+      },
+      {
+        "evidence_id": "shueisha-volume5-toc",
+        "source_url": "https://www.shueisha.co.jp/books/items/contents.html?jdcn=08870631870453315501",
+        "inspected_at": "2026-10-09",
+        "locator": "Original Japanese Volume 5 TOC: chapter 41, 2回戦突入, p129; next chapter 42 p149; print ISBN 9784088706313",
+        "evidence_type": "publisher_table_of_contents"
+      },
+      {
+        "evidence_id": "phase9d-owner-scope",
+        "source_url": "fixture://phase9d-owner-approved-scope",
+        "inspected_at": "2026-10-09",
+        "locator": "Limited integration approval; not publisher-copy equivalence or independently performed verification",
+        "evidence_type": "owner_test_scope"
+      }
+    ],
+    "verification": null
+  }
+}

@@ -1,0 +1,188 @@
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "98vndE8d",
+        "url": "/one-piece",
+        "name": "One Piece",
+        "alt_names": [
+          {
+            "name": "ワンピース"
+          },
+          {
+            "name": "Ван Піс"
+          },
+          {
+            "name": "One Piece. Большой куш"
+          },
+          {
+            "name": "Ван Пис"
+          },
+          {
+            "name": "وان پیس"
+          },
+          {
+            "name": "वन पीस"
+          },
+          {
+            "name": "ওয়ান পিস"
+          },
+          {
+            "name": "वान पिस"
+          },
+          {
+            "name": "वान पीस"
+          },
+          {
+            "name": "ஒன் பீஸ்"
+          },
+          {
+            "name": "วันพีซ"
+          },
+          {
+            "name": "Уан Пийс"
+          },
+          {
+            "name": "Уан Пис"
+          },
+          {
+            "name": "One Piece. Батпан құйрық"
+          },
+          {
+            "name": "Бір бөлік"
+          },
+          {
+            "name": "וואן פיס"
+          },
+          {
+            "name": "ون بيس"
+          },
+          {
+            "name": "قطعة واحدة"
+          },
+          {
+            "name": "海贼王"
+          },
+          {
+            "name": "海盗路飞"
+          },
+          {
+            "name": "航海王"
+          },
+          {
+            "name": "海賊王"
+          },
+          {
+            "name": "ဝမ်းပိစ်"
+          },
+          {
+            "name": "Đảo Hải Tặc"
+          },
+          {
+            "name": "Vua Hải Tặc"
+          },
+          {
+            "name": "Budak Getah"
+          },
+          {
+            "name": "원피스"
+          },
+          {
+            "name": "వన్ పీస్"
+          },
+          {
+            "name": "Ўан Піс"
+          },
+          {
+            "name": "Ўанпіс"
+          },
+          {
+            "name": "Ўан-Піс"
+          }
+        ],
+        "cover": "https://rx.resmk.org/covers/475200263dfc.webp",
+        "is_adult": false
+      },
+      {
+        "id": "yDE3La8m",
+        "url": "/one-piece-episode-a",
+        "name": "One Piece Episode A",
+        "cover": "https://rx.resmk.org/covers/86dc00142875.webp",
+        "is_adult": false
+      },
+      {
+        "id": "l8R6jy8O",
+        "url": "/one-piece-dj-boukyaku-countdown",
+        "name": "One Piece dj - Boukyaku Countdown",
+        "alt_names": [
+          {
+            "name": "One Piece dj - Countdown to Oblivion"
+          }
+        ],
+        "cover": "https://rx.resmk.org/covers/313472022493.webp",
+        "is_adult": true
+      },
+      {
+        "id": "p2qOwRVY",
+        "url": "/one-piece-alucard-the-immortal",
+        "name": "One Piece: Alucard the Immortal",
+        "cover": "https://rx.resmk.org/covers/ba6d3f653da7.webp",
+        "is_adult": false
+      },
+      {
+        "id": "oYOnpX8a",
+        "url": "/ohana-moyou-no-one-piece",
+        "name": "Ohana Moyou no One-Piece",
+        "alt_names": [
+          {
+            "name": "Flower Pattern Dress"
+          },
+          {
+            "name": "Flowery Dress"
+          },
+          {
+            "name": "Ohana Moyou no Wanpiisu"
+          },
+          {
+            "name": "Ohanamoyou no One-Piece"
+          },
+          {
+            "name": "お花もようのワンピース"
+          }
+        ],
+        "cover": "https://rx.resmk.org/covers/ca3d1f37bb63.webp",
+        "is_adult": false
+      },
+      {
+        "id": "02pnddYR",
+        "url": "/luff",
+        "name": "LUFF",
+        "alt_names": [
+          {
+            "name": "One Piece Special Episode \"Luff\""
+          }
+        ],
+        "cover": "https://rx.resmk.org/covers/991523db682d.webp",
+        "is_adult": false
+      },
+      {
+        "id": "PDmMb1vD",
+        "url": "/one-piece-johnny-and-yosaku-uncanon-adventures",
+        "name": "One Piece - Johnny & Yosaku Uncanon Adventures",
+        "cover": "https://rx.resmk.org/covers/874d806554f6.webp",
+        "is_adult": false
+      }
+    ],
+    "pagination": {
+      "total": 5115,
+      "page": 1,
+      "limit": 7,
+      "total_pages": 731,
+      "has_next": true,
+      "has_previous": false,
+      "next_cursor": "WzMwODMuODU5OSwxNzg0NDM0NTI3MDAwLDE0MzQxMl0",
+      "total_relation": "eq"
+    }
+  }
+}

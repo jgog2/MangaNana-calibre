@@ -1,0 +1,19 @@
+{
+  "data": {
+    "id": "12345678-1234-1234-1234-123456789abc",
+    "attributes": {
+      "title": {"ja": "原題", "en": "English Title"},
+      "altTitles": [
+        {"fr": "Titre français"},
+        {"en": "Alternate English Title"}
+      ],
+      "availableTranslatedLanguages": ["en", "fr", "es-la"],
+      "originalLanguage": "ja"
+    },
+    "relationships": [
+      {"type": "artist", "attributes": {"name": "Artist Name"}},
+      {"type": "author", "attributes": {"name": "Author Name"}},
+      {"type": "cover_art", "attributes": {"fileName": "main-cover.jpg"}}
+    ]
+  }
+}

@@ -1,0 +1,187 @@
+{
+  "found": 18,
+  "page": 1,
+  "hits": [
+    {
+      "document": {
+        "id": "sVC2A",
+        "title": "One Piece",
+        "authors": [
+          "ODA Eiichiro"
+        ],
+        "poster": "/static/posters/qp33UK6whoY69nrR.jpg",
+        "posterSmall": "/static/posters/qp33UK6whoY69nrR-small.avif",
+        "posterMedium": "/static/posters/qp33UK6whoY69nrR-medium.avif",
+        "type": "Manga",
+        "medium": "Comic",
+        "isAdult": false,
+        "year": 1997
+      }
+    },
+    {
+      "document": {
+        "id": "Xqitk",
+        "title": "One Piece (Color)",
+        "authors": [
+          "ODA Eiichiro"
+        ],
+        "poster": "/static/posters/SXfnXIG79jc1uhCY.jpg",
+        "posterSmall": "/static/posters/SXfnXIG79jc1uhCY-small.avif",
+        "posterMedium": "/static/posters/SXfnXIG79jc1uhCY-medium.avif",
+        "type": "Manga",
+        "medium": "Comic",
+        "isAdult": false,
+        "year": 1997
+      }
+    },
+    {
+      "document": {
+        "id": "iJpq5",
+        "title": "One Piece: Ace’s Story—The Manga",
+        "authors": [
+          "Boichi",
+          "HAMAZAKI Tatsuya",
+          "HINATA Shou",
+          "ISHIYAMA Ryo",
+          "ODA Eiichiro"
+        ],
+        "poster": "/static/posters/MJDdIamc6kbCLm5l.jpg",
+        "posterSmall": "/static/posters/MJDdIamc6kbCLm5l-small.avif",
+        "posterMedium": "/static/posters/MJDdIamc6kbCLm5l-medium.avif",
+        "type": "Manga",
+        "medium": "Comic",
+        "isAdult": false,
+        "year": 2020
+      }
+    },
+    {
+      "document": {
+        "id": "v6UYj",
+        "title": "One Piece: Shokugeki no Sanji",
+        "authors": [
+          "ODA Eiichiro",
+          "SAEKI Shun",
+          "TSUKUDA Yuuto"
+        ],
+        "poster": "/static/posters/R62Wj5qLAxuZFYce.jpg",
+        "posterSmall": "/static/posters/R62Wj5qLAxuZFYce-small.avif",
+        "posterMedium": "/static/posters/R62Wj5qLAxuZFYce-medium.avif",
+        "type": "Manga",
+        "medium": "Comic",
+        "isAdult": false,
+        "year": 2018
+      }
+    },
+    {
+      "document": {
+        "id": "anwwb",
+        "title": "Wanted! Eiichiro Oda Before One Piece",
+        "authors": [
+          "ODA Eiichiro"
+        ],
+        "poster": "/static/posters/88l2HHArswMfCvAt.png",
+        "posterSmall": "/static/posters/88l2HHArswMfCvAt-small.avif",
+        "posterMedium": "/static/posters/88l2HHArswMfCvAt-medium.avif",
+        "type": "Manga",
+        "medium": "Comic",
+        "isAdult": false,
+        "year": 1998
+      }
+    },
+    {
+      "document": {
+        "id": "MkuEB",
+        "title": "One Piece Party",
+        "authors": [
+          "ANDOU Ei",
+          "ODA Eiichiro"
+        ],
+        "poster": "/static/posters/WvYJPg2GnzAdQlXn.jpg",
+        "posterSmall": "/static/posters/WvYJPg2GnzAdQlXn-small.avif",
+        "posterMedium": "/static/posters/WvYJPg2GnzAdQlXn-medium.avif",
+        "type": "Manga",
+        "medium": "Comic",
+        "isAdult": false,
+        "year": 2014
+      }
+    },
+    {
+      "document": {
+        "id": "7Pk9",
+        "title": "One Piece : Start As Celestial Dragon And Take Down Hancock",
+        "authors": [],
+        "poster": "/static/posters/DS7pDwj0KxvsO4Sq.jpg",
+        "posterSmall": "/static/posters/DS7pDwj0KxvsO4Sq-small.avif",
+        "posterMedium": "/static/posters/DS7pDwj0KxvsO4Sq-medium.avif",
+        "type": "Manwha",
+        "medium": "Novel",
+        "isAdult": false
+      }
+    },
+    {
+      "document": {
+        "id": "zRUq",
+        "title": "One Piece: So What If I Sin, Lie, and Lust? I'm Still a Good Marine",
+        "authors": [],
+        "poster": "/static/posters/pYTr1RiRaTtU0IUa.jpg",
+        "posterSmall": "/static/posters/pYTr1RiRaTtU0IUa-small.avif",
+        "posterMedium": "/static/posters/pYTr1RiRaTtU0IUa-medium.avif",
+        "type": "Manwha",
+        "medium": "Novel",
+        "isAdult": false
+      }
+    },
+    {
+      "document": {
+        "id": "ZJxI",
+        "title": "One Piece: A Warlord's Path",
+        "authors": [],
+        "poster": "/static/posters/FaTjQMC4KeN9Oxif.jpg",
+        "posterSmall": "/static/posters/FaTjQMC4KeN9Oxif-small.avif",
+        "posterMedium": "/static/posters/FaTjQMC4KeN9Oxif-medium.avif",
+        "type": "Manwha",
+        "medium": "Novel",
+        "isAdult": false
+      }
+    },
+    {
+      "document": {
+        "id": "WXwd",
+        "title": "One Piece: With Sign-in System",
+        "authors": [],
+        "poster": "/static/posters/kjOgYEMkUQmPNyq0.jpg",
+        "posterSmall": "/static/posters/kjOgYEMkUQmPNyq0-small.avif",
+        "posterMedium": "/static/posters/kjOgYEMkUQmPNyq0-medium.avif",
+        "type": "Manwha",
+        "medium": "Novel",
+        "isAdult": false
+      }
+    },
+    {
+      "document": {
+        "id": "qWjL",
+        "title": "One Piece: Alucard the Immortal",
+        "authors": [],
+        "poster": "/static/posters/SkKpUxGwfEttdHdM.jpg",
+        "posterSmall": "/static/posters/SkKpUxGwfEttdHdM-small.avif",
+        "posterMedium": "/static/posters/SkKpUxGwfEttdHdM-medium.avif",
+        "type": "Manwha",
+        "medium": "Novel",
+        "isAdult": false
+      }
+    },
+    {
+      "document": {
+        "id": "spmo",
+        "title": "One Piece: Don't Worry, I'm a Doctor",
+        "authors": [],
+        "poster": "/static/posters/fVTLtbeMHN5auebc.jpg",
+        "posterSmall": "/static/posters/fVTLtbeMHN5auebc-small.avif",
+        "posterMedium": "/static/posters/fVTLtbeMHN5auebc-medium.avif",
+        "type": "Manwha",
+        "medium": "Novel",
+        "isAdult": false
+      }
+    }
+  ]
+}

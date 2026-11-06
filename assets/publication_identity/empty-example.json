@@ -1,0 +1,14 @@
+{
+  "contract": "publication-identity-bridge-v1",
+  "revision": "empty-example-1",
+  "producer": "MangaAnka contract example; no mappings",
+  "scope": {
+    "canonical_work": "example-work",
+    "edition": "original",
+    "layout": "example-layout",
+    "language": "en"
+  },
+  "evidence": [],
+  "targets": [],
+  "bindings": []
+}

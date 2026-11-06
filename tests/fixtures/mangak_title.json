@@ -1,0 +1,129 @@
+{
+  "pageProps": {
+    "initialManga": {
+      "id": "98vndE8d",
+      "url": "/one-piece",
+      "name": "One Piece",
+      "altNames": [
+        {
+          "name": "ワンピース"
+        },
+        {
+          "name": "Ван Піс"
+        },
+        {
+          "name": "One Piece. Большой куш"
+        },
+        {
+          "name": "Ван Пис"
+        },
+        {
+          "name": "وان پیس"
+        },
+        {
+          "name": "वन पीस"
+        },
+        {
+          "name": "ওয়ান পিস"
+        },
+        {
+          "name": "वान पिस"
+        },
+        {
+          "name": "वान पीस"
+        },
+        {
+          "name": "ஒன் பீஸ்"
+        },
+        {
+          "name": "วันพีซ"
+        },
+        {
+          "name": "Уан Пийс"
+        },
+        {
+          "name": "Уан Пис"
+        },
+        {
+          "name": "One Piece. Батпан құйрық"
+        },
+        {
+          "name": "Бір бөлік"
+        },
+        {
+          "name": "וואן פיס"
+        },
+        {
+          "name": "ون بيس"
+        },
+        {
+          "name": "قطعة واحدة"
+        },
+        {
+          "name": "海贼王"
+        },
+        {
+          "name": "海盗路飞"
+        },
+        {
+          "name": "航海王"
+        },
+        {
+          "name": "海賊王"
+        },
+        {
+          "name": "ဝမ်းပိစ်"
+        },
+        {
+          "name": "Đảo Hải Tặc"
+        },
+        {
+          "name": "Vua Hải Tặc"
+        },
+        {
+          "name": "Budak Getah"
+        },
+        {
+          "name": "원피스"
+        },
+        {
+          "name": "వన్ పీస్"
+        },
+        {
+          "name": "Ўан Піс"
+        },
+        {
+          "name": "Ўанпіс"
+        },
+        {
+          "name": "Ўан-Піс"
+        }
+      ],
+      "authors": [
+        {
+          "id": "oda-eiichiro",
+          "name": "Oda Eiichiro",
+          "slug": "oda-eiichiro",
+          "url": "/authors/oda-eiichiro"
+        },
+        {
+          "id": "oda-eiichirou",
+          "name": "Oda Eiichirou (尾田栄一郎)",
+          "slug": "oda-eiichirou",
+          "url": "/authors/oda-eiichirou"
+        },
+        {
+          "id": "eiichirou-oda",
+          "name": "Eiichirou Oda",
+          "slug": "eiichirou-oda",
+          "url": "/authors/eiichirou-oda"
+        }
+      ],
+      "releaseDate": "1997",
+      "cover": "https://rx.resmk.org/covers/475200263dfc.webp",
+      "summary": "Gol D. Roger, a man referred to as the \"Pirate King,\" is set to be executed by the World Government. But just before his demise, he confirms the existence of a great treasure, One Piece, located somewhere within the vast ocean known as the Grand Line. Announcing that One Piece can be claimed by anyone worthy enough to reach it, the Pirate King is executed and the Great Age of Pirates begins.  \r\n  \r\nTwenty-two years later, a young man by the name of Monkey D. Luffy is ready to embark on his own adventure, searching for One Piece and striving to become the new Pirate King. Armed with just a straw hat, a small boat, and an elastic body, he sets out on a fantastic journey to gather his own crew and a worthy ship that will take them across the Grand Line to claim the greatest status on the high seas.",
+      "isAdult": false,
+      "cv": 1788796016560
+    }
+  }
+}

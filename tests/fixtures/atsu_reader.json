@@ -1,0 +1,456 @@
+{
+  "readChapter": {
+    "id": "hI3sCUwE",
+    "title": "Chapter 1",
+    "pages": [
+      {
+        "id": "hI3sCUwE-0",
+        "image": "/static/pages/Xqitk/hI3sCUwE/0.webp",
+        "number": 0,
+        "width": 1200,
+        "height": 1800,
+        "aspectRatio": 0.6666666666666666
+      },
+      {
+        "id": "hI3sCUwE-1",
+        "image": "/static/pages/Xqitk/hI3sCUwE/1.webp",
+        "number": 1,
+        "width": 1200,
+        "height": 1800,
+        "aspectRatio": 0.6666666666666666
+      },
+      {
+        "id": "hI3sCUwE-2",
+        "image": "/static/pages/Xqitk/hI3sCUwE/2.webp",
+        "number": 2,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-3",
+        "image": "/static/pages/Xqitk/hI3sCUwE/3.webp",
+        "number": 3,
+        "width": 1200,
+        "height": 1800,
+        "aspectRatio": 0.6666666666666666
+      },
+      {
+        "id": "hI3sCUwE-4",
+        "image": "/static/pages/Xqitk/hI3sCUwE/4.webp",
+        "number": 4,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-5",
+        "image": "/static/pages/Xqitk/hI3sCUwE/5.webp",
+        "number": 5,
+        "width": 1920,
+        "height": 1477,
+        "aspectRatio": 1.299932295192959
+      },
+      {
+        "id": "hI3sCUwE-6",
+        "image": "/static/pages/Xqitk/hI3sCUwE/6.webp",
+        "number": 6,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-7",
+        "image": "/static/pages/Xqitk/hI3sCUwE/7.webp",
+        "number": 7,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-8",
+        "image": "/static/pages/Xqitk/hI3sCUwE/8.webp",
+        "number": 8,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-9",
+        "image": "/static/pages/Xqitk/hI3sCUwE/9.webp",
+        "number": 9,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-10",
+        "image": "/static/pages/Xqitk/hI3sCUwE/10.webp",
+        "number": 10,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-11",
+        "image": "/static/pages/Xqitk/hI3sCUwE/11.webp",
+        "number": 11,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-12",
+        "image": "/static/pages/Xqitk/hI3sCUwE/12.webp",
+        "number": 12,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-13",
+        "image": "/static/pages/Xqitk/hI3sCUwE/13.webp",
+        "number": 13,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-14",
+        "image": "/static/pages/Xqitk/hI3sCUwE/14.webp",
+        "number": 14,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-15",
+        "image": "/static/pages/Xqitk/hI3sCUwE/15.webp",
+        "number": 15,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-16",
+        "image": "/static/pages/Xqitk/hI3sCUwE/16.webp",
+        "number": 16,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-17",
+        "image": "/static/pages/Xqitk/hI3sCUwE/17.webp",
+        "number": 17,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-18",
+        "image": "/static/pages/Xqitk/hI3sCUwE/18.webp",
+        "number": 18,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-19",
+        "image": "/static/pages/Xqitk/hI3sCUwE/19.webp",
+        "number": 19,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-20",
+        "image": "/static/pages/Xqitk/hI3sCUwE/20.webp",
+        "number": 20,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-21",
+        "image": "/static/pages/Xqitk/hI3sCUwE/21.webp",
+        "number": 21,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-22",
+        "image": "/static/pages/Xqitk/hI3sCUwE/22.webp",
+        "number": 22,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-23",
+        "image": "/static/pages/Xqitk/hI3sCUwE/23.webp",
+        "number": 23,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-24",
+        "image": "/static/pages/Xqitk/hI3sCUwE/24.webp",
+        "number": 24,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-25",
+        "image": "/static/pages/Xqitk/hI3sCUwE/25.webp",
+        "number": 25,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-26",
+        "image": "/static/pages/Xqitk/hI3sCUwE/26.webp",
+        "number": 26,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-27",
+        "image": "/static/pages/Xqitk/hI3sCUwE/27.webp",
+        "number": 27,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-28",
+        "image": "/static/pages/Xqitk/hI3sCUwE/28.webp",
+        "number": 28,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-29",
+        "image": "/static/pages/Xqitk/hI3sCUwE/29.webp",
+        "number": 29,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-30",
+        "image": "/static/pages/Xqitk/hI3sCUwE/30.webp",
+        "number": 30,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-31",
+        "image": "/static/pages/Xqitk/hI3sCUwE/31.webp",
+        "number": 31,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-32",
+        "image": "/static/pages/Xqitk/hI3sCUwE/32.webp",
+        "number": 32,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-33",
+        "image": "/static/pages/Xqitk/hI3sCUwE/33.webp",
+        "number": 33,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-34",
+        "image": "/static/pages/Xqitk/hI3sCUwE/34.webp",
+        "number": 34,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-35",
+        "image": "/static/pages/Xqitk/hI3sCUwE/35.webp",
+        "number": 35,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-36",
+        "image": "/static/pages/Xqitk/hI3sCUwE/36.webp",
+        "number": 36,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-37",
+        "image": "/static/pages/Xqitk/hI3sCUwE/37.webp",
+        "number": 37,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-38",
+        "image": "/static/pages/Xqitk/hI3sCUwE/38.webp",
+        "number": 38,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-39",
+        "image": "/static/pages/Xqitk/hI3sCUwE/39.webp",
+        "number": 39,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-40",
+        "image": "/static/pages/Xqitk/hI3sCUwE/40.webp",
+        "number": 40,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-41",
+        "image": "/static/pages/Xqitk/hI3sCUwE/41.webp",
+        "number": 41,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-42",
+        "image": "/static/pages/Xqitk/hI3sCUwE/42.webp",
+        "number": 42,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-43",
+        "image": "/static/pages/Xqitk/hI3sCUwE/43.webp",
+        "number": 43,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-44",
+        "image": "/static/pages/Xqitk/hI3sCUwE/44.webp",
+        "number": 44,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-45",
+        "image": "/static/pages/Xqitk/hI3sCUwE/45.webp",
+        "number": 45,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-46",
+        "image": "/static/pages/Xqitk/hI3sCUwE/46.webp",
+        "number": 46,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-47",
+        "image": "/static/pages/Xqitk/hI3sCUwE/47.webp",
+        "number": 47,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-48",
+        "image": "/static/pages/Xqitk/hI3sCUwE/48.webp",
+        "number": 48,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-49",
+        "image": "/static/pages/Xqitk/hI3sCUwE/49.webp",
+        "number": 49,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-50",
+        "image": "/static/pages/Xqitk/hI3sCUwE/50.webp",
+        "number": 50,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-51",
+        "image": "/static/pages/Xqitk/hI3sCUwE/51.webp",
+        "number": 51,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-52",
+        "image": "/static/pages/Xqitk/hI3sCUwE/52.webp",
+        "number": 52,
+        "width": 1920,
+        "height": 1477,
+        "aspectRatio": 1.299932295192959
+      },
+      {
+        "id": "hI3sCUwE-53",
+        "image": "/static/pages/Xqitk/hI3sCUwE/53.webp",
+        "number": 53,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-54",
+        "image": "/static/pages/Xqitk/hI3sCUwE/54.webp",
+        "number": 54,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      },
+      {
+        "id": "hI3sCUwE-55",
+        "image": "/static/pages/Xqitk/hI3sCUwE/55.webp",
+        "number": 55,
+        "width": 1200,
+        "height": 1846,
+        "aspectRatio": 0.6500541711809318
+      }
+    ]
+  }
+}

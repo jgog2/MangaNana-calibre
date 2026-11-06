@@ -1,0 +1,341 @@
+{
+  "pageProps": {
+    "initialChapter": {
+      "id": "yDEzKzA2",
+      "url": "/one-piece/chapter-1-romance-dawn",
+      "name": "Chapter 1 : Romance Dawn",
+      "images": [
+        "https://rx.qvzrd.org/r/p/80cc0259/85e7553c/0ac9819c5b8d.webp",
+        "https://rx.qvzre.org/r/p/80cc0259/85e7553c/987763f1739b.webp",
+        "https://rx.qvzrf.org/r/p/80cc0259/85e7553c/a91a4238f679.webp",
+        "https://rx.qvzrg.org/r/p/80cc0259/85e7553c/52364f0a44ef.webp",
+        "https://rx.qvzrh.org/r/p/80cc0259/85e7553c/b8f43ca53b3d.webp",
+        "https://rx.qvzri.org/r/p/80cc0259/85e7553c/c21c9140d698.webp",
+        "https://rx.qvzrk.org/r/p/80cc0259/85e7553c/4ee34351631c.webp",
+        "https://rx.qvzra.org/r/p/80cc0259/85e7553c/c365a01671d0.webp",
+        "https://rx.qvzrb.org/r/p/80cc0259/85e7553c/2219cc2922b5.webp",
+        "https://rx.qvzrc.org/r/p/80cc0259/85e7553c/e710d3675939.webp",
+        "https://rx.qvzrd.org/r/p/80cc0259/85e7553c/ecb601a13d68.webp",
+        "https://rx.qvzre.org/r/p/80cc0259/85e7553c/5ff28f804a4c.webp",
+        "https://rx.qvzrf.org/r/p/80cc0259/85e7553c/95b1736c3b29.webp",
+        "https://rx.qvzrg.org/r/p/80cc0259/85e7553c/59a28068ef37.webp",
+        "https://rx.qvzrh.org/r/p/80cc0259/85e7553c/0aa3fbdcaf17.webp",
+        "https://rx.qvzri.org/r/p/80cc0259/85e7553c/d754fef9ea40.webp",
+        "https://rx.qvzrk.org/r/p/80cc0259/85e7553c/ea94ced2db0b.webp",
+        "https://rx.qvzra.org/r/p/80cc0259/85e7553c/15267e348f72.webp",
+        "https://rx.qvzrb.org/r/p/80cc0259/85e7553c/24e8e304f540.webp",
+        "https://rx.qvzrc.org/r/p/80cc0259/85e7553c/b9dc20b0b519.webp",
+        "https://rx.qvzrd.org/r/p/80cc0259/85e7553c/c786b28bb7fe.webp",
+        "https://rx.qvzre.org/r/p/80cc0259/85e7553c/64f7b79ca781.webp",
+        "https://rx.qvzrf.org/r/p/80cc0259/85e7553c/2ae31c7a9d69.webp",
+        "https://rx.qvzrg.org/r/p/80cc0259/85e7553c/568448b8e147.webp",
+        "https://rx.qvzrh.org/r/p/80cc0259/85e7553c/ed6f0b85c0ac.webp",
+        "https://rx.qvzri.org/r/p/80cc0259/85e7553c/b4bfed39a7f3.webp",
+        "https://rx.qvzrk.org/r/p/80cc0259/85e7553c/66f08d5f98d7.webp",
+        "https://rx.qvzra.org/r/p/80cc0259/85e7553c/ab7b86b754c9.webp",
+        "https://rx.qvzrb.org/r/p/80cc0259/85e7553c/747e4f5c0743.webp",
+        "https://rx.qvzrc.org/r/p/80cc0259/85e7553c/73ceccc51519.webp",
+        "https://rx.qvzrd.org/r/p/80cc0259/85e7553c/eb617491ed78.webp",
+        "https://rx.qvzre.org/r/p/80cc0259/85e7553c/05ee118a22c1.webp",
+        "https://rx.qvzrf.org/r/p/80cc0259/85e7553c/137dd733debd.webp",
+        "https://rx.qvzrg.org/r/p/80cc0259/85e7553c/e5611c98d2c7.webp",
+        "https://rx.qvzrh.org/r/p/80cc0259/85e7553c/a58609a1c92b.webp",
+        "https://rx.qvzri.org/r/p/80cc0259/85e7553c/9562c30b0819.webp",
+        "https://rx.qvzrk.org/r/p/80cc0259/85e7553c/b2edf9c5130e.webp",
+        "https://rx.qvzra.org/r/p/80cc0259/85e7553c/fc86b5b679c7.webp",
+        "https://rx.qvzrb.org/r/p/80cc0259/85e7553c/18b9588e42bd.webp",
+        "https://rx.qvzrc.org/r/p/80cc0259/85e7553c/01606b461a0e.webp",
+        "https://rx.qvzrd.org/r/p/80cc0259/85e7553c/2ad4261f5f61.webp",
+        "https://rx.qvzre.org/r/p/80cc0259/85e7553c/9bed468356bc.webp",
+        "https://rx.qvzrf.org/r/p/80cc0259/85e7553c/fd03b25f11a7.webp",
+        "https://rx.qvzrg.org/r/p/80cc0259/85e7553c/0163aadf9339.webp",
+        "https://rx.qvzrh.org/r/p/80cc0259/85e7553c/27d4722ebfb1.webp",
+        "https://rx.qvzri.org/r/p/80cc0259/85e7553c/bd5448a10e94.webp",
+        "https://rx.qvzrk.org/r/p/80cc0259/85e7553c/00335e48b8c0.webp",
+        "https://rx.qvzra.org/r/p/80cc0259/85e7553c/9fbef16c0f6a.webp",
+        "https://rx.qvzrb.org/r/p/80cc0259/85e7553c/4a7c9a038d2c.webp",
+        "https://rx.qvzrc.org/r/p/80cc0259/85e7553c/45337cc86d1f.webp",
+        "https://rx.qvzrd.org/r/p/80cc0259/85e7553c/fcc0a38f97e1.webp",
+        "https://rx.qvzre.org/r/p/80cc0259/85e7553c/a2c884c93d83.webp",
+        "https://rx.qvzrf.org/r/p/80cc0259/85e7553c/2f19832108e0.webp",
+        "https://rx.qvzrg.org/r/p/80cc0259/85e7553c/cbdf43c836a8.webp"
+      ],
+      "pages": [
+        {
+          "url": "https://rx.qvzrd.org/r/p/80cc0259/85e7553c/0ac9819c5b8d.webp",
+          "width": 1200,
+          "height": 884
+        },
+        {
+          "url": "https://rx.qvzre.org/r/p/80cc0259/85e7553c/987763f1739b.webp",
+          "width": 546,
+          "height": 885
+        },
+        {
+          "url": "https://rx.qvzrf.org/r/p/80cc0259/85e7553c/a91a4238f679.webp",
+          "width": 552,
+          "height": 902
+        },
+        {
+          "url": "https://rx.qvzrg.org/r/p/80cc0259/85e7553c/52364f0a44ef.webp",
+          "width": 700,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrh.org/r/p/80cc0259/85e7553c/b8f43ca53b3d.webp",
+          "width": 1200,
+          "height": 911
+        },
+        {
+          "url": "https://rx.qvzri.org/r/p/80cc0259/85e7553c/c21c9140d698.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrk.org/r/p/80cc0259/85e7553c/4ee34351631c.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzra.org/r/p/80cc0259/85e7553c/c365a01671d0.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrb.org/r/p/80cc0259/85e7553c/2219cc2922b5.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrc.org/r/p/80cc0259/85e7553c/e710d3675939.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrd.org/r/p/80cc0259/85e7553c/ecb601a13d68.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzre.org/r/p/80cc0259/85e7553c/5ff28f804a4c.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrf.org/r/p/80cc0259/85e7553c/95b1736c3b29.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrg.org/r/p/80cc0259/85e7553c/59a28068ef37.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrh.org/r/p/80cc0259/85e7553c/0aa3fbdcaf17.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzri.org/r/p/80cc0259/85e7553c/d754fef9ea40.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrk.org/r/p/80cc0259/85e7553c/ea94ced2db0b.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzra.org/r/p/80cc0259/85e7553c/15267e348f72.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrb.org/r/p/80cc0259/85e7553c/24e8e304f540.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrc.org/r/p/80cc0259/85e7553c/b9dc20b0b519.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrd.org/r/p/80cc0259/85e7553c/c786b28bb7fe.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzre.org/r/p/80cc0259/85e7553c/64f7b79ca781.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrf.org/r/p/80cc0259/85e7553c/2ae31c7a9d69.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrg.org/r/p/80cc0259/85e7553c/568448b8e147.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrh.org/r/p/80cc0259/85e7553c/ed6f0b85c0ac.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzri.org/r/p/80cc0259/85e7553c/b4bfed39a7f3.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrk.org/r/p/80cc0259/85e7553c/66f08d5f98d7.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzra.org/r/p/80cc0259/85e7553c/ab7b86b754c9.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrb.org/r/p/80cc0259/85e7553c/747e4f5c0743.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrc.org/r/p/80cc0259/85e7553c/73ceccc51519.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrd.org/r/p/80cc0259/85e7553c/eb617491ed78.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzre.org/r/p/80cc0259/85e7553c/05ee118a22c1.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrf.org/r/p/80cc0259/85e7553c/137dd733debd.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrg.org/r/p/80cc0259/85e7553c/e5611c98d2c7.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrh.org/r/p/80cc0259/85e7553c/a58609a1c92b.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzri.org/r/p/80cc0259/85e7553c/9562c30b0819.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrk.org/r/p/80cc0259/85e7553c/b2edf9c5130e.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzra.org/r/p/80cc0259/85e7553c/fc86b5b679c7.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrb.org/r/p/80cc0259/85e7553c/18b9588e42bd.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrc.org/r/p/80cc0259/85e7553c/01606b461a0e.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrd.org/r/p/80cc0259/85e7553c/2ad4261f5f61.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzre.org/r/p/80cc0259/85e7553c/9bed468356bc.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrf.org/r/p/80cc0259/85e7553c/fd03b25f11a7.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrg.org/r/p/80cc0259/85e7553c/0163aadf9339.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrh.org/r/p/80cc0259/85e7553c/27d4722ebfb1.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzri.org/r/p/80cc0259/85e7553c/bd5448a10e94.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrk.org/r/p/80cc0259/85e7553c/00335e48b8c0.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzra.org/r/p/80cc0259/85e7553c/9fbef16c0f6a.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrb.org/r/p/80cc0259/85e7553c/4a7c9a038d2c.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrc.org/r/p/80cc0259/85e7553c/45337cc86d1f.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrd.org/r/p/80cc0259/85e7553c/fcc0a38f97e1.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzre.org/r/p/80cc0259/85e7553c/a2c884c93d83.webp",
+          "width": 1200,
+          "height": 911
+        },
+        {
+          "url": "https://rx.qvzrf.org/r/p/80cc0259/85e7553c/2f19832108e0.webp",
+          "width": 725,
+          "height": 1100
+        },
+        {
+          "url": "https://rx.qvzrg.org/r/p/80cc0259/85e7553c/cbdf43c836a8.webp",
+          "width": 725,
+          "height": 1100
+        }
+      ]
+    },
+    "initialManga": {
+      "id": "98vndE8d",
+      "url": "/one-piece"
+    }
+  }
+}

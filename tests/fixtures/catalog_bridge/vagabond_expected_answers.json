@@ -1,0 +1,127 @@
+{
+  "fixture_format": "mangaanka-phase8-expected-answers-v1",
+  "fixture_revision": "owner-approved-1",
+  "inspection_date": "2026-10-08",
+  "status": "owner_approved_secondary_source_test_expectations",
+  "owner_approval": {"approved": true, "approved_at": "2026-10-08", "approved_by": "project_owner", "scope": "Limited integration fixture only; not independent publisher verification or authorization to publish a verified catalog."},
+  "independent_publication_verification": "pending_not_claimed",
+  "derived_from_ddk_output": false,
+  "work": {"title": "Vagabond", "creator": "Takehiko Inoue", "canonical_work_id": null},
+  "acquisition_language": "en",
+  "publication_layout": {
+    "proposed_layout_id": "vagabond:jp:kodansha:tankobon:single-volume",
+    "label": "Kodansha original Japanese tankobon single-volume arrangement",
+    "market_relation": "original",
+    "publication_language": "ja",
+    "publisher": "Kodansha",
+    "structural_format": "single-volume tankobon",
+    "evidence_status": "owner_approved_secondary_source_fixture",
+    "evidence_refs": ["wikipedia-volumes"],
+    "excluded_layouts": ["VIZBIG", "Definitive", "omnibus", "any otherwise incompatible edition"],
+    "english_print_equivalence": "not_independently_established_not_required_for_english_acquisition"
+  },
+  "coverage": {
+    "kind": "partial_explicit_subset",
+    "included_volumes": ["1", "2", "3", "37"],
+    "mapped_chapter_count": 38,
+    "uncollected_chapter_count": 5,
+    "included_logical_units": 43,
+    "intermediate_volume_assignments": "not_in_fixture_no_inference_permitted",
+    "whole_manga_verified": false,
+    "provider_identity_bindings": "not_yet_established"
+  },
+  "expected_volumes": [
+    {
+      "volume": "1",
+      "publication_volume_id": "isbn:9784063286199",
+      "original_release_date_as_reported": "1999-03-23",
+      "chapters": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+      "support": "explicit_secondary_listing",
+      "evidence_refs": ["wikipedia-volume-1", "comicvine-volume-1"],
+      "corroboration_limit": "Comic Vine corroborates chapter numbers for a VIZ single volume, not an independent original-edition contents inspection."
+    },
+    {
+      "volume": "2",
+      "publication_volume_id": "isbn:9784063286205",
+      "original_release_date_as_reported": "1999-03-23",
+      "chapters": ["11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"],
+      "support": "explicit_secondary_listing_single_accessible_source",
+      "evidence_refs": ["wikipedia-volume-2"]
+    },
+    {
+      "volume": "3",
+      "publication_volume_id": "isbn:9784063286441",
+      "original_release_date_as_reported": "1999-07-22",
+      "chapters": ["22", "23", "24", "25", "26", "27", "28", "29", "30", "31"],
+      "support": "explicit_secondary_listing_single_accessible_source",
+      "evidence_refs": ["wikipedia-volume-3"]
+    },
+    {
+      "volume": "37",
+      "publication_volume_id": "isbn:9784063883404",
+      "original_release_date_as_reported": "2014-07-23",
+      "chapters": ["316", "317", "318", "319", "320", "321", "322"],
+      "support": "explicit_secondary_listing_single_accessible_source",
+      "evidence_refs": ["wikipedia-volume-37"]
+    }
+  ],
+  "expected_uncollected": {
+    "chapters": ["323", "324", "325", "326", "327"],
+    "volume": null,
+    "support": "explicit_secondary_uncollected_section_as_inspected",
+    "evidence_refs": ["wikipedia-uncollected"],
+    "freshness_limit": "Source lists these as uncollected; no independent current publisher confirmation was obtained. Never append them to Volume 37."
+  },
+  "sources": [
+    {
+      "source_id": "wikipedia",
+      "url": "https://en.wikipedia.org/wiki/List_of_Vagabond_chapters",
+      "inspection_date": "2026-10-08",
+      "accessible": true,
+      "source_type": "secondary_community_reference",
+      "reported_page_revision": "1372231970",
+      "reported_last_edited_utc": "2026-08-30T23:27:00Z",
+      "permanent_url": "https://en.wikipedia.org/w/index.php?title=List_of_Vagabond_chapters&oldid=1372231970",
+      "permanent_url_retrieved": false,
+      "revision_note": "Revision and modification time were visible on the accessible article; the separate permanent URL failed to fetch.",
+      "evidence": [
+        {"id": "wikipedia-volumes", "locator": "Introduction and Volumes table; Original ISBN column", "claim": "Original tankobon volume records identified separately from English ISBNs; omnibus editions discussed separately."},
+        {"id": "wikipedia-volume-1", "locator": "Volumes table, row 1 and its enumerated chapter list", "claim": "Explicit members match expected_volumes volume 1."},
+        {"id": "wikipedia-volume-2", "locator": "Volumes table, row 2 and its enumerated chapter list", "claim": "Explicit members match expected_volumes volume 2."},
+        {"id": "wikipedia-volume-3", "locator": "Volumes table, row 3 and its enumerated chapter list", "claim": "Explicit members match expected_volumes volume 3."},
+        {"id": "wikipedia-volume-37", "locator": "Volumes table, row 37 and its enumerated chapter list", "claim": "Explicit members match expected_volumes volume 37."},
+        {"id": "wikipedia-uncollected", "locator": "Chapters not yet in volume format section", "claim": "Explicit members match expected_uncollected; no volume assigned."}
+      ]
+    },
+    {
+      "source_id": "fandom",
+      "url": "https://vagabond.fandom.com/wiki/Chapters_and_Volumes",
+      "inspection_date": "2026-10-08",
+      "accessible": false,
+      "source_type": "secondary_community_reference",
+      "failure": "Web fetch returned 402 Payment Required; no page contents inspected.",
+      "evidence": []
+    },
+    {
+      "source_id": "comicvine",
+      "url": "https://comicvine.gamespot.com/vagabond-1-vol-1/4000-260905/",
+      "inspection_date": "2026-10-08",
+      "accessible": true,
+      "source_type": "secondary_community_reference",
+      "reported_last_edit_display": "06/08/24 02:22PM; locale/timezone not established",
+      "evidence": [
+        {"id": "comicvine-volume-1", "locator": "Chapter Titles, ten explicit numbered entries; Issue details identifies VIZ / April 5, 2002", "claim": "Chapter numbers agree with the proposed Volume 1 members. This is the English VIZ single-volume entry."}
+      ]
+    }
+  ],
+  "limitations": [
+    "Owner approval covers the limited software test fixture, not independent publisher verification or a verified catalog publication.",
+    "Source inspection by Codex is not independent verification.",
+    "No publisher table of contents or physical volume was inspected.",
+    "Volumes 2, 3, 37 and the uncollected list have only one accessible membership source among the supplied candidates.",
+    "No source disagreement was observed in accessible overlapping chapter memberships; the inaccessible source cannot be counted as agreement.",
+    "No assignments for volumes 4 through 36 are supplied or inferred.",
+    "Runtime canonical identity and provider-specific acquisition bindings remain future bridge validation tasks.",
+    "This expected-answers fixture is not the future catalog JSON schema or an exported catalog artifact."
+  ]
+}

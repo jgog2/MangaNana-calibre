@@ -1,0 +1,9 @@
+{
+  "data": [
+    {"attributes": {"volume": "1", "fileName": "volume-1-old.jpg"}},
+    {"attributes": {"volume": "2.5", "fileName": "volume-2-5.png"}},
+    {"attributes": {"volume": null, "fileName": "no-volume.jpg"}},
+    {"attributes": {"volume": "1", "fileName": "volume-1-new.jpg"}},
+    {"attributes": {"volume": "3"}}
+  ]
+}

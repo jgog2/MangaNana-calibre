@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MangaAnka local catalog bridge v1",
+  "type": "object",
+  "required": ["catalog_schema_version", "catalog_revision", "generated_at", "producer", "record"],
+  "properties": {
+    "catalog_schema_version": {"const": 1},
+    "catalog_revision": {"$ref": "#/$defs/text"},
+    "generated_at": {"$ref": "#/$defs/text"},
+    "producer": {"$ref": "#/$defs/text"},
+    "record": {
+      "type": "object",
+      "required": ["work", "layout", "qualification", "qualification_rationale", "record_revision", "coverage", "limitations", "unresolved_publication_questions", "supplementary_identity_status", "unresolved_acquisitions", "volumes", "memberships", "uncollected", "acquisitions", "evidence", "evidence_refs"],
+      "properties": {
+        "work": {
+          "type": "object", "required": ["canonical_work_id", "title", "edition", "acquisition_language", "external_ids"],
+          "properties": {"canonical_work_id": {"$ref": "#/$defs/text"}, "title": {"$ref": "#/$defs/text"}, "edition": {"$ref": "#/$defs/text"}, "acquisition_language": {"$ref": "#/$defs/text"}, "external_ids": {"type": "object"}}
+        },
+        "layout": {
+          "type": "object", "required": ["layout_id", "label", "publisher", "market_relation", "publication_language", "format", "evidence_status", "evidence_refs"],
+          "properties": {"layout_id": {"$ref": "#/$defs/text"}, "label": {"$ref": "#/$defs/text"}, "publisher": {"$ref": "#/$defs/text"}, "market_relation": {"$ref": "#/$defs/text"}, "publication_language": {"$ref": "#/$defs/text"}, "format": {"$ref": "#/$defs/text"}, "evidence_status": {"$ref": "#/$defs/text"}, "evidence_refs": {"$ref": "#/$defs/refs"}}
+        },
+        "qualification": {"enum": ["provisional", "verified"]},
+        "qualification_rationale": {"$ref": "#/$defs/text"},
+        "record_revision": {"$ref": "#/$defs/text"},
+        "coverage": {"enum": ["partial", "complete"]},
+        "limitations": {"type": "array", "items": {"type": "string"}},
+        "unresolved_publication_questions": {"type": "array", "items": {"type": "string"}},
+        "supplementary_identity_status": {"enum": ["none_claimed", "resolved", "unresolved"]},
+        "unresolved_acquisitions": {"type": "array", "items": {"type": "object", "required": ["provider", "acquisition_id", "reason"], "properties": {"provider": {"$ref": "#/$defs/text"}, "acquisition_id": {"$ref": "#/$defs/text"}, "reason": {"$ref": "#/$defs/text"}}}},
+        "volumes": {"type": "array", "items": {"type": "object", "required": ["volume_id", "number", "publication_id", "evidence_refs"], "properties": {"volume_id": {"$ref": "#/$defs/text"}, "number": {"$ref": "#/$defs/integerId"}, "publication_id": {"$ref": "#/$defs/text"}, "evidence_refs": {"$ref": "#/$defs/refs"}}}},
+        "memberships": {"type": "array", "items": {"type": "object", "required": ["chapter_id", "kind", "volume_id", "evidence_refs"], "properties": {"chapter_id": {"$ref": "#/$defs/integerId"}, "kind": {"const": "main"}, "volume_id": {"$ref": "#/$defs/text"}, "evidence_refs": {"$ref": "#/$defs/refs"}}}},
+        "uncollected": {"type": "array", "items": {"type": "object", "required": ["chapter_id", "kind", "volume_id", "evidence_refs"], "properties": {"chapter_id": {"$ref": "#/$defs/integerId"}, "kind": {"const": "main"}, "volume_id": {"type": "null"}, "evidence_refs": {"$ref": "#/$defs/refs"}}}},
+        "acquisitions": {"type": "array", "items": {"type": "object", "required": ["provider", "acquisition_id", "provider_chapter", "chapter_id", "evidence_refs"], "properties": {"provider": {"$ref": "#/$defs/text"}, "acquisition_id": {"$ref": "#/$defs/text"}, "provider_chapter": {"$ref": "#/$defs/text"}, "chapter_id": {"$ref": "#/$defs/integerId"}, "evidence_refs": {"$ref": "#/$defs/refs"}}}},
+        "evidence": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["evidence_id", "source_url", "inspected_at", "locator", "evidence_type"], "properties": {"evidence_id": {"$ref": "#/$defs/text"}, "source_url": {"$ref": "#/$defs/text"}, "inspected_at": {"$ref": "#/$defs/text"}, "locator": {"$ref": "#/$defs/text"}, "evidence_type": {"$ref": "#/$defs/text"}}}},
+        "evidence_refs": {"$ref": "#/$defs/refs"},
+        "verification": {"type": ["object", "null"]}
+      },
+      "allOf": [{"if": {"properties": {"qualification": {"const": "verified"}}}, "then": {"required": ["verification"], "properties": {"verification": {"type": "object", "required": ["scope_approved", "publication_relationships_verified", "acquisition_relationships_verified", "canonical_work_id", "layout_id", "evidence_refs"], "properties": {"scope_approved": {"const": true}, "publication_relationships_verified": {"const": true}, "acquisition_relationships_verified": {"const": true}, "canonical_work_id": {"$ref": "#/$defs/text"}, "layout_id": {"$ref": "#/$defs/text"}, "evidence_refs": {"$ref": "#/$defs/refs"}}}}}}]
+    }
+  },
+  "$defs": {
+    "text": {"type": "string", "minLength": 1},
+    "integerId": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"},
+    "refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/text"}}
+  }
+}

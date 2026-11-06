@@ -1,0 +1,26 @@
+{
+  "unavailable_modules": {},
+  "unavailable_methods": {
+    "test_choose_manga_ui.test_oil_source_and_license_preserved": "Reads an absolute original development asset outside a clean checkout; packaged shader hashes are independently checked by verify_source_build.",
+    "test_inventory_coverage.test_old_cached_empty_conan_cannot_mask_new_parser_and_warm_reuses_rows": "Requires private captured Conan HTML response 013.html.",
+    "test_inventory_coverage.test_captured_conan_all_file_ids_are_recovered": "Requires private captured Conan HTML response 013.html.",
+    "test_output_identity_integrity.test_real_berserk_namespaces_and_prologues_never_share_keys": "Requires private native-on-repaired acquisition captures; synthetic identity controls still run.",
+    "test_publication_identity.test_captured_english_ids_exact_native_membership_fixture": "Requires private early-publication evidence and captured MangaDex inventory.",
+    "test_publication_identity.test_captured_wikipedia_early_unnumbered_evidence": "Requires a private trace/body bundle; synthetic namespace controls still run.",
+    "test_berserk_optimization.test_weebcentral_all_records_survive_and_ordinary_rows_unchanged": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_berserk_optimization.test_mangapill_all_urls_and_numbering_namespaces": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_berserk_optimization.test_index_matches_original_predicate_including_multikey_conflicts": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_berserk_optimization.test_actual_fresh_bounded_out_is_reused_stale_and_old_contract_are_not": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_madb_bridge_integration.test_captured_catalog_identity_is_bibliography_not_chapter_authority": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_madb_bridge_integration.test_all_three_captured_sources_madb_on_off_exact_conservation": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_madb_bridge_integration.test_disable_restore_fingerprints_and_exact_volume_five": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_madb_bridge_integration.test_reported_zero_requires_missing_independent_membership_not_catalog_count": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_madb_bridge_integration.test_work_edition_language_provider_and_changed_exact_id_fail_closed": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_madb_bridge_integration.test_other_manga_complete_partial_absent_and_conflicting_evidence": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_madb_bridge_integration.test_packaged_corruption_update_revocation_and_pending_never_partially_activate": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_madb_bridge_integration.test_external_override_precedence_bounded_validation_and_safe_logs": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_madb_bridge_integration.test_surviving_failing_manual_context_qualifies_without_catalog_precedence": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_madb_bridge_integration.test_explicit_work_id_does_not_override_trusted_creator_or_edition_conflict": "Private captured provider/reference evidence is absent; portable contracts in this module still execute.",
+    "test_madb_bridge_integration.test_reused_profile_query_keys_prove_additional_adult_preference_difference": "Private captured provider/reference evidence is absent; portable contracts in this module still execute."
+  }
+}

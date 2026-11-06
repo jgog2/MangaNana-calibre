@@ -1,0 +1,8 @@
+{
+  "baseUrl": "https://uploads.example.test",
+  "chapter": {
+    "hash": "fixture-hash",
+    "data": ["001.jpg", "002.png"],
+    "dataSaver": ["001-s.jpg", "002-s.png"]
+  }
+}

@@ -1,0 +1,409 @@
+{
+  "type": "object",
+  "properties": {
+    "contract": {
+      "const": "publication-identity-bridge-v1"
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^*]+$"
+    },
+    "producer": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^*]+$"
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "canonical_work": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^*]+$"
+        },
+        "edition": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^*]+$"
+        },
+        "layout": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^*]+$"
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^*]+$"
+        }
+      },
+      "required": [
+        "canonical_work",
+        "edition",
+        "layout",
+        "language"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "source_url": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "revision": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "locator": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "inspected_at": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "authority": {
+            "enum": [
+              "publisher",
+              "secondary_index",
+              "provider_metadata",
+              "reviewed_content"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "source_url",
+          "revision",
+          "locator",
+          "inspected_at",
+          "authority"
+        ]
+      }
+    },
+    "targets": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "identity": {
+            "type": "object",
+            "properties": {
+              "canonical_work": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^*]+$"
+              },
+              "edition": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^*]+$"
+              },
+              "layout": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^*]+$"
+              },
+              "serialization_namespace": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^*]+$"
+              },
+              "episode_token": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^*]+$"
+              }
+            },
+            "required": [
+              "canonical_work",
+              "edition",
+              "layout",
+              "serialization_namespace",
+              "episode_token"
+            ]
+          },
+          "volume": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d*)(\\.\\d+)?$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "pending",
+              "rejected",
+              "conflict"
+            ]
+          },
+          "revision": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[^*]+$"
+            }
+          },
+          "reviewer": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "reviewed_at": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "relationship_verified": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "reading_order": {
+            "type": "integer",
+            "minimum": -1000000,
+            "maximum": 1000000
+          }
+        },
+        "required": [
+          "id",
+          "identity",
+          "volume",
+          "status",
+          "revision",
+          "evidence_refs"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "approved"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "reviewer",
+                "reviewed_at",
+                "relationship_verified"
+              ],
+              "properties": {
+                "relationship_verified": {
+                  "const": true
+                }
+              }
+            },
+            "else": {
+              "required": [
+                "reason"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "bindings": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "acquisition": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^*]+$"
+              },
+              "source_work": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^*]+$"
+              },
+              "record_id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^*]+$"
+              },
+              "url": {
+                "type": "string",
+                "pattern": "^[^*]*$"
+              },
+              "raw_label": {
+                "type": "string",
+                "pattern": "^[^*]*$"
+              },
+              "numbering_namespace": {
+                "type": "string",
+                "pattern": "^[^*]*$"
+              },
+              "language": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^*]+$"
+              }
+            },
+            "required": [
+              "provider",
+              "source_work",
+              "record_id",
+              "url",
+              "raw_label",
+              "numbering_namespace",
+              "language"
+            ]
+          },
+          "target_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "content_relation": {
+            "enum": [
+              "one_to_one",
+              "unverified",
+              "split",
+              "merged"
+            ]
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "pending",
+              "rejected",
+              "conflict"
+            ]
+          },
+          "revision": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[^*]+$"
+            }
+          },
+          "reviewer": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "reviewed_at": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          },
+          "relationship_verified": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^*]+$"
+          }
+        },
+        "required": [
+          "acquisition",
+          "target_id",
+          "content_relation",
+          "status",
+          "revision",
+          "evidence_refs"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "approved"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "reviewer",
+                "reviewed_at",
+                "relationship_verified"
+              ],
+              "properties": {
+                "relationship_verified": {
+                  "const": true
+                }
+              }
+            },
+            "else": {
+              "required": [
+                "reason"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "approved"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "content_relation": {
+                  "const": "one_to_one"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "contract",
+    "revision",
+    "producer",
+    "scope",
+    "evidence",
+    "targets",
+    "bindings"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MangaAnka publication identity bridge v1 (independent sidecar)"
+}

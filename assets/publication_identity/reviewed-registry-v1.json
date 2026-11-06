@@ -1,0 +1,18 @@
+{
+  "contract": "packaged-publication-bridges-v1",
+  "revision": "2026-10-12-r1",
+  "artifacts": [
+    {
+      "path": "assets/publication_identity/berserk-reviewed-r1.json",
+      "sha256": "82e5b77e903532de609f3ae02156ae9b23c2867910ec5874a21c7938e9f653e5",
+      "revision": "berserk-reviewed-2026-10-12-r1",
+      "scope": {
+        "canonical_work": "anilist:30002|kitsu:8",
+        "edition": "original",
+        "layout": "japanese-tankobon",
+        "language": "en"
+      },
+      "status": "reviewed"
+    }
+  ]
+}

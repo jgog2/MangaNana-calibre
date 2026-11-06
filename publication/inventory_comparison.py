@@ -1,0 +1,181 @@
+"""Provider-neutral inventory inspection and conservative source ranking."""
+
+from dataclasses import dataclass
+
+from calibre_plugins.manganana.providers.source_adapter import acquire_volume_inventory
+from calibre_plugins.manganana.discovery.canonical_identity import edition_identity
+from calibre_plugins.manganana.publication.publication_specials import inventory_coverage
+
+
+@dataclass(frozen=True)
+class SourceInventory:
+    source_id: str
+    source_name: str
+    result: dict
+    language: str
+    edition: str
+    language_match: bool = False
+    native_volumes: int = 0
+    native_volume_metadata: int = 0
+    volume_ids: tuple = ()
+    chapters_by_volume: tuple = ()
+    standalone_chapters: int = 0
+    chapter_count: int = 0
+    usable: bool = False
+    complete: bool = False
+    error: str = ''
+    capabilities: tuple = ()
+    chapter_records: tuple = ()
+
+    @property
+    def summary(self):
+        if self.error and not self.usable:
+            return f'Unavailable ({self.error})'
+        parts = []
+        if self.native_volumes:
+            parts.append(f'{self.native_volumes} volume' + ('' if self.native_volumes == 1 else 's'))
+        if self.standalone_chapters:
+            parts.append(f'{self.standalone_chapters} standalone chapter' + ('' if self.standalone_chapters == 1 else 's'))
+        elif self.chapter_count and not all(r.get('_unit_kind') == 'volume' for r in self.chapter_records):
+            parts.append(f'{self.chapter_count} chapter' + ('' if self.chapter_count == 1 else 's'))
+        if not parts:
+            if self.native_volume_metadata:
+                parts.append(f'{self.native_volume_metadata} native volume metadata entr' + ('y' if self.native_volume_metadata == 1 else 'ies') + ', no usable chapters')
+            else:
+                parts.append('No usable chapters')
+        if self.error and self.usable:
+            parts.append('listing warning: ' + self.error)
+        return ', '.join(parts)
+
+
+@dataclass(frozen=True)
+class InventoryDecision:
+    inventories: tuple
+    selected: SourceInventory = None
+    ambiguous: bool = False
+    reason: str = ''
+    error: str = ''
+    fallback_plan: object = None
+    equivalent_inventories: tuple = ()
+
+
+def inspect_source_inventory(source, result, language, workflow=None):
+    """Inspect the authoritative adapter inventory for the selected workflow.
+
+    Chapter mode deliberately uses ``get_chapters`` directly, matching direct
+    URL loading. Volume mode also requests the native download plan before
+    confirming that its volumes contain readable chapter records.
+    """
+    value = result.get('url') or result.get('id')
+    edition = edition_identity(result)
+    try:
+        if workflow == 'chapter':
+            plan = {}
+            chapters = source.get_chapters(value, language)
+        else:
+            plan, chapters = acquire_volume_inventory(source, value, language)
+            plan = plan or {}
+        nominal_volumes = tuple(plan.get('volumes') or ())
+        # Aggregate/provider metadata is advisory. Only a readable chapter
+        # record proves a native volume can reach Review and Download.
+        chapters = tuple(chapters or ())
+        by_volume = {}
+        standalone = 0
+        for chapter in chapters:
+            volume = chapter.get('volume')
+            if volume is None:
+                standalone += 1
+            else:
+                try:
+                    volume = float(volume)
+                except (TypeError, ValueError):
+                    continue
+                by_volume[volume] = by_volume.get(volume, 0) + 1
+        volumes = tuple(sorted(by_volume))
+        chapter_count = len(chapters)
+        errors = [str(plan.get(key)) for key in ('aggregate_error', 'feed_error') if plan.get(key)]
+        error = '; '.join(errors)
+        usable = chapter_count > 0
+        return SourceInventory(
+            source_id=source.source_id, source_name=source.display_name,
+            result=dict(result), language=language, edition=edition,
+            language_match=usable, native_volumes=len(volumes), native_volume_metadata=len(nominal_volumes), volume_ids=volumes,
+            chapters_by_volume=tuple(sorted(by_volume.items(), key=lambda item: float(item[0]))),
+            standalone_chapters=standalone,
+            chapter_count=chapter_count, usable=usable,
+            complete=usable and not error, error=error,
+            capabilities=tuple(sorted(source.capabilities)),
+            chapter_records=chapters,
+        )
+    except Exception as exc:
+        return SourceInventory(
+            source_id=source.source_id, source_name=source.display_name,
+            result=dict(result), language=language, edition=edition,
+            error=str(exc), capabilities=tuple(sorted(source.capabilities)),
+        )
+
+
+def compare_inventories(inventories, expected_edition='original', workflow=None, special_records=()):
+    """Choose only when one provider is clearly superior; otherwise remain ambiguous."""
+    rows = tuple(inventories or ())
+    eligible = [row for row in rows if row.edition == expected_edition]
+    # Volume mode can now qualify chapter-native acquisition inventories.  They
+    # remain standalone until trusted publication evidence safely groups them.
+    usable = [row for row in eligible if row.usable]
+    if not usable:
+        details = '; '.join(f'{row.source_name}: {row.summary}' for row in rows)
+        return InventoryDecision(rows, error=details or 'No providers could be inspected.')
+    if workflow == 'volume':
+        native = [row for row in usable if row.native_volumes > 0]
+        # Preserve the established native-volume preference whenever one is
+        # actually available. Chapter-native providers qualify when native
+        # structure is absent and may later gain safe derived grouping.
+        if native:
+            usable = native
+    if len(usable) == 1:
+        winner = usable[0]
+        return InventoryDecision(rows, selected=winner,
+                                 reason=f'{winner.source_name} is the only source with usable {winner.language} inventory.')
+
+    complete = [row for row in usable if row.complete]
+    if len(complete) == 1:
+        winner = complete[0]
+        return InventoryDecision(rows, selected=winner,
+                                 reason=f'{winner.source_name} loaded its listing without errors; alternatives reported listing errors. Full-work coverage is unverified.')
+
+    pool = complete or usable
+    coverage = {id(row): inventory_coverage(row, special_records) for row in pool}
+    main = lambda row: coverage[id(row)]['main']
+    ordered = sorted(pool, key=lambda row: (-main(row), -coverage[id(row)]['specials'], -row.native_volumes, row.source_id))
+    first, second = ordered[0], ordered[1]
+    chapter_advantage = main(first) - main(second)
+    clearly_more_complete = chapter_advantage >= 5 and main(first) >= main(second) * 1.25
+    if clearly_more_complete:
+        return InventoryDecision(rows, selected=first,
+                                 reason=f'{first.source_name} returned more comparable {first.language} chapter entries. Full-work coverage is unverified.')
+
+    if workflow == 'volume':
+        volume_sources = [row for row in pool if row.native_volumes > 0]
+        if len(volume_sources) == 1:
+            winner = volume_sources[0]
+            # Prefer native structure only when it does not sacrifice substantial coverage.
+            if main(winner) >= main(first) * 0.9:
+                return InventoryDecision(rows, selected=winner,
+                                         reason=f'{winner.source_name} provides comparable coverage with native volumes.')
+
+    best_count = max(1, main(first))
+    # A real ambiguity is limited to providers with materially comparable
+    # usable coverage. This excludes token inventories such as 1 chapter next
+    # to near-complete catalogues without encoding any title-specific counts.
+    equivalent = tuple(
+        row for row in ordered
+        if main(row) >= max(1, int(best_count * 0.80))
+    )
+    if len(equivalent) < 2:
+        return InventoryDecision(rows, selected=first,
+                                 reason=f'{first.source_name} has materially better usable coverage.')
+    return InventoryDecision(
+        rows, ambiguous=True,
+        reason='Providers have similarly usable inventory.',
+        equivalent_inventories=equivalent,
+    )

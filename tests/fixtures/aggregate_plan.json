@@ -1,0 +1,24 @@
+{
+  "volumes": {
+    "10": {
+      "volume": "10",
+      "chapters": {"10": {"id": "aggregate-10", "chapter": "10"}}
+    },
+    "2.5": {
+      "volume": "2.5",
+      "chapters": {"2.5": {"chapter": "2.5", "count": 2}}
+    },
+    "3": {
+      "volume": "3",
+      "count": 1
+    },
+    "none": {
+      "volume": "none",
+      "chapters": {"extra": {"chapter": "extra", "count": 2}}
+    },
+    "unavailable": {
+      "volume": "4",
+      "chapters": {"4": {"id": "aggregate-4", "isUnavailable": true}}
+    }
+  }
+}

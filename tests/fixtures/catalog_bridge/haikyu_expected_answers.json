@@ -1,0 +1,38 @@
+{
+  "work": {
+    "title": "Haikyu!!"
+  },
+  "publication_layout": {
+    "proposed_layout_id": "shueisha-jp-haikyu-standard-singles"
+  },
+  "owner_approval": {
+    "approved": true,
+    "basis": "Phase 9D request approves limited reviewed one-to-one identity integration"
+  },
+  "independent_publication_verification": "not_independently_performed",
+  "expected_volumes": [
+    {
+      "volume": "5",
+      "publication_volume_id": "isbn:9784088706313",
+      "chapters": [
+        "41"
+      ]
+    }
+  ],
+  "expected_uncollected": {
+    "chapters": []
+  },
+  "acquisition": {
+    "provider": "mangak",
+    "provider_record_id": "D6jMm9xD",
+    "acquisition_id": "https://mangak.io/haikyu/chapter-2-1",
+    "provider_chapter": "2.1",
+    "canonical_chapter": "41",
+    "attached_material": "Kaname Moniwa profile; retained, no separate canonical identity asserted"
+  },
+  "scope": "One acquisition only, not a complete Volume 5; no other chapter memberships supplied",
+  "original_fragments": 40,
+  "reconstructed_page_units": 20,
+  "narrative_units": 19,
+  "attached_profile_units": 1
+}

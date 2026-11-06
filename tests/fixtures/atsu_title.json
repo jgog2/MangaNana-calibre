@@ -1,0 +1,72 @@
+{
+  "mangaPage": {
+    "id": "Xqitk",
+    "title": "One Piece (Color)",
+    "englishTitle": null,
+    "otherNames": [
+      "원피스",
+      "Budak Getah",
+      "Đảo Hải Tặc",
+      "ONE PIECE",
+      "One Piece. Батпан құйрық",
+      "One Piece. Большой куш",
+      "ONE PIECE～航海王～",
+      "Vua Hải Tặc",
+      "Wanpiisu",
+      "Бір бөлік",
+      "Большой куш",
+      "Ван-Пис",
+      "Ван Піс",
+      "Уан Пийс",
+      "Уан Пис",
+      "Ўан Піс",
+      "Վան Փիս",
+      "וואן פיס",
+      "قطعة واحدة",
+      "وان بيس",
+      "وان پیس",
+      "ون بيس",
+      "وەن پیس",
+      "ዋንፒስ",
+      "वन पीस",
+      "वान पिस",
+      "वान पीस",
+      "ওয়ান পিস",
+      "ஒன் பீஸ்",
+      "వన్ పీస్",
+      "วันพีซ",
+      "ဝမ်းပိစ်",
+      "ワンピース",
+      "海盗路飞",
+      "海賊王",
+      "海贼王",
+      "航海王"
+    ],
+    "authors": [
+      {
+        "id": "cmobw7ee904ir6nm1y3ffqq0x",
+        "name": "Eiichirou Oda",
+        "slug": "eiichirou-oda",
+        "type": "Author"
+      },
+      {
+        "id": "cmobw7eef04is6nm1msnizst4",
+        "name": "Eiichirou Oda",
+        "slug": "eiichirou-oda",
+        "type": "Artist"
+      }
+    ],
+    "poster": {
+      "id": "posters/SXfnXIG79jc1uhCY.jpg",
+      "image": "posters/SXfnXIG79jc1uhCY.jpg",
+      "smallImage": "posters/SXfnXIG79jc1uhCY-small.avif",
+      "mediumImage": "posters/SXfnXIG79jc1uhCY-medium.avif",
+      "largeImage": "posters/SXfnXIG79jc1uhCY-large.avif"
+    },
+    "synopsis": "As a child, Monkey D. Luffy was inspired to become a pirate by listening to the tales of the buccaneer “Red-Haired” Shanks. But his life changed when Luffy accidentally ate the Gum-Gum Devil Fruit and gained the power to stretch like rubber…at the cost of never being able to swim again! Years later, still vowing to become the king of the pirates, Luffy sets out on his adventure…one guy alone in a rowboat, in search of the legendary “One Piece,” said to be the greatest treasure in the world…\n\n*Source: VIZ Media, Vol. 1*",
+    "released": 852076800000,
+    "isAdult": false,
+    "type": "Manga",
+    "medium": "Comic"
+  }
+}
